@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      POSTGRES_DB: audit_v7
+    ports:
+      - "5432:5432"
+    volumes:
+      - audit_v7_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit -d audit_v7"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://audit:audit@db:5432/audit_v7
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      APP_ENV: development
+      APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-secret-please-change}
+      APP_DATA_DIR: /data
+      APP_V6_PATH: /v6
+      APP_CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - ./backend/app:/app/app
+      - audit_v7_data:/data
+      - ../audit-system-v4:/v6:ro
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  audit_v7_pg:
+  audit_v7_data:

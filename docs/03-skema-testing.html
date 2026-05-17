@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skema Testing — Audit AI v7</title>
+<style>
+  :root{
+    --primary:#0B3D91; --primary-dark:#072458; --accent:#F5A623;
+    --success:#2E7D32; --warning:#E65100; --danger:#C62828;
+    --bg:#F7F9FC; --surface:#FFFFFF; --text:#1A1A1A; --muted:#5B6B7F; --border:#D9E1EC;
+    --code-bg:#0F172A; --code-text:#E2E8F0;
+    --t1:#1565C0; --t2:#6A1B9A; --t3:#E65100; --t4:#2E7D32; --t5:#C62828;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.65}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  header{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;padding:42px 0 50px}
+  header .container{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  header .logo{width:64px;height:64px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--primary);flex-shrink:0}
+  header h1{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-0.4px}
+  header .subtitle{margin:0;font-size:14.5px;opacity:0.9;max-width:760px}
+  .badge{display:inline-block;padding:4px 12px;border-radius:12px;background:rgba(255,255,255,0.15);font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,0.25);margin-right:6px;margin-top:12px}
+  nav.toc{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+  nav.toc .container{display:flex;gap:6px;overflow-x:auto;padding:10px 24px;font-size:13px}
+  nav.toc a{color:var(--muted);text-decoration:none;white-space:nowrap;padding:6px 12px;border-radius:6px;transition:all 0.15s}
+  nav.toc a:hover{background:#EEF2F7;color:var(--primary)}
+  section{padding:40px 0;border-bottom:1px solid var(--border)}
+  section h2{font-size:22px;margin:0 0 8px;color:var(--primary-dark);font-weight:700;letter-spacing:-0.3px}
+  section .lead{color:var(--muted);font-size:15px;margin:0 0 24px;max-width:880px}
+  section h3{font-size:17px;margin:26px 0 10px;color:var(--primary-dark);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--surface);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--border);font-size:13.5px;vertical-align:top}
+  th{background:#EEF2F7;font-weight:600;color:var(--primary-dark);font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
+  tbody tr:hover{background:#FAFBFD}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap}
+  .tag-success{background:#E8F5E9;color:var(--success)}
+  .tag-warning{background:#FFF3E0;color:var(--warning)}
+  .tag-danger{background:#FFEBEE;color:var(--danger)}
+  .tag-info{background:#E3F2FD;color:#1565C0}
+  .tag-fast{background:#E8F5E9;color:var(--success)}
+  .tag-slow{background:#FFEBEE;color:var(--danger)}
+  pre{background:var(--code-bg);color:var(--code-text);padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.55;font-family:"SF Mono",Monaco,Consolas,monospace}
+  code{font-family:"SF Mono",Monaco,Consolas,monospace;font-size:0.9em;background:#EEF2F7;padding:2px 5px;border-radius:3px;color:var(--primary-dark)}
+  pre code{background:transparent;padding:0;color:inherit}
+  .pyramid{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin:14px 0;text-align:center}
+  .pyramid svg{display:inline-block;max-width:600px;width:100%;height:auto}
+  .test-tier{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;border-left:6px solid var(--t1)}
+  .test-tier.t2{border-left-color:var(--t2)}
+  .test-tier.t3{border-left-color:var(--t3)}
+  .test-tier.t4{border-left-color:var(--t4)}
+  .test-tier.t5{border-left-color:var(--t5)}
+  .test-tier h3{margin-top:0;display:flex;align-items:center;gap:10px;font-size:17px}
+  .test-tier .pill{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;letter-spacing:0.5px;background:#E3F2FD;color:var(--t1)}
+  .test-tier.t2 .pill{background:#F3E5F5;color:var(--t2)}
+  .test-tier.t3 .pill{background:#FFF3E0;color:var(--t3)}
+  .test-tier.t4 .pill{background:#E8F5E9;color:var(--t4)}
+  .test-tier.t5 .pill{background:#FFEBEE;color:var(--t5)}
+  .test-tier .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+  .test-tier .meta .item{background:#FAFBFD;padding:10px;border-radius:6px;font-size:12.5px}
+  .test-tier .meta .item strong{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px}
+  .checklist{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin:12px 0}
+  .checklist h4{margin:0 0 10px;color:var(--primary-dark);font-size:14px}
+  .checklist .item{display:grid;grid-template-columns:24px 1fr 80px;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px;align-items:center}
+  .checklist .item:last-child{border-bottom:none}
+  .checklist .check{width:18px;height:18px;border:2px solid var(--border);border-radius:4px;display:inline-block}
+  .checklist .expected{color:var(--muted);font-size:11.5px;text-align:right}
+  .callout{border-left:4px solid var(--accent);background:#FFFBF1;padding:13px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+  .callout.note{border-left-color:#1976D2;background:#F1F8FE}
+  .callout strong{color:var(--warning)}
+  .callout.note strong{color:#1565C0}
+  .scenario-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px}
+  .scenario-card h4{margin:0 0 8px;color:var(--primary-dark);font-size:14px;display:flex;align-items:center;gap:8px}
+  .scenario-card .scenario-id{background:#EEF2F7;color:var(--primary-dark);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:11px}
+  .scenario-card .steps{font-size:13px;margin-top:8px}
+  .scenario-card .steps ol{margin:0;padding-left:18px}
+  .scenario-card .expected{background:#E8F5E9;border-left:3px solid var(--success);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12.5px;margin-top:8px;color:#1B5E20}
+  .bug-template{background:var(--code-bg);color:var(--code-text);padding:18px;border-radius:8px;font-family:monospace;font-size:12.5px;line-height:1.7;white-space:pre-wrap}
+  footer{background:var(--primary-dark);color:#fff;padding:26px 0;text-align:center;font-size:13px}
+  @media (max-width:768px){header h1{font-size:20px}.test-tier .meta{grid-template-columns:1fr}nav.toc{display:none}}
+  @media print{nav.toc{display:none}header{background:var(--primary);-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid;padding:20px 0}.test-tier,.scenario-card,.checklist{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">v7</div>
+    <div>
+      <h1>Skema Testing — Audit AI v7 Prototype</h1>
+      <p class="subtitle">Strategi testing berlapis untuk mempercepat verifikasi skill &amp; workflow. Smoke test 5 menit, E2E 30 menit, regression harian, UAT mingguan. Lengkap dengan test data fixtures, scripts, dan template bug report.</p>
+      <div>
+        <span class="badge">5 tier testing</span>
+        <span class="badge">2 skill aktif</span>
+        <span class="badge">Smoke ≤ 5 menit</span>
+        <span class="badge">E2E ≤ 30 menit</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="container">
+    <a href="#strategi">Strategi</a>
+    <a href="#tier">5 Tier Testing</a>
+    <a href="#fixtures">Test Fixtures</a>
+    <a href="#smoke">Smoke Test</a>
+    <a href="#e2e">E2E Scenarios</a>
+    <a href="#checklist">Manual Checklist</a>
+    <a href="#bug">Bug Tracking</a>
+    <a href="#kpi">KPI Testing</a>
+  </div>
+</nav>
+
+<section id="strategi">
+  <div class="container">
+    <h2>1. Strategi Testing Berlapis</h2>
+    <p class="lead">Daripada tunggu test manual 1 jam tiap kali ada perubahan, kita pakai piramida testing: banyak smoke test cepat di bawah, sedikit UAT manual di atas. Setiap tier dijalankan otomatis di waktu tertentu — bug ditangkap secepat mungkin.</p>
+
+    <div class="pyramid">
+      <svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+        <!-- Tier 5: UAT (top, smallest) -->
+        <polygon points="240,20 360,20 340,80 260,80" fill="#FFEBEE" stroke="#C62828" stroke-width="2"/>
+        <text x="300" y="48" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#C62828">UAT</text>
+        <text x="300" y="65" text-anchor="middle" font-family="Arial" font-size="11" fill="#C62828">1x / minggu, 1 jam, 3 auditor</text>
+
+        <!-- Tier 4: E2E -->
+        <polygon points="200,80 400,80 380,150 220,150" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2"/>
+        <text x="300" y="113" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#2E7D32">E2E Workflow Test</text>
+        <text x="300" y="132" text-anchor="middle" font-family="Arial" font-size="11" fill="#2E7D32">1x / hari, 30 menit, manual</text>
+
+        <!-- Tier 3: Integration -->
+        <polygon points="160,150 440,150 420,230 180,230" fill="#FFF3E0" stroke="#E65100" stroke-width="2"/>
+        <text x="300" y="185" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#E65100">Integration Test</text>
+        <text x="300" y="204" text-anchor="middle" font-family="Arial" font-size="11" fill="#E65100">Tiap PR, 10 menit, semi-otomatis</text>
+
+        <!-- Tier 2: Smoke -->
+        <polygon points="120,230 480,230 460,310 140,310" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="2"/>
+        <text x="300" y="265" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#6A1B9A">Smoke Test</text>
+        <text x="300" y="284" text-anchor="middle" font-family="Arial" font-size="11" fill="#6A1B9A">Setelah setiap deploy, ≤ 5 menit, otomatis</text>
+
+        <!-- Tier 1: Unit/script-level -->
+        <polygon points="80,310 520,310 500,380 100,380" fill="#E3F2FD" stroke="#1565C0" stroke-width="2"/>
+        <text x="300" y="345" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#1565C0">Unit Test V6 Scripts</text>
+        <text x="300" y="364" text-anchor="middle" font-family="Arial" font-size="11" fill="#1565C0">Tiap commit, &lt; 30 detik, otomatis</text>
+      </svg>
+    </div>
+
+    <h3>Filosofi prototype</h3>
+    <ul>
+      <li><strong>Kecepatan &gt; kelengkapan</strong> di awal. Smoke test 5 menit > unit test 100% coverage.</li>
+      <li><strong>Test data nyata</strong>. Pakai paket DC-DRC PSrE &amp; Dit Pengendalian 2027 yang sudah ada di V6 — bukan sample sintetis.</li>
+      <li><strong>Manual checklist</strong> berlaku selama dev. Otomasi datang setelah workflow stabil di minggu ke-3.</li>
+      <li><strong>Setiap bug ditrack</strong> — sekecil apapun. Mencegah regression.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="tier">
+  <div class="container">
+    <h2>2. Lima Tier Testing</h2>
+
+    <div class="test-tier">
+      <h3>Tier 1 — Unit Test V6 Scripts <span class="pill">&lt; 30 detik</span></h3>
+      <p>Validasi bahwa script V6 (<code>digest_tor.py</code>, <code>digest_pengadaan.py</code>, <code>cross_check.py</code>, <code>qc_saipi.py</code>) jalan tanpa error untuk sample dokumen tetap. Cepat, idempoten.</p>
+      <div class="meta">
+        <div class="item"><strong>Frekuensi</strong>Tiap commit ke main</div>
+        <div class="item"><strong>Eksekusi</strong>GitHub Actions / manual: <code>bash scripts/test-v6-scripts.sh</code></div>
+        <div class="item"><strong>Output</strong>Pass/fail per script, exit code 0/1</div>
+      </div>
+    </div>
+
+    <div class="test-tier t2">
+      <h3>Tier 2 — Smoke Test <span class="pill">≤ 5 menit</span></h3>
+      <p>Setelah setiap deploy ke Fly/Vercel, cek bahwa endpoint penting masih hidup. Login, buat penugasan, upload dokumen, trigger ingestion — semua return 200.</p>
+      <div class="meta">
+        <div class="item"><strong>Frekuensi</strong>Otomatis setiap <code>fly deploy</code></div>
+        <div class="item"><strong>Eksekusi</strong>Script bash <code>scripts/smoke-test.sh</code> pakai curl + jq</div>
+        <div class="item"><strong>Output</strong>Status setiap endpoint, total durasi</div>
+      </div>
+    </div>
+
+    <div class="test-tier t3">
+      <h3>Tier 3 — Integration Test <span class="pill">~10 menit</span></h3>
+      <p>Test komponen yang saling terkait: ingestion → digest → agent → output. Tanpa LLM real (mock Anthropic response untuk hemat token), tapi DB &amp; subprocess V6 sungguhan.</p>
+      <div class="meta">
+        <div class="item"><strong>Frekuensi</strong>Tiap PR yang touch backend/tools/</div>
+        <div class="item"><strong>Eksekusi</strong>pytest <code>backend/tests/integration/</code></div>
+        <div class="item"><strong>Output</strong>JUnit report per test class</div>
+      </div>
+    </div>
+
+    <div class="test-tier t4">
+      <h3>Tier 4 — E2E Workflow Test <span class="pill">~30 menit</span></h3>
+      <p>Skenario lengkap dari sudut auditor: login → buat → upload → analisis (real LLM call) → KKP → setujui → LHR → download. Manual oleh Lead atau Dev.</p>
+      <div class="meta">
+        <div class="item"><strong>Frekuensi</strong>1x sehari pagi (atau setelah PR yang touch agent)</div>
+        <div class="item"><strong>Eksekusi</strong>Manual ikuti checklist E2E (lihat §5)</div>
+        <div class="item"><strong>Output</strong>Pass/fail per workflow + screenshot</div>
+      </div>
+    </div>
+
+    <div class="test-tier t5">
+      <h3>Tier 5 — User Acceptance Test (UAT) <span class="pill">1 jam, 1x/minggu</span></h3>
+      <p>Auditor riil (3 orang IR-2) menjalankan penugasan aktual mereka di v7, dengan supervisi minimal. Feedback dikumpulkan dalam form terstruktur.</p>
+      <div class="meta">
+        <div class="item"><strong>Frekuensi</strong>1x minggu (mulai M-3)</div>
+        <div class="item"><strong>Eksekusi</strong>Sesi terjadwal + form feedback</div>
+        <div class="item"><strong>Output</strong>Skor SUS (System Usability Scale) + feedback kualitatif</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="fixtures">
+  <div class="container">
+    <h2>3. Test Data Fixtures</h2>
+    <p class="lead">Set dokumen tetap yang dipakai berulang untuk testing — output diharapkan diketahui jadi mudah validasi.</p>
+
+    <h3>Fixture 1 — Reviu Pengadaan: DC-DRC PSrE 2026</h3>
+    <table>
+      <thead><tr><th>File</th><th>Jenis</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>[Signed ALL]KAK Pengadaan Pusat Data...PSrE Induk Tahun 2026 signed (1).pdf</td><td>KAK</td><td><code>audit-system-v4/test/uji coba skill reviu pengadaan/00-input/</code></td></tr>
+        <tr><td>HPS Pengadaan...PSrE Induk Tahun 2026_Signed.pdf</td><td>HPS</td><td>idem</td></tr>
+        <tr><td>RFI DC DRC PSRE INDUK- TELKOM SIGMA.pdf</td><td>RFI</td><td>idem</td></tr>
+        <tr><td>RFI DC DRC PSRE INDUK-CNI.pdf</td><td>RFI</td><td>idem</td></tr>
+        <tr><td>Tabel Identifikasi Pengadaan DC DRC 2026.pdf</td><td>OTHER (pendukung)</td><td>idem</td></tr>
+        <tr><td>Tabel Penyusun detail HPS DCDRC PSRE INDUK 2026.pdf</td><td>OTHER (pendukung)</td><td>idem</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Expected output (untuk validasi)</h3>
+    <table>
+      <thead><tr><th>Tahap</th><th>Output</th><th>Expected</th></tr></thead>
+      <tbody>
+        <tr><td>Ingestion</td><td><code>_INGESTED/pengadaan-digest.json</code></td><td>Berisi 1 KAK, 1 HPS, 2 RFI. Nilai HPS ~ Rp 5,5 miliar. SLA 99.9%.</td></tr>
+        <tr><td>Pipeline V6 (run_batch_pbj)</td><td><code>_KKP/anomalies.json</code></td><td>3–7 anomali (RP.1–RP.7) ter-detect</td></tr>
+        <tr><td>Agent AT analisis</td><td><code>_KKP/temuan.json</code></td><td>Minimal 1 temuan substantif tentang multi-source HPS (Pasal 26)</td></tr>
+        <tr><td>QC SAIPI KKP</td><td><code>_QA-SAIPI/checklist-kkp.json</code></td><td>Status PASS atau PASS_WITH_WARNINGS</td></tr>
+        <tr><td>Agent KT</td><td><code>_LHP/LHR-DRAFT-*.docx</code></td><td>~5 halaman, ada Simpulan dengan frase "tidak terdapat hal-hal yang membuat kami yakin..."</td></tr>
+        <tr><td>QC SAIPI LHP</td><td><code>_QA-SAIPI/checklist-lhp.json</code></td><td>Status PASS — heading wajib ada, kalimat SAIPI 2430 ada</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Fixture 2 — Reviu RKA-K/L: Dit Pengendalian 2027</h3>
+    <table>
+      <thead><tr><th>File</th><th>Jenis</th><th>Catatan</th></tr></thead>
+      <tbody>
+        <tr><td>TOR 2027_QAH.001_Penanganan dan Penanggulangan Konten Ilegal.docx.pdf</td><td>TOR</td><td>1 paket RO</td></tr>
+        <tr><td>RAB 2027_QAH 001_30122025.xlsx</td><td>RAB</td><td>—</td></tr>
+        <tr><td>TOR 2027_RAN.001_Pengembangan Sistem...docx.pdf</td><td>TOR</td><td>1 paket RO lain</td></tr>
+        <tr><td>RAB 2027_RAN 001_30122025.xlsx</td><td>RAB</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Expected output</h3>
+    <table>
+      <thead><tr><th>Tahap</th><th>Output</th><th>Expected</th></tr></thead>
+      <tbody>
+        <tr><td>Ingestion</td><td><code>tor-01.json</code>, <code>rab-01.json</code>, dst.</td><td>2 TOR + 2 RAB ter-parse</td></tr>
+        <tr><td>Pipeline V6 (run_batch_rka)</td><td><code>anomalies-master.json</code></td><td>Beberapa anomali dari 39 rules</td></tr>
+        <tr><td>Agent AT</td><td><code>temuan.json</code></td><td>Min. 1 temuan substantif (mis. kewajaran SBM)</td></tr>
+        <tr><td>Output LHR</td><td><code>LHR-DRAFT.docx</code></td><td>Multi-RO LHR, ≥ 8 halaman</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Fixture 3 — Edge cases (untuk minggu 3 robustness test)</h3>
+    <ul>
+      <li><strong>Empty folder:</strong> buat penugasan tapi tidak upload apa-apa. Expected: agent menolak dengan pesan jelas.</li>
+      <li><strong>Wrong jenis dokumen:</strong> upload PDF acak yang bukan KAK/HPS. Expected: classify ke OTHER, agent skip atau warning.</li>
+      <li><strong>PDF rusak/corrupted:</strong> upload PDF yang gagal di-parse. Expected: status FAILED dengan error message.</li>
+      <li><strong>File besar (&gt; 30 MB):</strong> upload PDF besar. Expected: tidak crash, mungkin lebih lama.</li>
+      <li><strong>Banyak file (10+ TOR):</strong> upload banyak file. Expected: ingestion sequential, semua selesai dalam &lt; 5 menit.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="smoke">
+  <div class="container">
+    <h2>4. Smoke Test Script</h2>
+    <p class="lead">Script bash sederhana yang dijalankan setelah setiap deploy. Bila ada yang fail, deploy dianggap broken — rollback.</p>
+
+    <h3>File: <code>scripts/smoke-test.sh</code></h3>
+    <pre><code>#!/usr/bin/env bash
+# Smoke test untuk Audit AI v7
+# Run: bash scripts/smoke-test.sh https://audit-ai-v7.fly.dev
+
+set -e
+
+API="${1:-https://audit-ai-v7.fly.dev}"
+START=$(date +%s)
+echo "=== Smoke test: $API ==="
+
+# 1. Health endpoint
+echo -n "[1/8] /health ... "
+curl -sf "$API/health" | grep -q "ok" && echo "OK" || { echo "FAIL"; exit 1; }
+
+# 2. Root endpoint
+echo -n "[2/8] / ... "
+curl -sf "$API/" | grep -q "Audit AI v7" && echo "OK" || { echo "FAIL"; exit 1; }
+
+# 3. Swagger docs
+echo -n "[3/8] /docs ... "
+curl -sf -o /dev/null -w "%{http_code}" "$API/docs" | grep -q "200" && echo "OK" || { echo "FAIL"; exit 1; }
+
+# 4. Login dummy
+echo -n "[4/8] /auth/login ... "
+TOKEN=$(curl -sf -X POST "$API/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"auditor.at@komdigi.go.id","nip":"198501012010011001"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+[ -n "$TOKEN" ] && echo "OK (token len=${#TOKEN})" || { echo "FAIL"; exit 1; }
+
+# 5. List penugasan
+echo -n "[5/8] GET /penugasan ... "
+curl -sf -H "Authorization: Bearer $TOKEN" "$API/penugasan" \
+  | python3 -c "import sys,json; print('count='+str(len(json.load(sys.stdin))))" \
+  && echo "OK" || { echo "FAIL"; exit 1; }
+
+# 6. Create penugasan
+echo -n "[6/8] POST /penugasan ... "
+PEN_ID=$(curl -sf -X POST "$API/penugasan" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"obyek":"SMOKE TEST","skill":"reviu-pengadaan"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+[ -n "$PEN_ID" ] && echo "OK (id=$PEN_ID)" || { echo "FAIL"; exit 1; }
+
+# 7. List dokumen
+echo -n "[7/8] GET /dokumen ... "
+curl -sf -H "Authorization: Bearer $TOKEN" "$API/dokumen?penugasan_id=$PEN_ID" \
+  > /dev/null && echo "OK" || { echo "FAIL"; exit 1; }
+
+# 8. Check agen stream endpoint registered
+echo -n "[8/8] /agen/anggota_tim/run ... "
+RES=$(curl -sf -o /dev/null -w "%{http_code}" -X POST "$API/agen/anggota_tim/run" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"penugasan_id\":$PEN_ID,\"prompt\":\"smoke\"}")
+[ "$RES" = "403" ] || [ "$RES" = "200" ] && echo "OK (responds, status=$RES)" || { echo "FAIL"; exit 1; }
+
+END=$(date +%s)
+echo "=== SMOKE PASS in $((END-START)) detik ==="</code></pre>
+
+    <h3>Cara pakai</h3>
+    <pre><code># Setelah fly deploy:
+fly deploy --app audit-ai-v7
+bash scripts/smoke-test.sh https://audit-ai-v7.fly.dev
+
+# Setelah vercel deploy:
+vercel --prod
+bash scripts/smoke-test.sh https://audit-ai-v7.vercel.app  # via backend yang sama</code></pre>
+
+    <div class="callout note">
+      <strong>Otomasi:</strong> Setelah skript stable, tambahkan ke CI/CD (GitHub Actions) supaya jalan otomatis setiap deploy. Untuk prototype, jalankan manual cukup.
+    </div>
+  </div>
+</section>
+
+<section id="e2e">
+  <div class="container">
+    <h2>5. Skenario E2E Workflow</h2>
+    <p class="lead">3 skenario test manual yang harus PASS sebelum pilot dimulai. Setiap skenario punya skrip langkah + expected result.</p>
+
+    <div class="scenario-card">
+      <h4><span class="scenario-id">E2E-01</span> Reviu Pengadaan happy path</h4>
+      <div class="steps">
+        <ol>
+          <li>Login sebagai <code>auditor.at@komdigi.go.id</code> (AT).</li>
+          <li>Buat penugasan baru: obyek "E2E-01 DC-DRC PSrE", skill "Reviu Pengadaan".</li>
+          <li>Upload 4 file dari Fixture 1: KAK, HPS, RFI Telkom, RFI CNI.</li>
+          <li>Klik "Mulai Ingestion". Tunggu sampai status semua dokumen "Siap" (~30 detik).</li>
+          <li>Pindah ke tab "Chat AT". Klik "Jalankan". Tunggu agent selesai (~60 detik).</li>
+          <li>Verifikasi output muncul: ada temuan ber-substansi tentang multi-source HPS / konsistensi KAK-HPS.</li>
+          <li>Cek tab "Output &amp; QC": ada <code>temuan.json</code>, <code>KKP-Sarah-Aulia.docx</code>, <code>laporan-qa-kkp.md</code>. Status QC: PASS.</li>
+          <li>Klik "Setujui KKP". Status sasaran berubah ke SELESAI_KKP.</li>
+          <li>Logout. Login ulang sebagai <code>auditor.kt@komdigi.go.id</code> (KT).</li>
+          <li>Buka penugasan yang sama. Tab "Chat KT" aktif.</li>
+          <li>Isi form: judul "LHR Pengadaan DC-DRC PSrE", auditi "Dit. PSTE", dst.</li>
+          <li>Klik "Jalankan". Tunggu (~60 detik).</li>
+          <li>Cek tab Output: <code>LHR-DRAFT.docx</code> tersedia. Download.</li>
+          <li>Buka di Word: cek bahasa keyakinan terbatas, heading wajib, placeholder <code>[DIISI AUDITOR]</code> di nomor &amp; tanggal.</li>
+        </ol>
+      </div>
+      <div class="expected">
+        <strong>Expected:</strong> Total durasi &lt; 7 menit. Tidak ada error muncul. LHR draft siap di-finalisasi auditor.
+      </div>
+    </div>
+
+    <div class="scenario-card">
+      <h4><span class="scenario-id">E2E-02</span> Reviu RKA-K/L happy path</h4>
+      <div class="steps">
+        <ol>
+          <li>Login AT, buat penugasan "E2E-02 RKA Dit Pengendalian", skill "Reviu RKA-K/L".</li>
+          <li>Upload Fixture 2: 2 TOR + 2 RAB.</li>
+          <li>Klik Mulai Ingestion. Tunggu sampai 4 dokumen "Siap".</li>
+          <li>Chat AT → Jalankan. Tunggu.</li>
+          <li>Verifikasi temuan substantif: kewajaran SBM, kelengkapan 7 blok TOR, cascading.</li>
+          <li>QC PASS. Setujui KKP.</li>
+          <li>Login KT. Susun LHR multi-RO.</li>
+          <li>Download LHR. Verifikasi ada section per RO.</li>
+        </ol>
+      </div>
+      <div class="expected">
+        <strong>Expected:</strong> Pipeline 39 rules jalan, ada anomali ter-detect, LHR berisi rekomendasi spesifik per RO.
+      </div>
+    </div>
+
+    <div class="scenario-card">
+      <h4><span class="scenario-id">E2E-03</span> Multi-user concurrent</h4>
+      <div class="steps">
+        <ol>
+          <li>3 browser tab terbuka: AT1 (auditor.at), AT2 (akun baru — perlu seed user kedua), KT.</li>
+          <li>AT1 login, buat penugasan. AT2 login.</li>
+          <li>AT1 upload KAK + HPS. AT2 upload RFI 1. Bersamaan.</li>
+          <li>AT1 trigger ingestion → tunggu selesai.</li>
+          <li>AT1 jalankan agent → KKP terbuat.</li>
+          <li>AT2 jalankan agent (untuk sasaran berbeda) sekaligus.</li>
+          <li>Cek <code>_KKP/temuan.json</code> via tab Output: berisi temuan dari kedua AT, ID berurutan tanpa duplikasi.</li>
+          <li>KT login → setujui LHR.</li>
+        </ol>
+      </div>
+      <div class="expected">
+        <strong>Expected:</strong> Tidak ada race condition; <code>temuan.json</code> berisi semua temuan dari 2 AT; audit trail mencatat siapa kerjakan apa.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="checklist">
+  <div class="container">
+    <h2>6. Manual Test Checklist</h2>
+    <p class="lead">Checklist visual untuk dipakai manual saat regression test. Print atau buka di tablet.</p>
+
+    <div class="checklist">
+      <h4>Smoke check (jalankan setiap pagi sebelum mulai kerja, 5 menit)</h4>
+      <div class="item"><span class="check"></span><span>Buka https://audit-ai-v7.vercel.app — landing page muncul</span><span class="expected">&lt; 2s</span></div>
+      <div class="item"><span class="check"></span><span>Login dengan akun AT — masuk ke dashboard</span><span class="expected">&lt; 3s</span></div>
+      <div class="item"><span class="check"></span><span>Dashboard menampilkan daftar penugasan (atau "Belum ada penugasan")</span><span class="expected">tidak error</span></div>
+      <div class="item"><span class="check"></span><span>Buka penugasan existing — tab Dokumen menampilkan file</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>Buka /docs di backend — list endpoint lengkap</span><span class="expected">8 endpoints</span></div>
+      <div class="item"><span class="check"></span><span>fly status — machine running, health passing</span><span class="expected">—</span></div>
+    </div>
+
+    <div class="checklist">
+      <h4>Pre-pilot check (jalankan H-1 sebelum auditor mulai pakai, 15 menit)</h4>
+      <div class="item"><span class="check"></span><span>E2E-01 Reviu Pengadaan happy path lulus</span><span class="expected">7 menit</span></div>
+      <div class="item"><span class="check"></span><span>E2E-02 Reviu RKA-K/L happy path lulus</span><span class="expected">7 menit</span></div>
+      <div class="item"><span class="check"></span><span>Multi-user (E2E-03) lulus</span><span class="expected">10 menit</span></div>
+      <div class="item"><span class="check"></span><span>Backup database fresh (kurang dari 24 jam)</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>Budget alert Anthropic API aktif</span><span class="expected">$5/hari</span></div>
+      <div class="item"><span class="check"></span><span>3 user pilot kredensial siap (email + NIP)</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>User manual tersedia (PDF link)</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>Channel komunikasi (WA grup) untuk feedback aktif</span><span class="expected">—</span></div>
+    </div>
+
+    <div class="checklist">
+      <h4>Per-skill validation (jalankan setiap kali ubah prompt agen, 10 menit)</h4>
+      <div class="item"><span class="check"></span><span>Reviu Pengadaan: temuan substantif "multi-source HPS" terdeteksi</span><span class="expected">temuan T-XXX ada</span></div>
+      <div class="item"><span class="check"></span><span>Reviu Pengadaan: false positive RP.2 (parser glitch nomor pasal) terfilter</span><span class="expected">tidak masuk temuan.json</span></div>
+      <div class="item"><span class="check"></span><span>Reviu RKA-K/L: temuan "kewajaran SBM" muncul bila harga &gt; batas</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>Reviu RKA-K/L: kelengkapan 7 blok TOR di-check</span><span class="expected">—</span></div>
+      <div class="item"><span class="check"></span><span>QC SAIPI: bila temuan tanpa dokumen_sumber → flag KRITIS</span><span class="expected">2310 fail</span></div>
+      <div class="item"><span class="check"></span><span>QC SAIPI LHP: bila kalimat 2430 hilang → flag KRITIS</span><span class="expected">—</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="bug">
+  <div class="container">
+    <h2>7. Bug Tracking</h2>
+    <p class="lead">Template + workflow agar setiap bug ditrack konsisten dan tidak lost.</p>
+
+    <h3>Template laporan bug (GitHub Issue atau Notion)</h3>
+    <pre class="bug-template">## [BUG] Judul singkat (max 8 kata)
+
+**Severity:** P0 / P1 / P2 / P3
+**Ditemukan oleh:** Nama
+**Tanggal:** YYYY-MM-DD
+**Environment:** production / dev / local
+**URL/Endpoint terkait:** ...
+
+### Langkah reproduksi
+1. ...
+2. ...
+3. ...
+
+### Expected
+Apa yang seharusnya terjadi.
+
+### Actual
+Apa yang sebenarnya terjadi.
+
+### Screenshot / Log
+(Tempel screenshot UI dan/atau output fly logs di sini.)
+
+### Konteks tambahan
+- Browser: ...
+- Akun login: AT / KT / PM
+- Skill yang sedang diuji: reviu-pengadaan / reviu-rka-kl
+- Penugasan ID: ...</pre>
+
+    <h3>Klasifikasi severity</h3>
+    <table>
+      <thead><tr><th>Severity</th><th>Definisi</th><th>SLA fix</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag tag-danger">P0 Blocker</span></td><td>Workflow E2E tidak bisa diselesaikan sama sekali. Sistem crash. Data hilang.</td><td>&lt; 2 jam</td></tr>
+        <tr><td><span class="tag tag-warning">P1 Critical</span></td><td>Workflow bisa diselesaikan dengan workaround tapi tidak ergonomis. Output salah substantif.</td><td>&lt; 1 hari</td></tr>
+        <tr><td><span class="tag tag-info">P2 Major</span></td><td>Fitur tertentu broken tapi tidak block workflow utama. UI minor issue.</td><td>&lt; 3 hari</td></tr>
+        <tr><td><span class="tag tag-neutral">P3 Minor</span></td><td>Cosmetic, typo, polish, nice-to-have.</td><td>Backlog</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Workflow bug</h3>
+    <ol>
+      <li><strong>Reported</strong> — issue dibuat dengan template di atas.</li>
+      <li><strong>Triaged</strong> — Lead set severity + assign owner (Dev 1/2) dalam 4 jam.</li>
+      <li><strong>In progress</strong> — owner mulai fix, assign label "in-progress".</li>
+      <li><strong>Fixed</strong> — owner buat PR/commit, label "ready-for-test".</li>
+      <li><strong>Verified</strong> — Lead atau peer test ulang, kalau OK close issue.</li>
+      <li><strong>Regression</strong> — tambahkan ke E2E checklist supaya tidak terulang.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Aturan emas:</strong> Setiap bug yang muncul saat pilot, segera buat issue + screenshot — jangan andalkan ingatan. Tim dev tidak bisa fix bug yang tidak terdokumentasi.
+    </div>
+  </div>
+</section>
+
+<section id="kpi">
+  <div class="container">
+    <h2>8. KPI Testing</h2>
+    <p class="lead">Metrik mingguan untuk melihat health prototype. Setiap Jumat update di sync mingguan.</p>
+
+    <table>
+      <thead><tr><th>KPI</th><th>Target</th><th>Cara ukur</th></tr></thead>
+      <tbody>
+        <tr><td>Smoke test pass rate (post-deploy)</td><td>100%</td><td>Total run / total fail (script smoke-test.sh)</td></tr>
+        <tr><td>E2E pass rate (daily)</td><td>≥ 90%</td><td>Total skenario E2E lulus / total run</td></tr>
+        <tr><td>Mean time to fix P0 bug</td><td>&lt; 2 jam</td><td>Avg dari issue closed dengan label P0</td></tr>
+        <tr><td>Mean time to fix P1 bug</td><td>&lt; 1 hari</td><td>Avg dari issue closed dengan label P1</td></tr>
+        <tr><td>Bug regression rate</td><td>&lt; 10%</td><td>Bug yang muncul lagi setelah dianggap fixed / total fixed</td></tr>
+        <tr><td>Total durasi E2E Reviu Pengadaan</td><td>&lt; 7 menit (dari upload sampai LHR)</td><td>Manual stopwatch saat E2E test</td></tr>
+        <tr><td>Token cost per penugasan (rata-rata)</td><td>&lt; USD 0.50</td><td>Anthropic Console daily / jumlah agent_runs</td></tr>
+        <tr><td>QC SAIPI false positive rate</td><td>&lt; 20%</td><td>KRITIS yang ternyata tidak valid setelah review manual</td></tr>
+        <tr><td>UAT score (SUS)</td><td>≥ 70 (dari 100)</td><td>Form auditor pilot pakai SUS standard</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout note">
+      <strong>Tracking sederhana:</strong> Buat spreadsheet di Google Sheets dengan 9 KPI ini, update setiap Jumat. Tidak perlu tools rumit di prototype — yang penting trend terlihat.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p><strong>Skema Testing — Audit AI v7 Prototype</strong> · Inspektorat II Kementerian Komunikasi dan Digital</p>
+    <p style="opacity:0.85;margin-top:6px">5 tier · 2 fixtures · 3 skenario E2E · 9 KPI mingguan</p>
+  </div>
+</footer>
+
+</body>
+</html>

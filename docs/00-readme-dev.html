@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>README Dev — Audit AI v7 (Windows + macOS)</title>
+<style>
+  :root{
+    --primary:#0B3D91; --primary-dark:#072458; --accent:#F5A623;
+    --success:#2E7D32; --warning:#E65100; --danger:#C62828;
+    --bg:#F7F9FC; --surface:#FFFFFF; --text:#1A1A1A; --muted:#5B6B7F; --border:#D9E1EC;
+    --code-bg:#0F172A; --code-text:#E2E8F0;
+    --win:#0078D4; --mac:#1D1D1F;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.65}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  header{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;padding:42px 0 50px}
+  header .container{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  header .logo{width:64px;height:64px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--primary);flex-shrink:0}
+  header h1{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-0.4px}
+  header .subtitle{margin:0;font-size:14.5px;opacity:0.9;max-width:760px}
+  .badge{display:inline-block;padding:4px 12px;border-radius:12px;background:rgba(255,255,255,0.15);font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,0.25);margin-right:6px;margin-top:12px}
+  nav.toc{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+  nav.toc .container{display:flex;gap:6px;overflow-x:auto;padding:10px 24px;font-size:13px}
+  nav.toc a{color:var(--muted);text-decoration:none;white-space:nowrap;padding:6px 12px;border-radius:6px;transition:all 0.15s}
+  nav.toc a:hover{background:#EEF2F7;color:var(--primary)}
+  section{padding:40px 0;border-bottom:1px solid var(--border)}
+  section h2{font-size:22px;margin:0 0 8px;color:var(--primary-dark);font-weight:700;letter-spacing:-0.3px}
+  section .lead{color:var(--muted);font-size:15px;margin:0 0 24px;max-width:880px}
+  section h3{font-size:17px;margin:26px 0 10px;color:var(--primary-dark);font-weight:600}
+  section h4{font-size:14px;margin:18px 0 8px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--surface);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--border);font-size:13.5px;vertical-align:top}
+  th{background:#EEF2F7;font-weight:600;color:var(--primary-dark);font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
+  tbody tr:hover{background:#FAFBFD}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap}
+  .tag-win{background:#E1F0FB;color:var(--win)}
+  .tag-mac{background:#F0F0F0;color:var(--mac)}
+  .tag-shared{background:#ECEFF1;color:#455A64}
+  .tag-success{background:#E8F5E9;color:var(--success)}
+  .tag-warning{background:#FFF3E0;color:var(--warning)}
+  .tag-danger{background:#FFEBEE;color:var(--danger)}
+  pre{background:var(--code-bg);color:var(--code-text);padding:14px 18px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.55;font-family:"SF Mono",Monaco,Consolas,monospace}
+  code{font-family:"SF Mono",Monaco,Consolas,monospace;font-size:0.9em;background:#EEF2F7;padding:2px 5px;border-radius:3px;color:var(--primary-dark)}
+  pre code{background:transparent;padding:0;color:inherit}
+  .os-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+  .os-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:18px}
+  .os-card.win{border-top:6px solid var(--win)}
+  .os-card.mac{border-top:6px solid var(--mac)}
+  .os-card h4{margin:0 0 12px;display:flex;align-items:center;gap:8px;font-size:14px}
+  .os-card h4 .icon{width:22px;height:22px;border-radius:6px;background:var(--win);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .os-card.mac h4 .icon{background:var(--mac)}
+  .os-card pre{margin:0;font-size:11.5px;padding:12px}
+  .callout{border-left:4px solid var(--accent);background:#FFFBF1;padding:13px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+  .callout.note{border-left-color:#1976D2;background:#F1F8FE}
+  .callout.warn{border-left-color:var(--danger);background:#FFEBEE}
+  .callout strong{color:var(--warning)}
+  .callout.note strong{color:#1565C0}
+  .callout.warn strong{color:var(--danger)}
+  .step{display:grid;grid-template-columns:36px 1fr;gap:14px;margin-bottom:18px}
+  .step-num{width:30px;height:30px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .step-body strong{display:block;color:var(--primary-dark);margin-bottom:6px;font-size:15px}
+  .cheat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px}
+  .cheat-card h4{margin:0 0 10px;color:var(--primary-dark);font-size:14px;text-transform:uppercase;letter-spacing:0.5px}
+  .cheat-card .cmd-row{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:6px 0;border-bottom:1px dashed var(--border);font-size:13px;align-items:start}
+  .cheat-card .cmd-row:last-child{border-bottom:none}
+  .cheat-card .desc{color:var(--muted);font-size:12.5px}
+  footer{background:var(--primary-dark);color:#fff;padding:26px 0;text-align:center;font-size:13px}
+  @media (max-width:768px){header h1{font-size:20px}.os-split{grid-template-columns:1fr}nav.toc{display:none}.cheat-card .cmd-row{grid-template-columns:1fr}}
+  @media print{nav.toc{display:none}header{background:var(--primary);-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid;padding:20px 0}.os-split{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">v7</div>
+    <div>
+      <h1>README Dev — Audit AI v7</h1>
+      <p class="subtitle">Panduan setup dan workflow harian untuk dual-device development: Windows (desktop kerja) dan macOS (laptop). Sinkronisasi via Git, deployment via Fly.io + Vercel.</p>
+      <div>
+        <span class="badge">Windows + macOS</span>
+        <span class="badge">Git sync</span>
+        <span class="badge">Local-first</span>
+        <span class="badge">Lead workflow</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="container">
+    <a href="#strategi">Strategi</a>
+    <a href="#prasyarat">Prasyarat</a>
+    <a href="#setup-win">Setup Windows</a>
+    <a href="#setup-mac">Setup macOS</a>
+    <a href="#harian">Daily Workflow</a>
+    <a href="#git">Git Sync</a>
+    <a href="#deploy">Deployment</a>
+    <a href="#cheat">Cheat Sheet</a>
+    <a href="#trouble">Troubleshooting</a>
+  </div>
+</nav>
+
+<section id="strategi">
+  <div class="container">
+    <h2>1. Strategi Dual-Device</h2>
+    <p class="lead">Aturan main supaya kerja di 2 device tidak berantakan.</p>
+
+    <h3>Prinsip dasar</h3>
+    <ol>
+      <li><strong>Git adalah sumber kebenaran.</strong> Semua kode hanya di GitHub. Setiap device melakukan clone dari sana. Jangan pernah copy folder langsung antar device.</li>
+      <li><strong>Selalu push sebelum tutup.</strong> Sebelum tutup laptop di akhir hari, commit + push semua perubahan. Esok lanjut di device lain.</li>
+      <li><strong>Selalu pull sebelum mulai.</strong> Buka device → terminal pertama yang Anda jalankan adalah <code>git pull</code>.</li>
+      <li><strong>Venv &amp; node_modules tidak ikut Git.</strong> Setiap device punya environment masing-masing — di-install lokal, tidak di-sync.</li>
+      <li><strong>.env file tidak ikut Git.</strong> Setiap device punya <code>.env</code> sendiri. Catat secret di password manager (1Password, Bitwarden), bukan di repo.</li>
+    </ol>
+
+    <h3>Pembagian kerja antar device</h3>
+    <table>
+      <thead><tr><th>Aktivitas</th><th>Device yang ideal</th><th>Alasan</th></tr></thead>
+      <tbody>
+        <tr><td>Coding intensif (refactor, bug fix kompleks)</td><td>Yang punya monitor besar</td><td>Multi-window dev nyaman</td></tr>
+        <tr><td>Test workflow E2E sebagai auditor</td><td>Bebas, asal browser OK</td><td>Hanya butuh browser + terminal SSH</td></tr>
+        <tr><td>Demo ke stakeholder</td><td>MacBook (lebih portable)</td><td>Mudah bawa ke ruang rapat</td></tr>
+        <tr><td>Deploy ke Fly/Vercel</td><td>Bebas, asal CLI ter-install</td><td>—</td></tr>
+        <tr><td>Long-running task (build, test)</td><td>Device yang ditinggal</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Hindari:</strong> coding di 2 device sekaligus dalam waktu sama tanpa coordinate. Bisa terjadi merge conflict kalau lupa pull. Aturan: 1 device aktif coding per saat.
+    </div>
+  </div>
+</section>
+
+<section id="prasyarat">
+  <div class="container">
+    <h2>2. Prasyarat Tools (Kedua Device)</h2>
+    <p class="lead">Yang perlu ter-install di kedua device sebelum mulai. Versi spesifik untuk konsistensi.</p>
+
+    <table>
+      <thead><tr><th>Tool</th><th>Versi minimum</th><th>Fungsi</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Python</strong></td><td>3.12.x</td><td>Backend FastAPI. Hindari 3.13/3.14 (wheel issues).</td></tr>
+        <tr><td><strong>Node.js</strong></td><td>20.x LTS</td><td>Frontend Next.js</td></tr>
+        <tr><td><strong>Docker Desktop</strong></td><td>Terbaru</td><td>Postgres lokal</td></tr>
+        <tr><td><strong>Git</strong></td><td>2.40+</td><td>Version control</td></tr>
+        <tr><td><strong>VS Code</strong></td><td>Terbaru</td><td>Editor (rekomendasi)</td></tr>
+        <tr><td><strong>flyctl</strong></td><td>Terbaru</td><td>Deploy backend ke Fly.io</td></tr>
+        <tr><td><strong>vercel CLI</strong></td><td>Terbaru</td><td>Deploy frontend</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Akun yang harus siap</h3>
+    <ul>
+      <li>GitHub (akses ke private repo)</li>
+      <li>Fly.io (sudah ada dari setup awal)</li>
+      <li>Vercel (sudah ada)</li>
+      <li>Anthropic Console (untuk monitoring API)</li>
+      <li>Docker Hub (opsional, tidak wajib)</li>
+    </ul>
+  </div>
+</section>
+
+<section id="setup-win">
+  <div class="container">
+    <h2>3. Setup Pertama di Windows</h2>
+    <p class="lead">Skip langkah yang sudah pernah Anda lakukan. Folder project diasumsikan di <code>C:\Users\irfan\Downloads\audit-system-v7\</code>.</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>Install tools yang belum ada</strong>
+        <p>Buka PowerShell as Administrator (kalau perlu install Chocolatey untuk batch install):</p>
+        <pre><code># Install Chocolatey (sekali, kalau belum ada)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+# Install tools sekaligus
+choco install -y python312 nodejs-lts docker-desktop git vscode flyctl
+
+# Vercel via npm
+npm install -g vercel</code></pre>
+        <p>Atau install manual: Python dari python.org, Node dari nodejs.org, Docker Desktop, Git, VS Code, flyctl dari fly.io/docs.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Clone repo dari GitHub</strong>
+        <pre><code>cd C:\Users\irfan\Downloads
+git clone https://github.com/[username]/audit-system-v7.git
+cd audit-system-v7</code></pre>
+        <p>(Ganti URL dengan repo Anda. Bila belum di GitHub, push dulu dari folder current — lihat §6.)</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Setup .env</strong>
+        <pre><code>cp .env.example .env
+# Edit .env, isi ANTHROPIC_API_KEY dan APP_SECRET_KEY
+notepad .env</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Setup backend venv (DI LUAR folder project)</strong>
+        <p>Pelajaran sebelumnya: venv di Dropbox bermasalah. Kalau Anda di Downloads (bukan Dropbox), venv di folder project OK. Tapi pola amannya tetap di luar:</p>
+        <pre><code># Buat venv di folder dedicated
+mkdir C:\envs -Force
+py -3.12 -m venv C:\envs\audit-v7
+
+# Activate
+C:\envs\audit-v7\Scripts\Activate.ps1
+
+# Install deps
+cd C:\Users\irfan\Downloads\audit-system-v7\backend
+pip install --upgrade pip
+pip install -r requirements.txt</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <strong>Setup Postgres lokal via Docker</strong>
+        <pre><code># Pastikan Docker Desktop jalan (lihat ikon paus di system tray)
+cd C:\Users\irfan\Downloads\audit-system-v7
+docker-compose up -d db
+
+# Verifikasi
+docker ps    # harus ada container postgres healthy</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <strong>Init database + seed users</strong>
+        <pre><code>cd C:\Users\irfan\Downloads\audit-system-v7\backend
+python -m app.init_db</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <strong>Setup frontend</strong>
+        <pre><code>cd C:\Users\irfan\Downloads\audit-system-v7\frontend
+npm install
+cp .env.example .env.local</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <strong>Login Fly &amp; Vercel</strong>
+        <pre><code>fly auth login    # browser terbuka, login
+vercel login      # idem</code></pre>
+      </div>
+    </div>
+
+    <div class="callout note">
+      <strong>Trick Windows:</strong> Bila PowerShell error "running scripts is disabled", jalankan sekali:
+      <pre><code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code></pre>
+    </div>
+  </div>
+</section>
+
+<section id="setup-mac">
+  <div class="container">
+    <h2>4. Setup Pertama di macOS</h2>
+    <p class="lead">Asumsi MacBook baru tanpa dev tools. Pakai Homebrew untuk install cepat semuanya.</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>Install Homebrew</strong>
+        <p>Buka Terminal (Cmd+Space → ketik "Terminal"):</p>
+        <pre><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Setelah selesai, ikuti instruksi yang muncul untuk tambah brew ke PATH
+# Biasanya:
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Install semua tools via brew</strong>
+        <pre><code>brew install python@3.12 node@20 git
+brew install --cask docker visual-studio-code
+
+# flyctl
+brew install flyctl
+
+# Vercel
+npm install -g vercel</code></pre>
+        <p>Setelah install Docker Desktop, buka aplikasinya sekali untuk inisialisasi (icon Docker harus muncul di menu bar).</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Setup SSH key untuk GitHub (kalau belum)</strong>
+        <pre><code>ssh-keygen -t ed25519 -C "email@komdigi.go.id"
+# Enter terus untuk default
+
+# Copy public key ke clipboard
+pbcopy < ~/.ssh/id_ed25519.pub
+
+# Buka GitHub → Settings → SSH and GPG keys → New SSH key → paste</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Clone repo</strong>
+        <pre><code>cd ~
+mkdir -p Projects
+cd Projects
+git clone git@github.com:[username]/audit-system-v7.git
+cd audit-system-v7</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <strong>Setup .env</strong>
+        <pre><code>cp .env.example .env
+# Edit dengan editor pilihan
+code .env
+# Isi ANTHROPIC_API_KEY dan APP_SECRET_KEY (sama dengan Windows)</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <strong>Setup backend venv</strong>
+        <pre><code># Buat di home dir, di luar project
+mkdir -p ~/envs
+python3.12 -m venv ~/envs/audit-v7
+
+# Activate
+source ~/envs/audit-v7/bin/activate
+
+# Install deps
+cd ~/Projects/audit-system-v7/backend
+pip install --upgrade pip
+pip install -r requirements.txt</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <strong>Setup Postgres + init DB</strong>
+        <pre><code># Pastikan Docker Desktop jalan
+cd ~/Projects/audit-system-v7
+docker-compose up -d db
+docker ps   # verifikasi
+
+# Init DB
+cd backend
+python -m app.init_db</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <strong>Setup frontend + Fly/Vercel login</strong>
+        <pre><code>cd ~/Projects/audit-system-v7/frontend
+npm install
+cp .env.example .env.local
+
+# Login Fly & Vercel
+fly auth login
+vercel login</code></pre>
+      </div>
+    </div>
+
+    <div class="callout note">
+      <strong>Tip macOS:</strong> Pakai iTerm2 (brew install --cask iterm2) sebagai Terminal yang lebih powerful. Split pane Cmd+D untuk backend &amp; frontend di satu window.
+    </div>
+  </div>
+</section>
+
+<section id="harian">
+  <div class="container">
+    <h2>5. Workflow Harian (Mulai Kerja)</h2>
+    <p class="lead">Rutinitas pagi dan sore yang harus konsisten supaya tidak kehilangan kode.</p>
+
+    <h3>Pagi (mulai kerja)</h3>
+
+    <div class="os-split">
+      <div class="os-card win">
+        <h4><span class="icon">W</span> Windows PowerShell</h4>
+<pre><code># 1. Pull latest
+cd C:\Users\irfan\Downloads\audit-system-v7
+git pull
+
+# 2. Pastikan Docker jalan, start DB
+docker-compose up -d db
+
+# 3. Backend (terminal 1)
+C:\envs\audit-v7\Scripts\Activate.ps1
+cd backend
+pip install -r requirements.txt   # kalau ada update
+uvicorn app.main:app --reload --port 8000
+
+# 4. Frontend (terminal 2 — buka window baru)
+cd C:\Users\irfan\Downloads\audit-system-v7\frontend
+npm install                        # kalau ada update
+npm run dev</code></pre>
+      </div>
+
+      <div class="os-card mac">
+        <h4><span class="icon"></span> macOS Terminal</h4>
+<pre><code># 1. Pull latest
+cd ~/Projects/audit-system-v7
+git pull
+
+# 2. Pastikan Docker jalan, start DB
+docker-compose up -d db
+
+# 3. Backend (terminal 1)
+source ~/envs/audit-v7/bin/activate
+cd backend
+pip install -r requirements.txt   # kalau ada update
+uvicorn app.main:app --reload --port 8000
+
+# 4. Frontend (terminal 2 — Cmd+T tab baru)
+cd ~/Projects/audit-system-v7/frontend
+npm install                        # kalau ada update
+npm run dev</code></pre>
+      </div>
+    </div>
+
+    <p>Buka browser ke <code>http://localhost:3000</code>. Edit kode → save → auto-reload.</p>
+
+    <h3>Sore (sebelum tutup laptop)</h3>
+
+    <ol>
+      <li>Stop uvicorn &amp; npm dev (Ctrl+C di kedua terminal).</li>
+      <li>Commit perubahan:
+        <pre><code>git status                    # cek apa yang berubah
+git add .
+git commit -m "feat: deskripsi singkat perubahan"
+git push origin main</code></pre>
+      </li>
+      <li>Stop Docker container (opsional, hemat resource):
+        <pre><code>docker-compose down</code></pre>
+      </li>
+      <li>Tutup laptop. Esok di device lain, mulai dari "Pagi" lagi.</li>
+    </ol>
+
+    <div class="callout warn">
+      <strong>JANGAN PERNAH:</strong> tutup laptop dengan kode yang belum di-commit. Risiko terbesar dual-device: lupa push → besok di device lain modifikasi file yang sama → merge conflict besar.
+    </div>
+
+    <h3>Saat ganti device di tengah hari</h3>
+    <ol>
+      <li>Device lama: <code>git add . &amp;&amp; git commit -m "wip: jeda istirahat" &amp;&amp; git push</code> (WIP = work in progress, OK untuk commit setengah jadi)</li>
+      <li>Device baru: <code>git pull</code></li>
+      <li>Lanjut kerja.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="git">
+  <div class="container">
+    <h2>6. Setup Git Repository (Pertama Kali)</h2>
+    <p class="lead">Bila project belum di-push ke GitHub, ini langkah pertama kali — dari device yang sekarang punya kode lengkap (Windows).</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>Buat repo private di GitHub</strong>
+        <p>Buka https://github.com/new — nama: <code>audit-system-v7</code>, visibility: Private. Jangan centang README/gitignore (sudah ada di lokal).</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Initial push dari Windows</strong>
+        <pre><code>cd C:\Users\irfan\Downloads\audit-system-v7
+
+# Cek .gitignore mencakup yang harus dikecualikan
+type .gitignore     # harus ada: .venv/, node_modules/, .env, .next/, dst.
+
+# Init git (kalau belum)
+git init
+git branch -M main
+
+# Add remote (ganti URL dengan repo Anda)
+git remote add origin git@github.com:[username]/audit-system-v7.git
+
+# Initial commit
+git add .
+git commit -m "Initial commit: prototype v7 deployed"
+git push -u origin main</code></pre>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Verifikasi file sensitive TIDAK ikut push</strong>
+        <pre><code># Cek di GitHub repo, JANGAN ada file berikut:
+# - .env
+# - backend/.venv/
+# - frontend/node_modules/
+# - frontend/.next/
+
+# Bila ada secret yang terlanjur ke-commit, segera:
+# 1. Ganti API key di Anthropic Console
+# 2. Buat APP_SECRET_KEY baru
+# 3. Re-set di Fly: fly secrets set ...</code></pre>
+      </div>
+    </div>
+
+    <h3>.gitignore minimal yang harus ada</h3>
+    <pre><code># Env
+.env
+.env.local
+.env.production
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+.vercel/
+
+# V6 scripts copied (di-bake saat deploy, tidak perlu commit)
+backend/v6_scripts/
+backend/v6_skills/
+backend/v6_templates/
+backend/v6_checklists/
+
+# Data
+backend/data/
+backend/audit_v7.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log</code></pre>
+
+    <h3>Branch strategy untuk prototype</h3>
+    <p>Untuk tim kecil 3 orang dan timeline pendek, branch strategy sederhana:</p>
+    <ul>
+      <li><strong><code>main</code></strong> — selalu siap deploy, otomatis Fly &amp; Vercel deploy dari sini.</li>
+      <li><strong><code>feature/&lt;nama&gt;</code></strong> — bila ada perubahan besar yang butuh review (mis. <code>feature/audit-trail-tab</code>). Merge ke main setelah review.</li>
+      <li>Untuk hot fix kecil, push langsung ke main OK.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Aturan tim:</strong> Tidak ada force push ke main (<code>git push --force</code>). Bila ada conflict, koordinasi via WA dulu sebelum merge.
+    </div>
+  </div>
+</section>
+
+<section id="deploy">
+  <div class="container">
+    <h2>7. Deployment</h2>
+    <p class="lead">Sama persis untuk kedua device — tools (flyctl, vercel) lintas platform.</p>
+
+    <h3>Deploy backend ke Fly.io</h3>
+    <p>Dari kedua device, perintah identik:</p>
+
+    <div class="os-split">
+      <div class="os-card win">
+        <h4><span class="icon">W</span> Windows</h4>
+<pre><code># Copy V6 scripts (sekali per device atau saat update)
+cd C:\Users\irfan\Downloads\audit-system-v7
+# (Lihat scripts/deploy-fly.ps1 - jalankan)
+.\scripts\copy-v6-scripts.ps1
+
+# Deploy
+cd backend
+fly deploy --app audit-ai-v7
+
+# Cek hasil
+fly status --app audit-ai-v7
+fly logs --app audit-ai-v7 --no-tail | Select-Object -Last 30</code></pre>
+      </div>
+
+      <div class="os-card mac">
+        <h4><span class="icon"></span> macOS</h4>
+<pre><code># Copy V6 scripts
+cd ~/Projects/audit-system-v7
+bash scripts/deploy-fly.sh   # script bash sudah ada
+
+# Atau manual:
+cd backend
+fly deploy --app audit-ai-v7
+
+# Cek hasil
+fly status --app audit-ai-v7
+fly logs --app audit-ai-v7 --no-tail | tail -30</code></pre>
+      </div>
+    </div>
+
+    <h3>Deploy frontend ke Vercel</h3>
+    <pre><code># Sama di Windows & macOS
+cd [path-ke-]/audit-system-v7/frontend
+vercel --prod
+
+# URL production akan di-print di akhir output</code></pre>
+
+    <h3>Update secret di Fly</h3>
+    <pre><code># Ganti / set ulang secret (bisa dari device manapun yang sudah login)
+fly secrets set ANTHROPIC_API_KEY=sk-ant-new... --app audit-ai-v7
+
+# List secrets (tidak menampilkan value, hanya nama)
+fly secrets list --app audit-ai-v7
+
+# Hapus secret
+fly secrets unset SECRET_NAME --app audit-ai-v7</code></pre>
+
+    <h3>SSH ke Fly machine untuk debug</h3>
+    <pre><code># Sama di kedua OS
+fly ssh console --app audit-ai-v7
+
+# Setelah masuk, navigasi:
+cd /app
+ls /v6/scripts/
+ls /data/penugasan/
+
+# Exit
+exit</code></pre>
+
+    <div class="callout note">
+      <strong>Konvensi tim:</strong> Setiap selesai deploy, tulis di WA grup format: <code>🚀 backend deploy main@abc1234 — fix CORS for SSE</code>. Anggota lain tahu ada perubahan, bisa pull + test.
+    </div>
+  </div>
+</section>
+
+<section id="cheat">
+  <div class="container">
+    <h2>8. Cheat Sheet Command</h2>
+    <p class="lead">Perintah yang paling sering dipakai. Print ini dan tempel di samping monitor.</p>
+
+    <div class="cheat-card">
+      <h4>Git essentials</h4>
+      <div class="cmd-row"><code>git pull</code><div class="desc">Ambil perubahan terbaru dari remote</div></div>
+      <div class="cmd-row"><code>git status</code><div class="desc">Cek file mana yang berubah/belum di-commit</div></div>
+      <div class="cmd-row"><code>git add .</code><div class="desc">Stage semua perubahan</div></div>
+      <div class="cmd-row"><code>git commit -m "msg"</code><div class="desc">Commit perubahan dengan pesan</div></div>
+      <div class="cmd-row"><code>git push</code><div class="desc">Push commit ke remote (GitHub)</div></div>
+      <div class="cmd-row"><code>git log --oneline -10</code><div class="desc">10 commit terakhir</div></div>
+      <div class="cmd-row"><code>git diff</code><div class="desc">Lihat perubahan belum di-stage</div></div>
+      <div class="cmd-row"><code>git stash</code><div class="desc">Simpan perubahan sementara tanpa commit</div></div>
+      <div class="cmd-row"><code>git stash pop</code><div class="desc">Kembalikan perubahan dari stash</div></div>
+    </div>
+
+    <div class="cheat-card">
+      <h4>Backend dev</h4>
+      <div class="cmd-row"><code>uvicorn app.main:app --reload</code><div class="desc">Jalankan dev server</div></div>
+      <div class="cmd-row"><code>pip install -r requirements.txt</code><div class="desc">Install/update deps</div></div>
+      <div class="cmd-row"><code>python -m app.init_db</code><div class="desc">Init/reset database lokal</div></div>
+      <div class="cmd-row"><code>docker-compose up -d db</code><div class="desc">Start Postgres lokal</div></div>
+      <div class="cmd-row"><code>docker-compose down</code><div class="desc">Stop Postgres lokal</div></div>
+      <div class="cmd-row"><code>docker exec -it audit-system-v7-db-1 psql -U audit -d audit_v7</code><div class="desc">Masuk psql Postgres lokal</div></div>
+      <div class="cmd-row"><code>python -c "from app.routes import agen"</code><div class="desc">Cek syntax 1 file Python</div></div>
+    </div>
+
+    <div class="cheat-card">
+      <h4>Frontend dev</h4>
+      <div class="cmd-row"><code>npm run dev</code><div class="desc">Jalankan dev server (port 3000)</div></div>
+      <div class="cmd-row"><code>npm install</code><div class="desc">Install deps</div></div>
+      <div class="cmd-row"><code>npm run build</code><div class="desc">Build production lokal (test sebelum deploy)</div></div>
+      <div class="cmd-row"><code>npm run lint</code><div class="desc">Cek code style</div></div>
+    </div>
+
+    <div class="cheat-card">
+      <h4>Deploy &amp; monitoring</h4>
+      <div class="cmd-row"><code>fly deploy --app audit-ai-v7</code><div class="desc">Deploy backend</div></div>
+      <div class="cmd-row"><code>fly status --app audit-ai-v7</code><div class="desc">Status machine</div></div>
+      <div class="cmd-row"><code>fly logs --app audit-ai-v7</code><div class="desc">Live logs (Ctrl+C untuk stop)</div></div>
+      <div class="cmd-row"><code>fly logs --no-tail</code><div class="desc">Recent logs lalu exit</div></div>
+      <div class="cmd-row"><code>fly ssh console --app audit-ai-v7</code><div class="desc">SSH ke machine</div></div>
+      <div class="cmd-row"><code>fly secrets list --app audit-ai-v7</code><div class="desc">List secrets (nama saja)</div></div>
+      <div class="cmd-row"><code>vercel --prod</code><div class="desc">Deploy frontend ke production</div></div>
+      <div class="cmd-row"><code>vercel ls</code><div class="desc">List Vercel projects</div></div>
+    </div>
+
+    <div class="cheat-card">
+      <h4>OS-specific</h4>
+      <div class="cmd-row"><code>code .</code><div class="desc">Buka VS Code di folder current (Win + Mac)</div></div>
+      <div class="cmd-row"><span class="tag tag-win">Win</span> <code>where python</code><div class="desc">Cari path Python yang aktif</div></div>
+      <div class="cmd-row"><span class="tag tag-mac">Mac</span> <code>which python3</code><div class="desc">Idem di macOS</div></div>
+      <div class="cmd-row"><span class="tag tag-win">Win</span> <code>Get-Content file.log -Wait</code><div class="desc">tail -f di Windows</div></div>
+      <div class="cmd-row"><span class="tag tag-mac">Mac</span> <code>tail -f file.log</code><div class="desc">Live tail file</div></div>
+      <div class="cmd-row"><span class="tag tag-win">Win</span> <code>Remove-Item -Recurse -Force .next</code><div class="desc">Hapus folder rekursif</div></div>
+      <div class="cmd-row"><span class="tag tag-mac">Mac</span> <code>rm -rf .next</code><div class="desc">Idem di macOS</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="trouble">
+  <div class="container">
+    <h2>9. Troubleshooting Umum</h2>
+
+    <h3>Backend tidak jalan</h3>
+    <table>
+      <thead><tr><th>Error</th><th>Penyebab</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>uvicorn: command not found</code></td><td>Venv tidak aktif</td><td>Activate venv dulu (lihat §3 atau §4 step 4)</td></tr>
+        <tr><td><code>ModuleNotFoundError: sqlalchemy</code></td><td>Dependencies belum install</td><td><code>pip install -r requirements.txt</code></td></tr>
+        <tr><td><code>Connection refused: localhost:5432</code></td><td>Postgres Docker tidak jalan</td><td><code>docker-compose up -d db</code></td></tr>
+        <tr><td><code>Address already in use: 8000</code></td><td>Uvicorn lain masih jalan</td><td>Cari &amp; kill: <span class="tag tag-win">Win</span> <code>Get-Process python</code> · <span class="tag tag-mac">Mac</span> <code>lsof -ti:8000 | xargs kill</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Frontend tidak jalan</h3>
+    <table>
+      <thead><tr><th>Error</th><th>Penyebab</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>EACCES / permission denied</code></td><td>npm install perlu sudo (macOS)</td><td>Pakai nvm, jangan global npm: <code>brew install nvm</code></td></tr>
+        <tr><td><code>NetworkError when fetching</code></td><td>Backend belum jalan / env API URL salah</td><td>Cek <code>.env.local</code> punya <code>NEXT_PUBLIC_API_BASE</code> benar</td></tr>
+        <tr><td><code>Module not found</code></td><td><code>node_modules</code> outdated setelah pull</td><td><code>npm install</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Git issues</h3>
+    <table>
+      <thead><tr><th>Error</th><th>Penyebab</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>Merge conflict</code></td><td>Edit file yang sama di 2 device tanpa pull</td><td>Buka file dengan conflict marker, pilih versi mana yang dipakai, save, <code>git add</code>, <code>git commit</code></td></tr>
+        <tr><td><code>Permission denied (publickey)</code></td><td>SSH key belum ditambah ke GitHub</td><td>Tambah public key di GitHub Settings → SSH</td></tr>
+        <tr><td><code>Updates were rejected</code></td><td>Remote ada commit baru</td><td><code>git pull --rebase</code> dulu, lalu <code>git push</code></td></tr>
+        <tr><td>Lupa pull, sudah edit banyak</td><td>—</td><td><code>git stash</code> → <code>git pull</code> → <code>git stash pop</code> → resolve conflict bila ada</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Deployment issues</h3>
+    <table>
+      <thead><tr><th>Error</th><th>Penyebab</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>fly: command not found</code></td><td>flyctl belum install</td><td>Install: <code>brew install flyctl</code> (Mac) atau <code>choco install flyctl</code> (Win)</td></tr>
+        <tr><td>Deploy gagal di build step</td><td>V6 scripts belum di-copy</td><td>Jalankan script <code>copy-v6-scripts</code> sebelum <code>fly deploy</code></td></tr>
+        <tr><td>App crash setelah deploy</td><td>Bug code atau env var hilang</td><td>Cek <code>fly logs --no-tail</code> untuk traceback. Pastikan secrets lengkap dengan <code>fly secrets list</code></td></tr>
+        <tr><td>Vercel build error</td><td>Type error TypeScript</td><td>Test build lokal dulu: <code>npm run build</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Aturan emas debugging:</strong> Baca pesan error sampai habis. 80% kasus, error message sudah menjelaskan masalahnya. Sisanya, copy error ke saya (Claude) atau Google.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p><strong>README Dev — Audit AI v7</strong> · Panduan dual-device development</p>
+    <p style="opacity:0.85;margin-top:6px">Windows + macOS · Git sync · Local-first workflow</p>
+  </div>
+</footer>
+
+</body>
+</html>

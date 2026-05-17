@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadmap 1 Bulan — Audit AI v7 Prototype</title>
+<style>
+  :root{
+    --primary:#0B3D91; --primary-dark:#072458; --accent:#F5A623;
+    --success:#2E7D32; --warning:#E65100; --danger:#C62828;
+    --bg:#F7F9FC; --surface:#FFFFFF; --text:#1A1A1A; --muted:#5B6B7F; --border:#D9E1EC;
+    --w1:#1565C0; --w2:#6A1B9A; --w3:#E65100; --w4:#2E7D32;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.65}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  header{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;padding:42px 0 50px}
+  header .container{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  header .logo{width:64px;height:64px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--primary);flex-shrink:0}
+  header h1{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-0.4px}
+  header .subtitle{margin:0;font-size:14.5px;opacity:0.9;max-width:760px}
+  .badge{display:inline-block;padding:4px 12px;border-radius:12px;background:rgba(255,255,255,0.15);font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,0.25);margin-right:6px;margin-top:12px}
+  nav.toc{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+  nav.toc .container{display:flex;gap:6px;overflow-x:auto;padding:10px 24px;font-size:13px}
+  nav.toc a{color:var(--muted);text-decoration:none;white-space:nowrap;padding:6px 12px;border-radius:6px;transition:all 0.15s}
+  nav.toc a:hover{background:#EEF2F7;color:var(--primary)}
+  section{padding:40px 0;border-bottom:1px solid var(--border)}
+  section h2{font-size:22px;margin:0 0 8px;color:var(--primary-dark);font-weight:700;letter-spacing:-0.3px}
+  section .lead{color:var(--muted);font-size:15px;margin:0 0 24px;max-width:880px}
+  section h3{font-size:17px;margin:26px 0 10px;color:var(--primary-dark);font-weight:600}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+  .kpi .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+  .kpi .num{font-size:28px;font-weight:800;color:var(--primary);line-height:1;margin-bottom:4px}
+  .kpi .label{font-size:12px;color:var(--muted);font-weight:500}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--surface);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--border);font-size:13.5px;vertical-align:top}
+  th{background:#EEF2F7;font-weight:600;color:var(--primary-dark);font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
+  tbody tr:hover{background:#FAFBFD}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap}
+  .tag-success{background:#E8F5E9;color:var(--success)}
+  .tag-warning{background:#FFF3E0;color:var(--warning)}
+  .tag-danger{background:#FFEBEE;color:var(--danger)}
+  .tag-info{background:#E3F2FD;color:#1565C0}
+  .tag-neutral{background:#ECEFF1;color:#455A64}
+  code{font-family:"SF Mono",Monaco,Consolas,monospace;font-size:0.9em;background:#EEF2F7;padding:2px 5px;border-radius:3px;color:var(--primary-dark)}
+  .week-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px;border-left:6px solid var(--w1)}
+  .week-card.w2{border-left-color:var(--w2)}
+  .week-card.w3{border-left-color:var(--w3)}
+  .week-card.w4{border-left-color:var(--w4)}
+  .week-card h3{margin-top:0;display:flex;align-items:center;gap:10px;font-size:18px}
+  .week-card .pill{font-size:11px;padding:3px 10px;border-radius:12px;font-weight:600;letter-spacing:0.5px;background:#E3F2FD;color:var(--w1)}
+  .week-card.w2 .pill{background:#F3E5F5;color:var(--w2)}
+  .week-card.w3 .pill{background:#FFF3E0;color:var(--w3)}
+  .week-card.w4 .pill{background:#E8F5E9;color:var(--w4)}
+  .day-row{display:grid;grid-template-columns:80px 1fr;gap:14px;padding:10px 0;border-bottom:1px dashed var(--border)}
+  .day-row:last-child{border-bottom:none}
+  .day-label{font-weight:600;color:var(--primary-dark);font-size:13px}
+  .day-content{font-size:13.5px}
+  .day-content strong{display:block;margin-bottom:3px;color:var(--text)}
+  .day-content small{color:var(--muted);font-size:12px;display:block}
+  .milestone{background:#FFF8E1;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;margin-top:14px;font-size:13.5px}
+  .milestone strong{color:var(--warning)}
+  .gantt{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin:18px 0;overflow-x:auto}
+  .gantt svg{display:block;min-width:760px;width:100%;height:auto}
+  .callout{border-left:4px solid var(--accent);background:#FFFBF1;padding:13px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+  .callout strong{color:var(--warning)}
+  footer{background:var(--primary-dark);color:#fff;padding:26px 0;text-align:center;font-size:13px}
+  @media (max-width:768px){header h1{font-size:20px}.kpi{grid-template-columns:repeat(2,1fr)}nav.toc{display:none}}
+  @media print{nav.toc{display:none}header{background:var(--primary);-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid;padding:20px 0}.week-card{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">v7</div>
+    <div>
+      <h1>Roadmap 1 Bulan — Audit AI v7 Prototype</h1>
+      <p class="subtitle">Penyelesaian prototype Reviu RKA-K/L + Reviu Pengadaan dari kondisi sekarang (terdeploy, ingestion jalan) sampai siap pilot dengan 3 auditor IR-2.</p>
+      <div>
+        <span class="badge">17 Mei – 15 Juni 2026</span>
+        <span class="badge">4 minggu</span>
+        <span class="badge">Tim: 3 orang</span>
+        <span class="badge">Target: Pilot internal</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="container">
+    <a href="#status">Status</a>
+    <a href="#tujuan">Tujuan</a>
+    <a href="#gantt">Timeline</a>
+    <a href="#w1">Minggu 1</a>
+    <a href="#w2">Minggu 2</a>
+    <a href="#w3">Minggu 3</a>
+    <a href="#w4">Minggu 4</a>
+    <a href="#risk">Risiko</a>
+    <a href="#sukses">Sukses</a>
+  </div>
+</nav>
+
+<section id="status">
+  <div class="container">
+    <h2>1. Status Saat Ini (Baseline 17 Mei 2026)</h2>
+    <p class="lead">Kondisi terverifikasi prototype sebelum roadmap dimulai.</p>
+
+    <div class="kpi">
+      <div class="card"><div class="num">✓</div><div class="label">Backend Fly.io deploy &amp; sehat</div></div>
+      <div class="card"><div class="num">✓</div><div class="label">Frontend Vercel deploy</div></div>
+      <div class="card"><div class="num">✓</div><div class="label">Login + buat penugasan + upload</div></div>
+      <div class="card"><div class="num">✓</div><div class="label">Ingestion script V6 jalan</div></div>
+    </div>
+
+    <h3>Yang masih perlu dikerjakan</h3>
+    <table>
+      <thead><tr><th>Komponen</th><th>Status</th><th>Yang harus dikerjakan</th></tr></thead>
+      <tbody>
+        <tr><td>Agent AT (run_batch + analisis)</td><td><span class="tag tag-warning">Belum diuji E2E</span></td><td>Test dengan data nyata, perbaiki bug yang muncul</td></tr>
+        <tr><td>Agent QC SAIPI</td><td><span class="tag tag-warning">Belum diuji</span></td><td>Verifikasi <code>qc_saipi.py</code> V6 dipanggil benar</td></tr>
+        <tr><td>Agent Ketua Tim</td><td><span class="tag tag-warning">Belum diuji</span></td><td>Test render LHR + iterasi feedback</td></tr>
+        <tr><td>UI download/preview output</td><td><span class="tag tag-danger">Belum ada</span></td><td>Endpoint <code>/output/{file}</code> + tombol download</td></tr>
+        <tr><td>Error handling &amp; toast</td><td><span class="tag tag-danger">Minimal</span></td><td>Banner error, retry button, loading state per tab</td></tr>
+        <tr><td>Multi-user concurrent</td><td><span class="tag tag-neutral">Belum diuji</span></td><td>3 user simultan, cek race condition database</td></tr>
+        <tr><td>Audit trail viewer</td><td><span class="tag tag-danger">Belum ada</span></td><td>Tab riwayat <code>agent_runs</code> + <code>tool_calls</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tujuan">
+  <div class="container">
+    <h2>2. Tujuan 1 Bulan</h2>
+    <p class="lead">Definisi spesifik dari "selesai" untuk prototype ini.</p>
+
+    <h3>Goal utama</h3>
+    <ol>
+      <li><strong>Workflow Reviu Pengadaan E2E lulus:</strong> AT upload KAK+HPS+RFI → KKP → QC PASS → KT setujui → LHR.docx siap.</li>
+      <li><strong>Workflow Reviu RKA-K/L E2E lulus:</strong> serupa dengan TOR+RAB sebagai input.</li>
+      <li><strong>Pilot terbatas berhasil:</strong> 3 auditor IR-2 jalankan masing-masing 1 penugasan riil, hasil bisa dipakai.</li>
+      <li><strong>Dokumentasi lengkap:</strong> user manual, troubleshooting guide, daftar known limitations.</li>
+    </ol>
+
+    <h3>Non-goal (sengaja dikecualikan)</h3>
+    <ul>
+      <li>CACM, scheduler otomatis, notifikasi WA/email — tahap-2.</li>
+      <li>Auto-inject ke INTEGRAL — upload manual untuk sekarang.</li>
+      <li>SSO Komdigi — masih login email+NIP.</li>
+      <li>Mobile responsive — desktop only.</li>
+      <li>Migrasi ke PDN — masih Fly.io Singapore.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="gantt">
+  <div class="container">
+    <h2>3. Timeline 4 Minggu</h2>
+    <p class="lead">Visualisasi alokasi tema per minggu. Setiap minggu punya satu fokus utama.</p>
+
+    <div class="gantt">
+      <svg viewBox="0 0 960 260" xmlns="http://www.w3.org/2000/svg">
+        <rect x="200" y="20" width="180" height="30" fill="#1565C0"/>
+        <text x="290" y="40" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">M-1: 19-25 Mei</text>
+        <rect x="380" y="20" width="180" height="30" fill="#6A1B9A"/>
+        <text x="470" y="40" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">M-2: 26 Mei-1 Juni</text>
+        <rect x="560" y="20" width="180" height="30" fill="#E65100"/>
+        <text x="650" y="40" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">M-3: 2-8 Juni</text>
+        <rect x="740" y="20" width="180" height="30" fill="#2E7D32"/>
+        <text x="830" y="40" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#fff">M-4: 9-15 Juni</text>
+
+        <text x="290" y="68" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F" font-style="italic">Bug-fix + E2E Pengadaan</text>
+        <text x="470" y="68" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F" font-style="italic">E2E RKA-K/L + Ketua Tim</text>
+        <text x="650" y="68" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F" font-style="italic">Polish + Multi-user</text>
+        <text x="830" y="68" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F" font-style="italic">Pilot + Dokumentasi</text>
+
+        <text x="20" y="100" font-family="Arial" font-size="12" font-weight="600" fill="#0B3D91">Backend</text>
+        <rect x="200" y="85" width="180" height="22" fill="#E3F2FD" stroke="#1565C0" rx="3"/>
+        <text x="290" y="100" text-anchor="middle" font-family="Arial" font-size="11" fill="#1565C0">Fix bugs, output API</text>
+        <rect x="380" y="85" width="180" height="22" fill="#F3E5F5" stroke="#6A1B9A" rx="3"/>
+        <text x="470" y="100" text-anchor="middle" font-family="Arial" font-size="11" fill="#6A1B9A">QC + LHR rendering</text>
+        <rect x="560" y="85" width="180" height="22" fill="#FFF3E0" stroke="#E65100" rx="3"/>
+        <text x="650" y="100" text-anchor="middle" font-family="Arial" font-size="11" fill="#E65100">Audit trail + perf</text>
+        <rect x="740" y="85" width="180" height="22" fill="#E8F5E9" stroke="#2E7D32" rx="3"/>
+        <text x="830" y="100" text-anchor="middle" font-family="Arial" font-size="11" fill="#2E7D32">Hardening + hotfix</text>
+
+        <text x="20" y="135" font-family="Arial" font-size="12" font-weight="600" fill="#0B3D91">Frontend</text>
+        <rect x="200" y="120" width="180" height="22" fill="#E3F2FD" stroke="#1565C0" rx="3"/>
+        <text x="290" y="135" text-anchor="middle" font-family="Arial" font-size="11" fill="#1565C0">Download buttons</text>
+        <rect x="380" y="120" width="180" height="22" fill="#F3E5F5" stroke="#6A1B9A" rx="3"/>
+        <text x="470" y="135" text-anchor="middle" font-family="Arial" font-size="11" fill="#6A1B9A">Approval workflow</text>
+        <rect x="560" y="120" width="180" height="22" fill="#FFF3E0" stroke="#E65100" rx="3"/>
+        <text x="650" y="135" text-anchor="middle" font-family="Arial" font-size="11" fill="#E65100">UX polish + error UI</text>
+        <rect x="740" y="120" width="180" height="22" fill="#E8F5E9" stroke="#2E7D32" rx="3"/>
+        <text x="830" y="135" text-anchor="middle" font-family="Arial" font-size="11" fill="#2E7D32">Bug fixes pilot</text>
+
+        <text x="20" y="170" font-family="Arial" font-size="12" font-weight="600" fill="#0B3D91">Testing</text>
+        <rect x="200" y="155" width="180" height="22" fill="#E3F2FD" stroke="#1565C0" rx="3"/>
+        <text x="290" y="170" text-anchor="middle" font-family="Arial" font-size="11" fill="#1565C0">Smoke + E2E Pengadaan</text>
+        <rect x="380" y="155" width="180" height="22" fill="#F3E5F5" stroke="#6A1B9A" rx="3"/>
+        <text x="470" y="170" text-anchor="middle" font-family="Arial" font-size="11" fill="#6A1B9A">E2E RKA-K/L</text>
+        <rect x="560" y="155" width="180" height="22" fill="#FFF3E0" stroke="#E65100" rx="3"/>
+        <text x="650" y="170" text-anchor="middle" font-family="Arial" font-size="11" fill="#E65100">Multi-user, regression</text>
+        <rect x="740" y="155" width="180" height="22" fill="#E8F5E9" stroke="#2E7D32" rx="3"/>
+        <text x="830" y="170" text-anchor="middle" font-family="Arial" font-size="11" fill="#2E7D32">UAT pilot</text>
+
+        <text x="20" y="205" font-family="Arial" font-size="12" font-weight="600" fill="#0B3D91">Dokumentasi</text>
+        <rect x="200" y="190" width="180" height="22" fill="#FAFBFD" stroke="#D9E1EC" rx="3" stroke-dasharray="3,2"/>
+        <text x="290" y="205" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F">(catatan internal)</text>
+        <rect x="380" y="190" width="180" height="22" fill="#FAFBFD" stroke="#D9E1EC" rx="3" stroke-dasharray="3,2"/>
+        <text x="470" y="205" text-anchor="middle" font-family="Arial" font-size="11" fill="#5B6B7F">SOP draft</text>
+        <rect x="560" y="190" width="180" height="22" fill="#FFF3E0" stroke="#E65100" rx="3"/>
+        <text x="650" y="205" text-anchor="middle" font-family="Arial" font-size="11" fill="#E65100">User manual draft</text>
+        <rect x="740" y="190" width="180" height="22" fill="#E8F5E9" stroke="#2E7D32" rx="3"/>
+        <text x="830" y="205" text-anchor="middle" font-family="Arial" font-size="11" fill="#2E7D32">Manual final + handoff</text>
+
+        <circle cx="380" cy="240" r="6" fill="#F5A623"/>
+        <text x="380" y="258" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#E65100">M1: E2E PBJ</text>
+        <circle cx="560" cy="240" r="6" fill="#F5A623"/>
+        <text x="560" y="258" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#E65100">M2: E2E RKA-K/L</text>
+        <circle cx="740" cy="240" r="6" fill="#F5A623"/>
+        <text x="740" y="258" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#E65100">M3: Multi-user OK</text>
+        <circle cx="920" cy="240" r="6" fill="#2E7D32"/>
+        <text x="920" y="258" text-anchor="middle" font-family="Arial" font-size="10" font-weight="700" fill="#2E7D32">M4: Pilot</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="w1">
+  <div class="container">
+    <div class="week-card">
+      <h3>4. Minggu 1 (19–25 Mei) <span class="pill">Bug-fix + E2E Pengadaan</span></h3>
+      <p>Fokus: stabilkan workflow Reviu Pengadaan end-to-end. Identifikasi dan fix semua bug yang muncul di pengujian sungguhan.</p>
+
+      <div class="day-row"><div class="day-label">Sen 19/5</div><div class="day-content"><strong>Setup sprint &amp; bug triage</strong><small>Sync tim, review status, list bug. Setup issue tracker (GitHub Issues atau Notion). Test login &amp; ingestion ulang setelah perubahan terakhir.</small></div></div>
+      <div class="day-row"><div class="day-label">Sel 20/5</div><div class="day-content"><strong>Test workflow Agent Anggota Tim (reviu-pengadaan)</strong><small>Buat penugasan Reviu Pengadaan baru, upload KAK+HPS+RFI dari data DC-DRC PSrE. Klik "Mulai Analisis" → catat semua error. Fix issue di tool wrappers, prompt, timeout.</small></div></div>
+      <div class="day-row"><div class="day-label">Rab 21/5</div><div class="day-content"><strong>Endpoint download &amp; preview output</strong><small>Tambah <code>/output/{penugasan_id}/{filename}</code> di backend. UI tab Output: tombol Download per file (temuan.json, KKP.docx, dst.).</small></div></div>
+      <div class="day-row"><div class="day-label">Kam 22/5</div><div class="day-content"><strong>Test Agent QC SAIPI stage KKP</strong><small>Pastikan <code>qc_saipi.py</code> V6 dipanggil benar setelah KKP. Output checklist + laporan-qa muncul. UI tampilkan ringkasan PASS/PERINGATAN/KRITIS.</small></div></div>
+      <div class="day-row"><div class="day-label">Jum 23/5</div><div class="day-content"><strong>Error handling &amp; loading states</strong><small>Banner error jelas (bukan hanya "Connection error"). Spinner saat agen berjalan. Tombol retry. Disable submit saat loading. Toast sukses.</small></div></div>
+      <div class="day-row"><div class="day-label">Sab 24/5</div><div class="day-content"><strong>Smoke test &amp; iterasi</strong><small>Jalankan smoke test (lihat dok testing) untuk workflow Reviu Pengadaan. Catat bug minor. Fix.</small></div></div>
+      <div class="day-row"><div class="day-label">Min 25/5</div><div class="day-content"><strong>Retrospective M-1 + plan M-2</strong><small>Sync 30 menit: apa yang work/tidak, list bug carry-over.</small></div></div>
+
+      <div class="milestone">
+        <strong>🎯 Milestone M-1:</strong> Workflow Reviu Pengadaan E2E lulus (upload → KKP → QC PASS) tanpa intervensi developer untuk paket DC-DRC PSrE. KKP.docx siap download.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="w2">
+  <div class="container">
+    <div class="week-card w2">
+      <h3>5. Minggu 2 (26 Mei–1 Juni) <span class="pill">E2E RKA-K/L + Ketua Tim</span></h3>
+      <p>Fokus: skill kedua aktif + workflow Ketua Tim selesai. Setelah ini kedua skill bisa dipakai end-to-end.</p>
+
+      <div class="day-row"><div class="day-label">Sen 26/5</div><div class="day-content"><strong>Test workflow Agent AT untuk reviu-rka-kl</strong><small>Buat penugasan Reviu RKA-K/L, upload TOR+RAB dari paket QAH.001 / RAN.001. Jalankan agent → catat error.</small></div></div>
+      <div class="day-row"><div class="day-label">Sel 27/5</div><div class="day-content"><strong>Fix issues RKA-K/L pipeline</strong><small>Issue umum: digest_tor parser error untuk format TOR tertentu, RO multiple ter-detect salah, anomalies-master.json schema beda. Polish system prompt.</small></div></div>
+      <div class="day-row"><div class="day-label">Rab 28/5</div><div class="day-content"><strong>Agent Ketua Tim — alur LHR</strong><small>Test render LHR via <code>render_lhp.py</code> V6. Implementasi UI: tombol "Susun LHR" aktif kalau SELESAI_KKP. Chat KT dengan input form (judul, auditi, dasar, dst.).</small></div></div>
+      <div class="day-row"><div class="day-label">Kam 29/5</div><div class="day-content"><strong>QC SAIPI stage LHP</strong><small>Test stage="lhp" — cek heading wajib, kalimat baku SAIPI 2430, placeholder tidak bocor. Fix bila ada false positive.</small></div></div>
+      <div class="day-row"><div class="day-label">Jum 30/5</div><div class="day-content"><strong>Approval workflow (gate KT)</strong><small>Tombol "Setujui KKP" untuk AT → status SELESAI_KKP. Tombol "Setujui LHR" untuk KT → status LHP_DONE. Audit trail tercatat.</small></div></div>
+      <div class="day-row"><div class="day-label">Sab 31/5</div><div class="day-content"><strong>E2E test gabungan</strong><small>Skenario lengkap: AT login → buat → upload → KKP → QC → setujui → switch KT → susun LHR → QC → setujui → download. Untuk 1 Reviu Pengadaan + 1 Reviu RKA-K/L.</small></div></div>
+      <div class="day-row"><div class="day-label">Min 1/6</div><div class="day-content"><strong>Retro M-2 + plan M-3</strong><small>Apa yang membutuhkan polish? Satu hal yang harus diperbaiki sebelum multi-user testing.</small></div></div>
+
+      <div class="milestone">
+        <strong>🎯 Milestone M-2:</strong> Workflow Reviu RKA-K/L E2E lulus + workflow Ketua Tim (LHR) lulus untuk kedua skill. LHR-DRAFT.docx siap di-download.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="w3">
+  <div class="container">
+    <div class="week-card w3">
+      <h3>6. Minggu 3 (2–8 Juni) <span class="pill">Polish + Multi-user</span></h3>
+      <p>Fokus: rapikan UX, audit trail visible, dan pastikan sistem aman saat dipakai 2-3 user simultaneously.</p>
+
+      <div class="day-row"><div class="day-label">Sen 2/6</div><div class="day-content"><strong>UI/UX polish</strong><small>Konsistensi spacing/typography. Empty states. Tooltip pada tombol disabled. Breadcrumb. Toast error/sukses.</small></div></div>
+      <div class="day-row"><div class="day-label">Sel 3/6</div><div class="day-content"><strong>Audit trail viewer (tab baru)</strong><small>Tab "Riwayat" di detail penugasan: tabel agent_runs (siapa, kapan, agen, status, durasi). Klik baris → detail tool_calls + output.</small></div></div>
+      <div class="day-row"><div class="day-label">Rab 4/6</div><div class="day-content"><strong>Multi-user concurrent testing</strong><small>2 AT login simultan, kerjakan KKP untuk sasaran berbeda di penugasan sama. Pastikan tidak ada race condition di temuan.json. KT login bersamaan.</small></div></div>
+      <div class="day-row"><div class="day-label">Kam 5/6</div><div class="day-content"><strong>Perfomance &amp; budget</strong><small>Cek biaya Anthropic API. Aktifkan prompt caching. Limit concurrent agent runs per user (max 2). Tambah quota check.</small></div></div>
+      <div class="day-row"><div class="day-label">Jum 6/6</div><div class="day-content"><strong>Security review prototype</strong><small>Cek: JWT expiry, role enforcement, no SQL injection, file upload restrictions (max size, mime type), CORS strict.</small></div></div>
+      <div class="day-row"><div class="day-label">Sab 7/6</div><div class="day-content"><strong>Regression test</strong><small>Jalankan ulang E2E checklist. Pastikan tidak ada yang rusak setelah polish.</small></div></div>
+      <div class="day-row"><div class="day-label">Min 8/6</div><div class="day-content"><strong>Draft user manual</strong><small>5 halaman PDF cukup: login, buat penugasan, AT workflow, KT workflow, troubleshooting.</small></div></div>
+
+      <div class="milestone">
+        <strong>🎯 Milestone M-3:</strong> Sistem lolos multi-user test (3 user concurrent), audit trail tampak di UI, draft user manual siap.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="w4">
+  <div class="container">
+    <div class="week-card w4">
+      <h3>7. Minggu 4 (9–15 Juni) <span class="pill">Pilot + Dokumentasi</span></h3>
+      <p>Fokus: 3 auditor IR-2 menjalankan penugasan riil di v7. Kumpulkan feedback, iterasi cepat, dokumentasi final.</p>
+
+      <div class="day-row"><div class="day-label">Sen 9/6</div><div class="day-content"><strong>Briefing pilot user (30 menit)</strong><small>3 auditor IR-2 dikumpulkan, demo, hand-out user manual draft. Tentukan penugasan riil yang dikerjakan di v7 (paralel dengan SOP normal).</small></div></div>
+      <div class="day-row"><div class="day-label">Sel 10/6</div><div class="day-content"><strong>Pilot day-1: monitoring &amp; hotfix</strong><small>Tim dev standby. Setiap bug langsung di-track + fix dalam 2 jam. Auditor isi form feedback singkat di akhir hari.</small></div></div>
+      <div class="day-row"><div class="day-label">Rab 11/6</div><div class="day-content"><strong>Pilot day-2: iterasi cepat</strong><small>Deploy bug fixes pagi. Auditor lanjut kerja. Sore: kumpulkan log eksekusi, biaya token, durasi step.</small></div></div>
+      <div class="day-row"><div class="day-label">Kam 12/6</div><div class="day-content"><strong>Pilot day-3: kompletas penugasan</strong><small>Auditor selesaikan penugasan sampai LHR siap. Bandingkan output LHR v7 vs hasil V6/manual untuk penugasan sama. Catat selisih.</small></div></div>
+      <div class="day-row"><div class="day-label">Jum 13/6</div><div class="day-content"><strong>Debrief pilot + final fix</strong><small>1 jam rapat 3 auditor: apa yang membantu, menghambat, harus ditambahkan. Fix bug terakhir.</small></div></div>
+      <div class="day-row"><div class="day-label">Sab 14/6</div><div class="day-content"><strong>Finalisasi dokumentasi</strong><small>User manual final (10-15 halaman PDF). Admin guide (redeploy, monitoring, troubleshooting). Daftar known limitations + roadmap tahap-2.</small></div></div>
+      <div class="day-row"><div class="day-label">Min 15/6</div><div class="day-content"><strong>Handoff &amp; presentasi ke Inspektur II</strong><small>Presentasi 20 menit: demo workflow, ringkasan pilot, ROI estimasi, rekomendasi go/no-go ke tahap-2.</small></div></div>
+
+      <div class="milestone">
+        <strong>🎯 Milestone M-4 (FINAL):</strong> 3 auditor IR-2 selesai pilot penugasan riil dengan v7. Output dapat dipakai (atau dengan minor edit). Dokumentasi lengkap. Keputusan go/no-go ke tahap-2 diambil.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="risk">
+  <div class="container">
+    <h2>8. Risiko Utama 1 Bulan</h2>
+
+    <table>
+      <thead><tr><th style="width:30%">Risiko</th><th style="width:12%">Likelihood</th><th>Mitigasi</th></tr></thead>
+      <tbody>
+        <tr><td>Pipeline V6 (digest TOR/RAB) error untuk format dokumen tertentu</td><td><span class="tag tag-warning">Tinggi</span></td><td>Test dengan ≥3 paket berbeda di M-2 awal. Siapkan fallback "upload manual" bila gagal.</td></tr>
+        <tr><td>Biaya Anthropic API membengkak saat pilot</td><td><span class="tag tag-warning">Sedang</span></td><td>Set budget alert $5/hari. Aktifkan prompt caching. Limit 5 run/jam per user.</td></tr>
+        <tr><td>Auditor menolak pakai karena UX buruk</td><td><span class="tag tag-warning">Sedang</span></td><td>Polish UI di M-3 sebelum pilot. Briefing &amp; user manual sebelum pilot.</td></tr>
+        <tr><td>Anggota tim sakit/cuti di minggu kritis</td><td><span class="tag tag-info">Rendah</span></td><td>Cross-training: setiap orang deploy minimal sekali. Dokumentasi setup dev.</td></tr>
+        <tr><td>Fly.io / Vercel downtime saat pilot</td><td><span class="tag tag-info">Rendah</span></td><td>Backup database harian. Punya snapshot Docker image teruji.</td></tr>
+        <tr><td>Bug kritis ditemukan H-1 pilot</td><td><span class="tag tag-info">Rendah</span></td><td>Tunda pilot 1-2 hari kalau perlu. Lebih baik telat dari gagal di depan auditor.</td></tr>
+        <tr><td>Output LHR v7 berbeda jauh dari hasil V6</td><td><span class="tag tag-warning">Sedang</span></td><td>Bandingkan output v7 vs V6 di M-2. Tuning prompt sampai selisih wajar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sukses">
+  <div class="container">
+    <h2>9. Kriteria Sukses (Definition of Done)</h2>
+    <p class="lead">Pernyataan tegas yang harus terpenuhi di akhir 1 bulan supaya prototype dianggap berhasil.</p>
+
+    <h3>Mandatory (harus semuanya)</h3>
+    <ul>
+      <li>✅ Reviu Pengadaan E2E selesai untuk min. 2 paket berbeda tanpa intervensi developer.</li>
+      <li>✅ Reviu RKA-K/L E2E selesai untuk min. 2 paket berbeda tanpa intervensi developer.</li>
+      <li>✅ QC SAIPI berjalan otomatis di akhir KKP &amp; LHR, status PASS terdeteksi benar.</li>
+      <li>✅ 3 auditor IR-2 menjalankan masing-masing 1 penugasan riil. Min. 2 dari 3 nyatakan output bisa dipakai.</li>
+      <li>✅ Output LHR.docx bisa di-download, format sesuai template Inspektorat II.</li>
+      <li>✅ Audit trail tampak di UI (siapa kerjakan apa, kapan).</li>
+      <li>✅ User manual min. 10 halaman tersedia PDF.</li>
+      <li>✅ Total biaya bulan ke-1 ≤ USD 200 (Rp 3,2 juta).</li>
+    </ul>
+
+    <h3>Nice-to-have (boleh skip kalau waktu mepet)</h3>
+    <ul>
+      <li>Auto-polling status dokumen di UI (sekarang refresh manual).</li>
+      <li>Toast notifikasi untuk event penting.</li>
+      <li>Tab Riwayat dengan visualisasi tool calls.</li>
+      <li>Export laporan QA ke PDF.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Definisi GAGAL:</strong> Bila di akhir minggu ke-4 tidak ada satupun penugasan riil yang berhasil selesai E2E di v7 (semua butuh fallback ke V6), atau biaya bulan ke-1 &gt; USD 500, prototype dianggap belum siap pilot lebih luas dan harus diiterasi.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p><strong>Roadmap 1 Bulan — Audit AI v7 Prototype</strong> · Inspektorat II Kementerian Komunikasi dan Digital</p>
+    <p style="opacity:0.85;margin-top:6px">17 Mei – 15 Juni 2026 · 4 milestone · Target: pilot 3 auditor</p>
+  </div>
+</footer>
+
+</body>
+</html>

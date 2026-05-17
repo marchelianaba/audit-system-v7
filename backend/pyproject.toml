@@ -1,0 +1,18 @@
+[project]
+name = "audit-ai-v7-backend"
+version = "0.1.0"
+description = "Backend Audit AI v7 — FastAPI + Claude Agent SDK"
+requires-python = ">=3.12"
+readme = "../README.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

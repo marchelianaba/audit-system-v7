@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pembagian Tugas Tim — Audit AI v7</title>
+<style>
+  :root{
+    --primary:#0B3D91; --primary-dark:#072458; --accent:#F5A623;
+    --success:#2E7D32; --warning:#E65100; --danger:#C62828;
+    --bg:#F7F9FC; --surface:#FFFFFF; --text:#1A1A1A; --muted:#5B6B7F; --border:#D9E1EC;
+    --lead:#0B3D91; --be:#6A1B9A; --fe:#E65100;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.65}
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+  header{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);color:#fff;padding:42px 0 50px}
+  header .container{display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  header .logo{width:64px;height:64px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--primary);flex-shrink:0}
+  header h1{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-0.4px}
+  header .subtitle{margin:0;font-size:14.5px;opacity:0.9;max-width:760px}
+  .badge{display:inline-block;padding:4px 12px;border-radius:12px;background:rgba(255,255,255,0.15);font-size:12px;font-weight:500;border:1px solid rgba(255,255,255,0.25);margin-right:6px;margin-top:12px}
+  nav.toc{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
+  nav.toc .container{display:flex;gap:6px;overflow-x:auto;padding:10px 24px;font-size:13px}
+  nav.toc a{color:var(--muted);text-decoration:none;white-space:nowrap;padding:6px 12px;border-radius:6px;transition:all 0.15s}
+  nav.toc a:hover{background:#EEF2F7;color:var(--primary)}
+  section{padding:40px 0;border-bottom:1px solid var(--border)}
+  section h2{font-size:22px;margin:0 0 8px;color:var(--primary-dark);font-weight:700;letter-spacing:-0.3px}
+  section .lead{color:var(--muted);font-size:15px;margin:0 0 24px;max-width:880px}
+  section h3{font-size:17px;margin:26px 0 10px;color:var(--primary-dark);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--surface);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--border);font-size:13.5px;vertical-align:top}
+  th{background:#EEF2F7;font-weight:600;color:var(--primary-dark);font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
+  tbody tr:hover{background:#FAFBFD}
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap}
+  .tag-lead{background:#E3F2FD;color:var(--lead)}
+  .tag-be{background:#F3E5F5;color:var(--be)}
+  .tag-fe{background:#FFF3E0;color:var(--fe)}
+  .tag-shared{background:#ECEFF1;color:#455A64}
+  .tag-success{background:#E8F5E9;color:var(--success)}
+  code{font-family:"SF Mono",Monaco,Consolas,monospace;font-size:0.9em;background:#EEF2F7;padding:2px 5px;border-radius:3px;color:var(--primary-dark)}
+  .role-card{background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;border-left:6px solid var(--lead)}
+  .role-card.be{border-left-color:var(--be)}
+  .role-card.fe{border-left-color:var(--fe)}
+  .role-card h3{margin-top:0;display:flex;align-items:center;gap:12px;font-size:19px}
+  .role-card .avatar{width:44px;height:44px;border-radius:50%;background:var(--lead);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+  .role-card.be .avatar{background:var(--be)}
+  .role-card.fe .avatar{background:var(--fe)}
+  .role-card .role-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .role-card h4{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 8px}
+  .role-card ul{margin:4px 0;padding-left:22px;font-size:14px}
+  .role-card ul li{margin-bottom:4px}
+  .matrix-table th{font-size:11px}
+  .matrix-table td{font-size:12.5px}
+  .responsibility{display:inline-block;width:24px;height:24px;border-radius:4px;text-align:center;line-height:24px;font-size:11px;font-weight:700;margin:0 auto}
+  .r-R{background:#1565C0;color:#fff}
+  .r-A{background:#E65100;color:#fff}
+  .r-C{background:#6A1B9A;color:#fff}
+  .r-I{background:#9E9E9E;color:#fff}
+  .week-tasks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+  .week-tasks .task-col{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .week-tasks .task-col h4{margin:0 0 10px;color:var(--primary-dark);font-size:13px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:6px}
+  .week-tasks .task-col h4 .tag{font-size:10px}
+  .week-tasks .task-col ul{margin:0;padding-left:18px;font-size:13px}
+  .week-tasks .task-col li{margin-bottom:6px}
+  .callout{border-left:4px solid var(--accent);background:#FFFBF1;padding:13px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+  .callout strong{color:var(--warning)}
+  .sync-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:12px;display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:start}
+  .sync-card .when{font-weight:700;color:var(--primary-dark);font-size:14px}
+  .sync-card .when small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+  .sync-card .what{font-size:13.5px}
+  footer{background:var(--primary-dark);color:#fff;padding:26px 0;text-align:center;font-size:13px}
+  @media (max-width:768px){header h1{font-size:20px}.week-tasks{grid-template-columns:1fr}nav.toc{display:none}.sync-card{grid-template-columns:1fr}}
+  @media print{nav.toc{display:none}header{background:var(--primary);-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid;padding:20px 0}.role-card{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="logo">v7</div>
+    <div>
+      <h1>Pembagian Tugas Tim — Audit AI v7 Prototype</h1>
+      <p class="subtitle">3 orang, 4 minggu, ~480 jam-orang. Pembagian peran, tugas per minggu, dan struktur sinkronisasi tim untuk menyelesaikan prototype dengan efisien.</p>
+      <div>
+        <span class="badge">17 Mei – 15 Juni 2026</span>
+        <span class="badge">3 anggota</span>
+        <span class="badge">~40 jam/orang/minggu</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="container">
+    <a href="#tim">Komposisi Tim</a>
+    <a href="#peran">Peran Detail</a>
+    <a href="#matriks">Matriks RACI</a>
+    <a href="#mingguan">Tugas Mingguan</a>
+    <a href="#sync">Sync &amp; Komunikasi</a>
+    <a href="#tools">Tools</a>
+    <a href="#eskalasi">Eskalasi</a>
+  </div>
+</nav>
+
+<section id="tim">
+  <div class="container">
+    <h2>1. Komposisi Tim &amp; Profil</h2>
+    <p class="lead">Tim kecil 3 orang dengan pembagian peran berdasarkan keahlian dan komitmen waktu. Penamaan generic — sesuaikan dengan nama anggota tim Anda.</p>
+
+    <div class="role-card">
+      <h3>
+        <span class="avatar">L</span>
+        <span>
+          <span style="font-size:19px">Lead / Auditor PIC</span>
+          <span class="role-meta">Anda — Inspektorat II, latar belakang auditor + product management</span>
+        </span>
+      </h3>
+
+      <h4>Tanggung jawab utama</h4>
+      <ul>
+        <li>Validasi requirement dari sudut auditor; pastikan output sesuai dengan kebutuhan SOP Inspektorat II.</li>
+        <li>Komunikasi dengan auditor pilot (3 orang IR-2) dan stakeholder (Inspektur II).</li>
+        <li>Review hasil KKP/LHR yang dihasilkan v7 untuk akurasi substansi (bukan teknis kode).</li>
+        <li>Prioritas backlog harian: tentukan bug mana fix dulu berdasarkan dampak ke workflow auditor.</li>
+        <li>Dokumentasi user-facing: user manual, troubleshooting guide.</li>
+        <li>Reporting progress mingguan ke Inspektur II.</li>
+      </ul>
+
+      <h4>Tugas teknis (light)</h4>
+      <ul>
+        <li>Buat penugasan test setiap pagi untuk Dev 1 &amp; 2 latihan.</li>
+        <li>Manual test workflow E2E sebagai end-user (auditor).</li>
+        <li>Bantu setup Vercel/Fly secrets bila perlu.</li>
+        <li>Tidak menulis kode — kecuali edit prompt agen (markdown).</li>
+      </ul>
+
+      <h4>Komitmen waktu</h4>
+      <ul>
+        <li><strong>~20 jam/minggu</strong> (paruh waktu, paralel dengan tugas reguler IR-2).</li>
+        <li>Hadir di sync harian 30 menit + sync mingguan 1 jam.</li>
+      </ul>
+    </div>
+
+    <div class="role-card be">
+      <h3>
+        <span class="avatar">B</span>
+        <span>
+          <span style="font-size:19px">Developer 1 — Backend &amp; Agent SDK</span>
+          <span class="role-meta">Anggota Tim 1 — mahir Python, familiar dengan API/database</span>
+        </span>
+      </h3>
+
+      <h4>Tanggung jawab utama</h4>
+      <ul>
+        <li>Pengembangan FastAPI backend: routes, models, schemas, tool wrappers V6.</li>
+        <li>Integrasi Claude Agent SDK: konfigurasi agen, prompt tuning, debugging tool call.</li>
+        <li>Database: migrasi, query optimasi, integritas audit trail.</li>
+        <li>Tool layer V6: wrapping <code>run_batch.py</code>, <code>qc_saipi.py</code>, <code>render_*.py</code>.</li>
+        <li>Deployment Fly.io: monitoring, secrets, scaling, log analysis.</li>
+        <li>Testing: smoke test script, agent simulation, V6 script validation.</li>
+      </ul>
+
+      <h4>Yang TIDAK dikerjakan</h4>
+      <ul>
+        <li>UI design / styling (itu Dev 2).</li>
+        <li>Substansi audit / interpretasi temuan (itu Lead).</li>
+      </ul>
+
+      <h4>Komitmen waktu</h4>
+      <ul>
+        <li><strong>~40 jam/minggu</strong> (full time).</li>
+        <li>Standby untuk hotfix saat pilot week.</li>
+      </ul>
+    </div>
+
+    <div class="role-card fe">
+      <h3>
+        <span class="avatar">F</span>
+        <span>
+          <span style="font-size:19px">Developer 2 — Frontend &amp; UX</span>
+          <span class="role-meta">Anggota Tim 2 — mahir Next.js/React, TypeScript, Tailwind</span>
+        </span>
+      </h3>
+
+      <h4>Tanggung jawab utama</h4>
+      <ul>
+        <li>Pengembangan Next.js frontend: halaman, komponen, state management.</li>
+        <li>UX: loading states, error handling, empty states, toast notifications.</li>
+        <li>API integration: fetch wrapper, type safety, error parsing.</li>
+        <li>Deployment Vercel: env vars, custom domain (kalau ada), preview deployments.</li>
+        <li>UI polish: spacing, typography, accessibility minimal.</li>
+        <li>Testing: manual UI test, screenshot regression, cross-browser (Chrome + Firefox).</li>
+      </ul>
+
+      <h4>Yang TIDAK dikerjakan</h4>
+      <ul>
+        <li>Backend logic / agent prompts (itu Dev 1).</li>
+        <li>Format LHR/KKP Word (itu V6 renderer, dipanggil backend).</li>
+      </ul>
+
+      <h4>Komitmen waktu</h4>
+      <ul>
+        <li><strong>~40 jam/minggu</strong> (full time).</li>
+        <li>Standby pilot week untuk UI hotfix.</li>
+      </ul>
+    </div>
+
+    <div class="callout">
+      <strong>Catatan komitmen:</strong> Lead 20 jam + Dev 1 &amp; 2 masing-masing 40 jam = ~100 jam-orang/minggu × 4 minggu = ~400 jam total. Buffer 20% untuk overflow → ~480 jam-orang. Realistis untuk scope prototype.
+    </div>
+  </div>
+</section>
+
+<section id="peran">
+  <div class="container">
+    <h2>2. Pembagian Komponen Sistem</h2>
+    <p class="lead">Siapa yang bertanggung jawab untuk setiap bagian kode. Mencegah double-work dan unclear ownership.</p>
+
+    <table>
+      <thead><tr><th>Komponen</th><th>Owner Utama</th><th>Backup</th><th>Catatan</th></tr></thead>
+      <tbody>
+        <tr><td><code>backend/app/agents/*.py</code></td><td><span class="tag tag-be">Dev 1</span></td><td><span class="tag tag-lead">Lead</span></td><td>Lead bisa edit prompt markdown (anggota_tim.md, dll.)</td></tr>
+        <tr><td><code>backend/app/tools/*.py</code></td><td><span class="tag tag-be">Dev 1</span></td><td>—</td><td>Wrapping V6 scripts</td></tr>
+        <tr><td><code>backend/app/routes/*.py</code></td><td><span class="tag tag-be">Dev 1</span></td><td>—</td><td>REST endpoints</td></tr>
+        <tr><td><code>backend/app/models.py</code> + schema</td><td><span class="tag tag-be">Dev 1</span></td><td>—</td><td>Database schema, migrasi bila perlu</td></tr>
+        <tr><td><code>backend/Dockerfile</code>, <code>fly.toml</code></td><td><span class="tag tag-be">Dev 1</span></td><td><span class="tag tag-fe">Dev 2</span></td><td>Dev 2 belajar redeploy juga sebagai backup</td></tr>
+        <tr><td><code>backend/app/prompts/*.md</code></td><td><span class="tag tag-lead">Lead</span></td><td><span class="tag tag-be">Dev 1</span></td><td>Substansi prompt = domain knowledge auditor</td></tr>
+        <tr><td><code>frontend/app/**/*.tsx</code></td><td><span class="tag tag-fe">Dev 2</span></td><td>—</td><td>Semua halaman, komponen</td></tr>
+        <tr><td><code>frontend/lib/api.ts</code></td><td><span class="tag tag-fe">Dev 2</span></td><td><span class="tag tag-be">Dev 1</span></td><td>Typescript interfaces harus match Pydantic schemas backend</td></tr>
+        <tr><td><code>frontend/tailwind.config.js</code>, CSS</td><td><span class="tag tag-fe">Dev 2</span></td><td>—</td><td>Design tokens</td></tr>
+        <tr><td><code>frontend/vercel.json</code></td><td><span class="tag tag-fe">Dev 2</span></td><td><span class="tag tag-be">Dev 1</span></td><td>Dev 1 belajar deploy Vercel sebagai backup</td></tr>
+        <tr><td>Database (Postgres)</td><td><span class="tag tag-be">Dev 1</span></td><td>—</td><td>Backup harian, monitoring</td></tr>
+        <tr><td>V6 scripts (<code>audit-system-v4/</code>)</td><td><span class="tag tag-shared">Tidak diubah</span></td><td>—</td><td>Hanya dipanggil, tidak edit</td></tr>
+        <tr><td>User manual + admin guide</td><td><span class="tag tag-lead">Lead</span></td><td><span class="tag tag-fe">Dev 2</span></td><td>Dev 2 bantu screenshot &amp; format markdown</td></tr>
+        <tr><td>Test data &amp; fixtures</td><td><span class="tag tag-lead">Lead</span></td><td><span class="tag tag-be">Dev 1</span></td><td>Lead pilih sample penugasan dari V6 archive</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="matriks">
+  <div class="container">
+    <h2>3. Matriks RACI Aktivitas Kunci</h2>
+    <p class="lead">RACI = Responsible (mengerjakan), Accountable (bertanggung jawab final), Consulted (perlu dimintai pendapat), Informed (perlu tahu). Mencegah miskomunikasi siapa yang ambil keputusan.</p>
+
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th style="width:38%">Aktivitas / Keputusan</th>
+          <th style="text-align:center">Lead</th>
+          <th style="text-align:center">Dev 1 (BE)</th>
+          <th style="text-align:center">Dev 2 (FE)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Prioritas backlog harian</td><td style="text-align:center"><span class="responsibility r-A">A</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td></tr>
+        <tr><td>Edit system prompt agen</td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>Tambah/ubah API endpoint</td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td></tr>
+        <tr><td>Tambah halaman/komponen UI</td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td></tr>
+        <tr><td>Database migration</td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>Deploy ke Fly.io</td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>Deploy ke Vercel</td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td></tr>
+        <tr><td>Set/ubah Fly secrets</td><td style="text-align:center"><span class="responsibility r-A">A</span></td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>Tambah test data fixture</td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>UAT dengan auditor pilot</td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td></tr>
+        <tr><td>Tulis user manual</td><td style="text-align:center"><span class="responsibility r-R">R</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td></tr>
+        <tr><td>Reporting ke Inspektur II</td><td style="text-align:center"><span class="responsibility r-A">A</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-I">I</span></td></tr>
+        <tr><td>Keputusan tunda pilot/go-live</td><td style="text-align:center"><span class="responsibility r-A">A</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td><td style="text-align:center"><span class="responsibility r-C">C</span></td></tr>
+        <tr><td>Tambah library/dependency baru</td><td style="text-align:center"><span class="responsibility r-I">I</span></td><td style="text-align:center"><span class="responsibility r-R">R</span> (BE) / <span class="responsibility r-C">C</span> (FE)</td><td style="text-align:center"><span class="responsibility r-R">R</span> (FE) / <span class="responsibility r-C">C</span> (BE)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Aturan praktis:</strong> Untuk setiap PR/perubahan, owner-nya satu orang (R). Yang lain di-tag sebagai reviewer (C) bila perlu. Lead selalu dapat update kalau ada perubahan yang impact ke user-facing.
+    </div>
+  </div>
+</section>
+
+<section id="mingguan">
+  <div class="container">
+    <h2>4. Tugas Detail per Minggu</h2>
+    <p class="lead">Breakdown tugas yang sesuai dengan roadmap 4 minggu. Setiap orang tahu apa yang dikerjakan setiap minggu.</p>
+
+    <h3>Minggu 1 (19–25 Mei) — Bug-fix + E2E Pengadaan</h3>
+    <div class="week-tasks">
+      <div class="task-col">
+        <h4><span class="tag tag-lead">Lead</span></h4>
+        <ul>
+          <li>Buat 2 penugasan test (Reviu Pengadaan) dengan data DC-DRC PSrE.</li>
+          <li>Jalankan workflow sebagai auditor; catat semua friction point ke issue tracker.</li>
+          <li>Review output KKP draft yang dihasilkan agen — apakah substansi masuk akal?</li>
+          <li>Edit prompt <code>anggota_tim.md</code> bila ada panduan reviu yang kurang.</li>
+          <li>Sync harian 30 menit, sync mingguan Jumat 1 jam.</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-be">Dev 1 — Backend</span></h4>
+        <ul>
+          <li>Fix bug yang muncul saat Lead test (priority 1).</li>
+          <li>Endpoint <code>GET /output/{penugasan_id}/{filename}</code> serve file dari folder penugasan.</li>
+          <li>Test integrasi <code>qc_saipi.py</code> V6 dipanggil setelah KKP.</li>
+          <li>Logging structured (JSON) untuk semua agent runs.</li>
+          <li>Setup error tracking (Sentry atau cukup Fly logs filtering).</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-fe">Dev 2 — Frontend</span></h4>
+        <ul>
+          <li>Tab "Output &amp; QC" dengan list file output + tombol Download.</li>
+          <li>Banner error yang jelas (bukan "Connection error").</li>
+          <li>Loading spinner saat agen berjalan dengan counter detik.</li>
+          <li>Toast sukses setelah action selesai.</li>
+          <li>Disable form submit saat request berjalan.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Minggu 2 (26 Mei–1 Juni) — E2E RKA-K/L + Ketua Tim</h3>
+    <div class="week-tasks">
+      <div class="task-col">
+        <h4><span class="tag tag-lead">Lead</span></h4>
+        <ul>
+          <li>Buat 2 penugasan test Reviu RKA-K/L dari paket Dit Pengendalian 2027.</li>
+          <li>Jalankan workflow Ketua Tim — input form LHR (judul, auditi, dasar, dst.).</li>
+          <li>Bandingkan LHR draft v7 vs hasil V6 atau template — apakah konsisten?</li>
+          <li>Edit <code>ketua_tim.md</code> prompt bila narasi LHR perlu polish.</li>
+          <li>Tulis sample data fixture untuk testing (lihat dok testing).</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-be">Dev 1 — Backend</span></h4>
+        <ul>
+          <li>Test &amp; fix pipeline <code>reviu-rka-kl/run_batch.py</code> integration.</li>
+          <li>Approval workflow: endpoint untuk update status sasaran &amp; penugasan.</li>
+          <li>QC SAIPI stage LHP test &amp; fix.</li>
+          <li>Optimasi: aktifkan prompt caching untuk skill content yang berulang.</li>
+          <li>Setup automated smoke test (pytest atau bash script).</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-fe">Dev 2 — Frontend</span></h4>
+        <ul>
+          <li>Tab "Chat KT" dengan form input narasi LHR (judul, auditi, dst.).</li>
+          <li>Tombol "Setujui KKP" / "Setujui LHR" dengan konfirmasi modal.</li>
+          <li>Status badge yang jelas di setiap tahap (DRAFT, SELESAI_KKP, LHP_DONE).</li>
+          <li>Preview DOCX inline (gunakan iframe + Microsoft Office viewer atau download saja).</li>
+          <li>Cross-test di Chrome &amp; Firefox.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Minggu 3 (2–8 Juni) — Polish + Multi-user</h3>
+    <div class="week-tasks">
+      <div class="task-col">
+        <h4><span class="tag tag-lead">Lead</span></h4>
+        <ul>
+          <li>Bikin skenario multi-user: 2 AT + 1 KT kerjakan penugasan sama bersamaan.</li>
+          <li>Draft user manual versi awal (5 halaman) dari sudut auditor.</li>
+          <li>Kontak 3 auditor IR-2 untuk konfirmasi available di minggu 4 pilot.</li>
+          <li>Briefing internal IR-2 tentang prototype (15 menit di rapat reguler).</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-be">Dev 1 — Backend</span></h4>
+        <ul>
+          <li>Quota check per user (max 5 agent runs/jam).</li>
+          <li>Rate limiting di FastAPI middleware.</li>
+          <li>Backup database harian (cron job di Fly).</li>
+          <li>Security review: JWT expiry, role check audit, file upload validation.</li>
+          <li>Performance: cek slow query, tambah indeks DB bila perlu.</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-fe">Dev 2 — Frontend</span></h4>
+        <ul>
+          <li>Tab "Riwayat" — tampilkan agent_runs dengan filter.</li>
+          <li>Modal detail tool calls untuk transparansi.</li>
+          <li>Polish konsistensi: spacing, typography, button states.</li>
+          <li>Empty states yang informatif (bukan halaman kosong).</li>
+          <li>Tooltip pada tombol disabled (kenapa belum aktif).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Minggu 4 (9–15 Juni) — Pilot + Dokumentasi</h3>
+    <div class="week-tasks">
+      <div class="task-col">
+        <h4><span class="tag tag-lead">Lead</span></h4>
+        <ul>
+          <li><strong>Senin:</strong> Briefing 30 menit dengan 3 auditor pilot.</li>
+          <li><strong>Selasa–Kamis:</strong> Hadir penuh, kumpulkan feedback langsung, koordinasi fix prioritas.</li>
+          <li><strong>Jumat:</strong> Debrief 1 jam dengan auditor; tulis ringkasan untuk Inspektur II.</li>
+          <li><strong>Sabtu:</strong> Finalisasi user manual + admin guide.</li>
+          <li><strong>Minggu:</strong> Slide presentasi (10 slide) untuk Inspektur II.</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-be">Dev 1 — Backend</span></h4>
+        <ul>
+          <li>Standby setiap hari selama pilot (Senin–Jumat).</li>
+          <li>Hotfix backend bug dalam &lt; 2 jam dari laporan.</li>
+          <li>Monitoring biaya API harian; alert bila &gt; USD 10/hari.</li>
+          <li>Backup database sebelum &amp; sesudah pilot.</li>
+          <li>Tulis admin guide: redeploy, troubleshooting, rollback.</li>
+        </ul>
+      </div>
+      <div class="task-col">
+        <h4><span class="tag tag-fe">Dev 2 — Frontend</span></h4>
+        <ul>
+          <li>Standby setiap hari selama pilot.</li>
+          <li>Hotfix UI bug dalam &lt; 2 jam dari laporan.</li>
+          <li>Bantu Lead screenshot fitur untuk user manual.</li>
+          <li>Final UI polish berdasarkan feedback auditor.</li>
+          <li>Cleanup repo: remove unused code, tambah comments.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sync">
+  <div class="container">
+    <h2>5. Struktur Sync &amp; Komunikasi</h2>
+    <p class="lead">Cadence reguler untuk koordinasi tanpa terlalu sering meeting. Total ~5 jam meeting/minggu — sisanya kerja efektif.</p>
+
+    <div class="sync-card">
+      <div class="when">Daily Stand-up<small>Setiap hari 09.00<br>15 menit</small></div>
+      <div class="what">
+        <strong>Format:</strong> setiap orang jawab 3 hal — (1) kemarin saya kerjakan apa, (2) hari ini saya kerjakan apa, (3) ada blocker?
+        <br><br>
+        <strong>Tujuan:</strong> sinkronisasi cepat, deteksi blocker dini, hindari double-work.
+        <br><br>
+        <strong>Tools:</strong> Google Meet / Zoom + Notion log. Atau cukup chat di WA grup "v7 Daily" — kalau sehat dan tidak ada blocker, tulis text update saja.
+      </div>
+    </div>
+
+    <div class="sync-card">
+      <div class="when">Mid-week Sync<small>Rabu 14.00<br>30 menit</small></div>
+      <div class="what">
+        <strong>Format:</strong> review progress vs target minggu ini. Demo 5 menit dari setiap dev. Adjust prioritas sisa minggu.
+        <br><br>
+        <strong>Tujuan:</strong> early warning kalau target minggu ini tidak tercapai. Lead bisa intervensi/repriotitas.
+        <br><br>
+        <strong>Output:</strong> update di Notion progress board.
+      </div>
+    </div>
+
+    <div class="sync-card">
+      <div class="when">Weekly Retro<small>Jumat 15.30<br>1 jam</small></div>
+      <div class="what">
+        <strong>Format:</strong> apa yang work, apa yang tidak work, action items minggu depan. Demo akhir minggu — workflow end-to-end yang fix di minggu itu.
+        <br><br>
+        <strong>Tujuan:</strong> learning + planning. Setiap orang sampaikan satu hal yang bisa diperbaiki di tim.
+        <br><br>
+        <strong>Output:</strong> retro notes + backlog minggu depan terupdate.
+      </div>
+    </div>
+
+    <div class="sync-card">
+      <div class="when">Pilot Daily<small>Minggu ke-4<br>17.00, 30 menit</small></div>
+      <div class="what">
+        <strong>Format:</strong> review bug yang dilaporkan auditor, prioritas hotfix. Lead share feedback verbal yang tidak masuk issue tracker.
+        <br><br>
+        <strong>Khusus minggu pilot</strong> — siklus iterasi 24 jam (laporan hari ini → fix besok pagi → deploy → test).
+      </div>
+    </div>
+
+    <h3>Komunikasi async</h3>
+    <table>
+      <thead><tr><th>Channel</th><th>Untuk</th><th>SLA respons</th></tr></thead>
+      <tbody>
+        <tr><td>WA grup "v7 Daily"</td><td>Update harian, koordinasi cepat</td><td>&lt; 2 jam (jam kerja)</td></tr>
+        <tr><td>Notion / GitHub Issues</td><td>Bug tracking, backlog, ide</td><td>&lt; 24 jam (priority high &lt; 4 jam)</td></tr>
+        <tr><td>WA pribadi Lead</td><td>Eskalasi, keputusan urgent</td><td>&lt; 30 menit (jam kerja)</td></tr>
+        <tr><td>Email Komdigi</td><td>Komunikasi formal dengan stakeholder</td><td>&lt; 1 hari kerja</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="container">
+    <h2>6. Tools Tim</h2>
+
+    <table>
+      <thead><tr><th>Tool</th><th>Untuk apa</th><th>Akses</th></tr></thead>
+      <tbody>
+        <tr><td><strong>GitHub (private repo)</strong></td><td>Source code, PR, code review, Issues sebagai bug tracker</td><td>3 orang sebagai collaborator</td></tr>
+        <tr><td><strong>Notion</strong> (atau Trello)</td><td>Backlog mingguan, retro notes, progress board</td><td>Workspace shared</td></tr>
+        <tr><td><strong>Fly.io dashboard</strong></td><td>Backend monitoring, logs, secrets, billing</td><td>Dev 1 owner, Dev 2 member, Lead admin</td></tr>
+        <tr><td><strong>Vercel dashboard</strong></td><td>Frontend deployment, env vars</td><td>Dev 2 owner, Dev 1 member, Lead admin</td></tr>
+        <tr><td><strong>Anthropic Console</strong></td><td>API key, usage monitoring, budget alert</td><td>Lead admin, Dev 1 viewer</td></tr>
+        <tr><td><strong>Google Meet</strong></td><td>Sync meetings</td><td>Akun Komdigi</td></tr>
+        <tr><td><strong>WA grup</strong></td><td>Komunikasi async harian</td><td>3 orang</td></tr>
+        <tr><td><strong>Postman / curl</strong></td><td>Test API backend (Dev 1)</td><td>Personal</td></tr>
+        <tr><td><strong>VS Code</strong></td><td>Editor (semua orang)</td><td>Personal</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="eskalasi">
+  <div class="container">
+    <h2>7. Eskalasi &amp; Decision Making</h2>
+    <p class="lead">Aturan kapan harus eskalasi dan kepada siapa.</p>
+
+    <table>
+      <thead><tr><th>Situasi</th><th>Eskalasi ke</th><th>Dalam waktu</th></tr></thead>
+      <tbody>
+        <tr><td>Bug yang block workflow E2E ditemukan saat development</td><td>Daily stand-up esok hari</td><td>&lt; 24 jam</td></tr>
+        <tr><td>Bug yang block workflow saat pilot</td><td>WA Lead langsung</td><td>&lt; 30 menit</td></tr>
+        <tr><td>Konflik teknis antara Dev 1 &amp; Dev 2</td><td>Lead untuk arbiter</td><td>&lt; 4 jam</td></tr>
+        <tr><td>Biaya API &gt; USD 10/hari mendadak</td><td>Lead + matikan agent endpoints sementara</td><td>&lt; 1 jam</td></tr>
+        <tr><td>Fly/Vercel down &gt; 30 menit</td><td>Lead untuk info ke pilot user, status update</td><td>&lt; 15 menit</td></tr>
+        <tr><td>Auditor pilot tidak puas / menyerah</td><td>Lead reach out personal + Inspektur II</td><td>Hari yang sama</td></tr>
+        <tr><td>Anggota tim sakit/cuti &gt; 2 hari</td><td>Lead reassign + sync ulang prioritas</td><td>&lt; 4 jam</td></tr>
+        <tr><td>Keputusan tunda pilot</td><td>Lead &amp; Inspektur II</td><td>H-3 sebelum pilot</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Prinsip:</strong> Komunikasi sering &gt; komunikasi sempurna. Lebih baik over-communicate "saya ada blocker kecil" daripada diam dan stuck 2 hari. Lead bertanggung jawab membuat aman untuk anggota tim laporan masalah lebih awal.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p><strong>Pembagian Tugas Tim — Audit AI v7 Prototype</strong> · Inspektorat II Kementerian Komunikasi dan Digital</p>
+    <p style="opacity:0.85;margin-top:6px">3 anggota tim · 17 Mei – 15 Juni 2026 · ~480 jam-orang total</p>
+  </div>
+</footer>
+
+</body>
+</html>
