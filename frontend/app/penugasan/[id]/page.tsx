@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, getSession, Dokumen, Penugasan } from '@/lib/api';
+import { api, getSession, Dokumen, Penugasan, Role } from '@/lib/api';
 
 type Tab = 'dokumen' | 'setup' | 'chat' | 'output';
 
