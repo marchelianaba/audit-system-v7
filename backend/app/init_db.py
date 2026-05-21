@@ -19,6 +19,12 @@ SEED_USERS = [
         "role_default": Role.AT,
     },
     {
+        "email": "auditor.at2@komdigi.go.id",
+        "nama_lengkap": "Citra Lestari",
+        "nip": "198803152012012002",
+        "role_default": Role.AT,
+    },
+    {
         "email": "auditor.kt@komdigi.go.id",
         "nama_lengkap": "Budi Hartono",
         "nip": "197505152005011002",

@@ -65,3 +65,21 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)) -> Sessio
         role_aktif=req.role,
         token=token,
     )
+
+
+@router.get("/users", response_model=list[UserOut])
+async def list_users(
+    role: Role | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> list[UserOut]:
+    """Daftar user seed (opsional filter by role_default).
+
+    Publik (prototype) — dipakai layar login untuk menampilkan pilihan orang
+    saat satu role punya >1 user (mis. beberapa Anggota Tim), dan dipakai KT
+    untuk dropdown assignment sasaran ke nama AT yang sebenarnya.
+    """
+    stmt = select(User).order_by(User.id)
+    if role is not None:
+        stmt = stmt.where(User.role_default == role)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [UserOut.model_validate(u) for u in rows]

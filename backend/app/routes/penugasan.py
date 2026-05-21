@@ -248,7 +248,7 @@ async def get_sasaran_assignment(
     if not sa_path.exists():
         return {
             "penugasan_id": p.kode,
-            "skill": p.skill.value,
+            "skill": p.skill if isinstance(p.skill, str) else p.skill.value,
             "schema_version": "v4.0.0",
             "sasaran": [],
         }
@@ -307,7 +307,7 @@ async def put_sasaran_assignment(
 
     data = {
         "penugasan_id": p.kode,
-        "skill": p.skill.value,
+        "skill": p.skill if isinstance(p.skill, str) else p.skill.value,
         "schema_version": "v4.0.0",
         "tanggal_dibuat": datetime.utcnow().isoformat() + "Z",
         "sasaran": [s.model_dump() for s in payload.sasaran],

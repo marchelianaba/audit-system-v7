@@ -424,7 +424,7 @@ Roadmap dikatakan berhasil bila per 19 Juni 2026:
 
 ### Minggu 2
 - [ ] 15+ pattern wiki tambahan
-- [ ] Multi-anggota workflow (model + UI + role gating)
+- [x] Multi-anggota workflow (model + UI + role gating) ✅ done — 2 seed AT, endpoint `GET /auth/users`, login pemilih orang, `assigned_to` dropdown nama AT nyata, AT lihat "Sasaran Saya". Plus fix bug `p.skill.value` yang sebelumnya memblok KT simpan sasaran. Verified live (DB): KT assign 4 sasaran → Sarah 2 / Citra 2.
 - [x] SSE streaming UI chat ✅ done — EventSource di ChatTab, render text + tool_use real-time, finalize ke DB lewat event `done`
 - [x] Dashboard `/feedback` aggregate ✅ done — backend `/feedback/aggregate` + `/feedback/list`, frontend page `/feedback` (KPI + heatmap + top issues + drill-down)
 - [x] Hydration warning fix ✅ done — mounted pattern di semua client page yang baca localStorage

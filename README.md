@@ -567,7 +567,7 @@ Plus jebakan minor:
 - [ ] CACM integration (lihat [ROADMAP.md](ROADMAP.md) W3 untuk design)
 - [ ] Auto-inject ke INTEGRAL
 - [ ] Multi-tenant (lebih dari Inspektorat II)
-- [ ] Multi-anggota tim per penugasan (saat ini cuma 1 seed AT — perlu lebih banyak user AT)
+- [x] Multi-anggota tim per penugasan ✅ done — 2 seed AT (Sarah Aulia, Citra Lestari), login pemilih orang (`GET /auth/users`), KT assign sasaran per anggota via dropdown nama AT nyata, AT hanya lihat & kerjakan "Sasaran Saya". Tambah user AT lain: edit `backend/app/init_db.py`.
 - [ ] Migrasi ke PDN — lihat [DEPLOY.md § Migrasi PDN](DEPLOY.md#migrasi-ke-pdn-tahap-2)
 
 ---

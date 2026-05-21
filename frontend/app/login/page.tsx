@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, setToken, setSession, Role } from '@/lib/api';
+import { api, setToken, setSession, Role, User } from '@/lib/api';
 
 type RoleOption = {
   role: Role;
@@ -38,14 +38,25 @@ const ROLE_OPTIONS: RoleOption[] = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState<Role | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [atUsers, setAtUsers] = useState<User[]>([]);
+  const [expanded, setExpanded] = useState<Role | null>(null);
 
-  const handleLogin = async (role: Role) => {
-    setLoading(role);
+  // Ambil daftar Anggota Tim agar kartu AT bisa memilih orang spesifik
+  // (multi-anggota: satu penugasan bisa punya >1 AT).
+  useEffect(() => {
+    api
+      .listUsers('AT')
+      .then(setAtUsers)
+      .catch(() => setAtUsers([]));
+  }, []);
+
+  const doLogin = async (role: Role, email?: string) => {
+    setLoading(email || role);
     setError(null);
     try {
-      const session = await api.login(role);
+      const session = await api.login(role, email);
       setToken(session.token);
       setSession(session);
       router.push('/penugasan');
@@ -54,6 +65,16 @@ export default function LoginPage() {
     } finally {
       setLoading(null);
     }
+  };
+
+  const handleCard = (role: Role) => {
+    // Bila AT punya >1 orang, kartu jadi pemilih orang (expand). Selain itu
+    // langsung login (role tunggal auto-pick user seed di backend).
+    if (role === 'AT' && atUsers.length > 1) {
+      setExpanded((prev) => (prev === 'AT' ? null : 'AT'));
+      return;
+    }
+    doLogin(role);
   };
 
   return (
@@ -83,30 +104,57 @@ export default function LoginPage() {
           )}
 
           <div className="grid gap-3">
-            {ROLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.role}
-                onClick={() => handleLogin(opt.role)}
-                disabled={loading !== null}
-                className="text-left p-4 border-2 border-gray-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${opt.badge_color}`}>
-                      {opt.role}
-                    </span>
-                    <span className="font-semibold text-gray-800">{opt.label}</span>
-                  </div>
-                  <span className="text-gray-400 group-hover:text-primary transition">
-                    {loading === opt.role ? '⏳' : '→'}
-                  </span>
+            {ROLE_OPTIONS.map((opt) => {
+              const multiAT = opt.role === 'AT' && atUsers.length > 1;
+              const isExpanded = expanded === opt.role;
+              return (
+                <div key={opt.role}>
+                  <button
+                    onClick={() => handleCard(opt.role)}
+                    disabled={loading !== null}
+                    className="w-full text-left p-4 border-2 border-gray-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${opt.badge_color}`}>
+                          {opt.role}
+                        </span>
+                        <span className="font-semibold text-gray-800">{opt.label}</span>
+                      </div>
+                      <span className="text-gray-400 group-hover:text-primary transition">
+                        {loading === opt.role ? '⏳' : multiAT ? (isExpanded ? '▾' : '▸') : '→'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 ml-1">
+                      {multiAT ? (
+                        <>Pilih anggota: <span className="font-medium text-gray-700">{atUsers.length} orang</span></>
+                      ) : (
+                        <>Akun: <span className="font-medium text-gray-700">{opt.nama_seed}</span></>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1.5">{opt.description}</p>
+                  </button>
+
+                  {multiAT && isExpanded && (
+                    <div className="mt-2 ml-4 grid gap-2">
+                      {atUsers.map((u) => (
+                        <button
+                          key={u.id}
+                          onClick={() => doLogin('AT', u.email)}
+                          disabled={loading !== null}
+                          className="text-left px-4 py-2.5 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all disabled:opacity-40 flex items-center justify-between"
+                        >
+                          <span className="text-sm font-medium text-gray-800">{u.nama_lengkap}</span>
+                          <span className="text-gray-400 text-sm">
+                            {loading === u.email ? '⏳' : '→'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500 ml-1">
-                  Akun: <span className="font-medium text-gray-700">{opt.nama_seed}</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1.5">{opt.description}</p>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           <p className="mt-6 text-xs text-gray-400 text-center">

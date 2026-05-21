@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, getSession, Dokumen, Penugasan, Role } from '@/lib/api';
+import { api, getSession, Dokumen, Penugasan, Role, Session } from '@/lib/api';
 
 type Tab = 'dokumen' | 'setup' | 'chat' | 'output';
 
@@ -11,7 +11,10 @@ export default function DetailPenugasanPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
-  const session = getSession();
+  // Hydration-safe: jangan baca localStorage saat render — server-render tidak
+  // tahu session, jadi awalnya null lalu di-set di useEffect setelah mount.
+  const [session, setSession] = useState<Session | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const [penugasan, setPenugasan] = useState<Penugasan | null>(null);
   const [dokumen, setDokumen] = useState<Dokumen[]>([]);
@@ -19,7 +22,10 @@ export default function DetailPenugasanPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session) {
+    setMounted(true);
+    const s = getSession();
+    setSession(s);
+    if (!s) {
       router.push('/login');
       return;
     }
@@ -63,6 +69,8 @@ export default function DetailPenugasanPage() {
     }
   };
 
+  // SSR + first client render: kembalikan shell kosong supaya HTML konsisten.
+  if (!mounted) return <main className="min-h-screen" />;
   if (!session || !penugasan) return null;
 
   const allReady = dokumen.length > 0 && dokumen.every((d) => d.status === 'READY');
@@ -125,7 +133,12 @@ export default function DetailPenugasanPage() {
         )}
 
         {tab === 'setup' && (
-          <SetupPenugasanTab key={`setup-${id}`} penugasanId={id} role={session.role_aktif} />
+          <SetupPenugasanTab
+            key={`setup-${id}`}
+            penugasanId={id}
+            role={session.role_aktif}
+            currentUserName={session.user.nama_lengkap}
+          />
         )}
 
         {tab === 'chat' && (
@@ -289,7 +302,11 @@ function ChatTab({
   const [history, setHistory] = useState<AgentRun[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  // Live streaming state — text & tool_use chip yang sedang ter-stream.
+  const [streamText, setStreamText] = useState('');
+  const [streamTools, setStreamTools] = useState<Array<{ tool: string; input: any }>>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const esRef = useRef<EventSource | null>(null);
 
   const agent = role === 'AT' ? 'anggota_tim' : 'ketua_tim';
 
@@ -312,55 +329,126 @@ function ChatTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [penugasanId, agent]);
 
-  // Auto-scroll ke bawah setelah history loaded atau run selesai
+  // Cleanup: tutup EventSource saat unmount / penugasan ganti supaya tidak ada
+  // koneksi nyangkut di latar setelah pindah halaman.
+  useEffect(() => {
+    return () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+  }, [penugasanId, agent]);
+
+  // Auto-scroll ke bawah setelah history loaded, stream update, atau run selesai
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [history, running]);
+  }, [history, running, streamText, streamTools]);
 
-  const start = async () => {
+  // Streaming via Server-Sent Events. Backend route /agen/{name}/stream
+  // mengirim event: start, text, tool_use, tool_result, done, error.
+  // Hasil run persisted di DB oleh backend — kita reload history saat done.
+  const start = () => {
+    if (running) return;
     setRunning(true);
     setElapsed(0);
+    setStreamText('');
+    setStreamTools([]);
     const startTime = Date.now();
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
     const currentPrompt = prompt;
 
-    try {
-      const res = await api.runAgent(agent as any, penugasanId, currentPrompt);
-      // Tambah run baru ke history. Backend juga sudah persist ke DB.
-      setHistory((prev) => [
-        ...prev,
-        {
-          id: res.run_id,
-          status: res.status,
-          input_summary: currentPrompt.slice(0, 500),
-          output_summary: res.output.slice(0, 2000),
-          tool_calls: res.tool_calls,
-          started_at: new Date(startTime).toISOString(),
-          ended_at: new Date().toISOString(),
-          error_message: res.error,
-        },
-      ]);
-    } catch (e: any) {
-      // Tambah error entry juga supaya jejak attempt tetap ada di UI sampai reload
-      setHistory((prev) => [
-        ...prev,
-        {
-          id: -Date.now(), // negatif = belum ada di DB
-          status: 'failed',
-          input_summary: currentPrompt.slice(0, 500),
-          output_summary: '',
-          tool_calls: [],
-          started_at: new Date(startTime).toISOString(),
-          ended_at: new Date().toISOString(),
-          error_message: e.message,
-        },
-      ]);
-    } finally {
+    let gotError: string | null = null;
+    const url = api.agentStreamUrl(agent as any, penugasanId, currentPrompt);
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    const finalize = async () => {
       clearInterval(timer);
       setRunning(false);
+      if (esRef.current === es) esRef.current = null;
+      es.close();
+      // Pull fresh history dari DB (jaga2 supaya output_summary/tool_calls yg ter-persist
+      // adalah versi yang lengkap & ter-truncate sesuai aturan backend).
+      try {
+        const res = await api.getAgentHistory(agent as any, penugasanId);
+        setHistory(res.runs);
+      } catch {
+        // Kalau gagal reload, tetap append entri lokal supaya jejak run tidak hilang
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: -Date.now(),
+            status: gotError ? 'failed' : 'completed',
+            input_summary: currentPrompt.slice(0, 500),
+            output_summary: streamText.slice(0, 2000),
+            tool_calls: streamTools,
+            started_at: new Date(startTime).toISOString(),
+            ended_at: new Date().toISOString(),
+            error_message: gotError,
+          },
+        ]);
+      }
+      // Bersihkan area streaming live; history sekarang sudah punya run terbaru.
+      setStreamText('');
+      setStreamTools([]);
+    };
+
+    es.addEventListener('text', (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.text) setStreamText((prev) => prev + data.text);
+      } catch {
+        // ignore
+      }
+    });
+
+    es.addEventListener('tool_use', (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data);
+        setStreamTools((prev) => [...prev, { tool: data.tool, input: data.input }]);
+      } catch {
+        // ignore
+      }
+    });
+
+    es.addEventListener('tool_result', () => {
+      // Tool result hanya untuk audit trail — sudah ter-log di tool_calls.
+      // Future: tampilkan ringkasan return value.
+    });
+
+    es.addEventListener('error', (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data);
+        gotError = data.message || 'Stream error';
+      } catch {
+        gotError = 'Koneksi SSE putus';
+      }
+      finalize();
+    });
+
+    es.addEventListener('done', () => {
+      finalize();
+    });
+
+    // Native EventSource onerror tanpa retry: bila bukan error event dari server
+    // (mis. koneksi ke-drop), finalize dengan pesan generik.
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        if (!gotError) gotError = 'Koneksi ke server terputus';
+        finalize();
+      }
+    };
+  };
+
+  const stop = () => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
     }
+    setRunning(false);
   };
 
   return (
@@ -453,9 +541,42 @@ function ChatTab({
         )}
 
         {running && (
-          <div className="flex items-center gap-2 text-blue-600">
-            <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-            <span className="text-sm">Agen sedang bekerja… ({elapsed}s)</span>
+          <div className="border border-blue-200 bg-blue-50/40 rounded p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-blue-700">
+                <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                <span className="text-sm font-semibold">
+                  Agen sedang streaming… ({elapsed}s)
+                </span>
+              </div>
+              <span className="text-xs text-gray-500">
+                {streamTools.length > 0 ? `${streamTools.length} tool call(s)` : 'menunggu output…'}
+              </span>
+            </div>
+            {streamText && (
+              <div className="text-sm whitespace-pre-wrap text-gray-800 bg-white border border-gray-200 rounded p-2 mb-2 max-h-[300px] overflow-y-auto">
+                {streamText}
+                <span className="inline-block w-2 h-4 bg-blue-600 align-middle ml-0.5 animate-pulse" />
+              </div>
+            )}
+            {streamTools.length > 0 && (
+              <div className="space-y-1">
+                {streamTools.slice(-10).map((tc, i) => (
+                  <div
+                    key={i}
+                    className="bg-yellow-50 border-l-2 border-accent rounded-r p-1.5 text-xs font-mono"
+                  >
+                    → {tc.tool}({JSON.stringify(tc.input).slice(0, 100)}
+                    {JSON.stringify(tc.input).length > 100 ? '…' : ''})
+                  </div>
+                ))}
+                {streamTools.length > 10 && (
+                  <div className="text-xs text-gray-500 italic">
+                    …menampilkan 10 tool call terakhir dari {streamTools.length}.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -473,11 +594,20 @@ function ChatTab({
           disabled={running}
           className="px-4 py-2 rounded bg-primary text-white text-sm font-semibold hover:bg-primary-dark disabled:opacity-40"
         >
-          {running ? `⟳ Berjalan (${elapsed}s)…` : '▶ Jalankan'}
+          {running ? `⟳ Streaming (${elapsed}s)…` : '▶ Jalankan (streaming)'}
         </button>
+        {running && (
+          <button
+            onClick={stop}
+            className="px-4 py-2 rounded border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50"
+          >
+            ■ Stop
+          </button>
+        )}
       </div>
       <p className="mt-2 text-xs text-gray-500">
-        Catatan: agen butuh 30–90 detik untuk selesai. Tombol akan aktif kembali setelah respons masuk.
+        Output text + tool calls di-stream real-time via SSE. Agen butuh 30–90 detik untuk selesai.
+        Setelah selesai, run otomatis di-persist ke DB dan ter-load di history.
       </p>
     </div>
   );
@@ -563,11 +693,20 @@ function emptySasaran(idx: number): Sasaran {
   };
 }
 
-function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: Role }) {
+function SetupPenugasanTab({
+  penugasanId,
+  role,
+  currentUserName,
+}: {
+  penugasanId: number;
+  role: Role;
+  currentUserName: string;
+}) {
   const canEditSasaran = role === 'KT' || role === 'PT';
   const canEditContext = role === 'KT' || role === 'PT' || role === 'AT';
   const [sasaran, setSasaran] = useState<Sasaran[] | null>(null);
   const [contextMd, setContextMd] = useState<string>('');
+  const [atUsers, setAtUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'sasaran' | 'context' | null>(null);
   const [savedAt, setSavedAt] = useState<{ sasaran?: string; context?: string }>({});
@@ -576,10 +715,12 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
   const load = async () => {
     setLoading(true);
     try {
-      const [sa, cm] = await Promise.all([
+      const [sa, cm, users] = await Promise.all([
         api.getSasaranAssignment(penugasanId),
         api.getContextMd(penugasanId),
+        api.listUsers('AT').catch(() => []),
       ]);
+      setAtUsers(users.map((u) => u.nama_lengkap));
       // Normalize: pastikan semua field array tidak undefined (data lama mungkin tidak punya langkah_kerja)
       const normalized: Sasaran[] = (sa.sasaran || []).map((s: any) => ({
         sasaran_id: String(s.sasaran_id ?? ''),
@@ -618,6 +759,15 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
     const next = [...sasaran];
     next[idx] = { ...next[idx], ...patch };
     setSasaran(next);
+  };
+
+  const toggleAssign = (idx: number, name: string, checked: boolean) => {
+    if (!sasaran) return;
+    const cur = sasaran[idx].assigned_to;
+    const next = checked
+      ? Array.from(new Set([...cur, name]))
+      : cur.filter((n) => n !== name);
+    updateSasaran(idx, { assigned_to: next });
   };
 
   const saveSasaran = async () => {
@@ -668,6 +818,13 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
     return <div className="bg-white p-5 rounded-lg text-sm text-gray-500">Memuat setup penugasan…</div>;
   }
 
+  // AT hanya melihat sasaran yang ditugaskan ke dirinya; KT/PT melihat semua.
+  // idx asli dipertahankan agar updateSasaran/removeSasaran tetap benar.
+  const visibleRows = (sasaran || [])
+    .map((s, idx) => ({ s, idx }))
+    .filter(({ s }) => canEditSasaran || s.assigned_to.includes(currentUserName));
+  const myCount = (sasaran || []).filter((s) => s.assigned_to.includes(currentUserName)).length;
+
   return (
     <div className="space-y-6">
       {err && (
@@ -680,8 +837,9 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded text-sm text-blue-900">
           <strong>Penyempurnaan Konteks (peran AT).</strong> Anda bisa edit{' '}
           <strong>context.md</strong> di bawah ini untuk melengkapi detail yang Anda
-          temukan saat analisis (mis. periode, tujuan reviu yang lebih spesifik).
-          Sasaran-assignment dikunci read-only — itu domain Ketua Tim.
+          temukan saat analisis. Bagian sasaran di bawah hanya menampilkan{' '}
+          <strong>sasaran yang ditugaskan kepada Anda</strong> ({currentUserName}) — read-only,
+          karena assignment adalah domain Ketua Tim.
         </div>
       ) : (
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded text-sm text-blue-900">
@@ -733,11 +891,14 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-primary-dark">
-              2. Sasaran Reviu &amp; Assignment ({sasaran?.length || 0})
+              {role === 'AT'
+                ? `2. Sasaran Saya (${myCount})`
+                : `2. Sasaran Reviu & Assignment (${sasaran?.length || 0})`}
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Daftar sasaran yang akan dianalisis Anggota Tim. Setiap sasaran punya ID unik
-              (mis. S-PBJ-01), deskripsi, dan minimal 1 nama anggota di "Assigned to".
+              {role === 'AT'
+                ? `Sasaran yang ditugaskan kepada ${currentUserName}. Agen Anggota Tim hanya mengerjakan sasaran ini.`
+                : 'Daftar sasaran yang akan dianalisis Anggota Tim. Setiap sasaran punya ID unik (mis. S-PBJ-01), deskripsi, dan minimal 1 anggota di "Ditugaskan ke".'}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -758,20 +919,21 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
           </div>
         </div>
 
-        {(!sasaran || sasaran.length === 0) && (
+        {visibleRows.length === 0 && (
           <div className="p-5 text-center text-sm text-gray-500">
-            Belum ada sasaran.{' '}
             {canEditSasaran ? (
-              <>Klik <strong>+ Tambah Sasaran</strong> untuk mulai.</>
-            ) : (
+              <>Belum ada sasaran. Klik <strong>+ Tambah Sasaran</strong> untuk mulai.</>
+            ) : !sasaran || sasaran.length === 0 ? (
               <>Tunggu Ketua Tim setup sasaran terlebih dahulu.</>
+            ) : (
+              <>Belum ada sasaran yang ditugaskan kepada <strong>{currentUserName}</strong>. Tunggu Ketua Tim meng-assign.</>
             )}
           </div>
         )}
 
-        {sasaran && sasaran.length > 0 && (
+        {visibleRows.length > 0 && (
           <div className="divide-y divide-gray-100">
-            {sasaran.map((s, idx) => (
+            {visibleRows.map(({ s, idx }) => (
               <div key={idx} className="p-4 hover:bg-gray-50">
                 <div className="grid grid-cols-12 gap-3 mb-2">
                   <div className="col-span-2">
@@ -830,20 +992,60 @@ function SetupPenugasanTab({ penugasanId, role }: { penugasanId: number; role: R
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-5">
                     <label className="text-xs text-gray-500 mb-1 block">
-                      Assigned to (1 nama per baris)
+                      Ditugaskan ke {canEditSasaran && '*'}
                     </label>
-                    <textarea
-                      value={s.assigned_to.join('\n')}
-                      onChange={(e) =>
-                        updateSasaran(idx, {
-                          assigned_to: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean),
-                        })
-                      }
-                      placeholder="Sarah Aulia&#10;Citra Lestari"
-                      rows={3}
-                      disabled={!canEditSasaran}
-                      className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs disabled:bg-gray-50 disabled:text-gray-600"
-                    />
+                    {canEditSasaran ? (
+                      <div className="space-y-1 border border-gray-300 rounded px-2 py-1.5 min-h-[2.25rem]">
+                        {atUsers.length === 0 && (
+                          <p className="text-xs text-gray-400">
+                            Belum ada user AT — jalankan <code>python -m app.init_db</code>.
+                          </p>
+                        )}
+                        {atUsers.map((name) => (
+                          <label key={name} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={s.assigned_to.includes(name)}
+                              onChange={(e) => toggleAssign(idx, name, e.target.checked)}
+                            />
+                            <span>{name}</span>
+                          </label>
+                        ))}
+                        {s.assigned_to
+                          .filter((n) => !atUsers.includes(n))
+                          .map((n) => (
+                            <div key={n} className="flex items-center gap-2 text-xs text-amber-700">
+                              <span>• {n} (di luar daftar AT)</span>
+                              <button
+                                type="button"
+                                onClick={() => toggleAssign(idx, n, false)}
+                                className="text-red-500 hover:underline"
+                              >
+                                hapus
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1 py-1">
+                        {s.assigned_to.length === 0 ? (
+                          <span className="text-xs text-gray-400 italic">— belum di-assign —</span>
+                        ) : (
+                          s.assigned_to.map((n) => (
+                            <span
+                              key={n}
+                              className={`px-2 py-0.5 rounded-full text-xs ${
+                                n === currentUserName
+                                  ? 'bg-blue-100 text-blue-800 font-medium'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {n}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-7">
                     <label className="text-xs text-gray-500 mb-1 block">

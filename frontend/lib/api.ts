@@ -107,6 +107,12 @@ export const api = {
       body: JSON.stringify({ role, email }),
     }),
 
+  /** Daftar user seed (opsional filter role). Dipakai layar login untuk
+   * memilih orang saat satu role punya >1 user (mis. beberapa Anggota Tim),
+   * dan oleh KT untuk dropdown assignment sasaran. Publik (prototype). */
+  listUsers: (role?: Role) =>
+    request<User[]>(`/auth/users${role ? `?role=${role}` : ''}`),
+
   listPenugasan: () => request<Penugasan[]>('/penugasan'),
 
   getPenugasan: (id: number) => request<Penugasan>(`/penugasan/${id}`),
@@ -275,4 +281,66 @@ runAgent: (
       `/penugasan/${penugasanId}/context-md`,
       { method: 'PUT', body: JSON.stringify({ content }) }
     ),
+
+  // ===== Feedback Aggregate Dashboard (Phase 2) =====
+
+  /** Ringkasan agregat feedback agen cross-penugasan untuk N hari ke belakang. */
+  getFeedbackAggregate: (days = 30) =>
+    request<{
+      days: number;
+      total_feedback: number;
+      by_agent: Record<string, number>;
+      by_confidence: Record<string, number>;
+      top_workflow_issues: Array<{
+        category: string;
+        severity: string;
+        count: number;
+        examples: string[];
+      }>;
+      top_substansi_issues: Array<{
+        category: string;
+        severity: string;
+        count: number;
+        examples: string[];
+      }>;
+      top_pattern_suggestions: Array<{
+        id_proposed: string;
+        judul: string;
+        count: number;
+        rationales: string[];
+      }>;
+      severity_heatmap: Record<string, Record<string, number>>;
+      recent_files: Array<{
+        path: string;
+        full_path: string;
+        agent: string;
+        confidence: string;
+        summary: string;
+        penugasan_folder: string;
+        timestamp: string | null;
+        workflow_count: number;
+        substansi_count: number;
+        pattern_count: number;
+      }>;
+    }>(`/feedback/aggregate?days=${days}`),
+
+  /** List file feedback mentah untuk drill-down. */
+  listFeedback: (days = 30) =>
+    request<{
+      days: number;
+      total: number;
+      items: Array<{
+        file: string;
+        agent: string;
+        confidence: string;
+        summary: string;
+        workflow_count: number;
+        substansi_count: number;
+        pattern_count: number;
+        timestamp: string | null;
+        penugasan_id: number | null;
+        penugasan_obyek: string;
+        penugasan_folder: string;
+      }>;
+    }>(`/feedback/list?days=${days}`),
 };
