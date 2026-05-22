@@ -43,7 +43,7 @@ from pathlib import Path
 from claude_agent_sdk import tool
 from sqlalchemy import select
 
-from app.tools.v6_bridge import run_v6_script, safe_read_json
+from app.tools.v6_bridge import qc_summary_counts, run_v6_script, safe_read_json
 
 
 @tool(
@@ -241,11 +241,7 @@ async def run_qc_kkp(args: dict) -> dict:
     )
 
     checklist = safe_read_json(folder / "_QA-SAIPI" / "checklist-kkp.json")
-    items = checklist.get("items", []) if isinstance(checklist, dict) else []
-    total_kritis = sum(1 for i in items if i.get("severity") == "KRITIS" and i.get("status") == "GAP")
-    total_peringatan = sum(1 for i in items if i.get("severity") == "PERINGATAN" and i.get("status") == "GAP")
-    total_needs_review = sum(1 for i in items if i.get("severity") == "NEEDS_REVIEW")
-    total_ok = sum(1 for i in items if i.get("status") == "OK")
+    total_kritis, total_peringatan, total_needs_review, total_ok = qc_summary_counts(checklist)
 
     if total_kritis > 0:
         status_label = "BLOCKED_KRITIS"

@@ -77,9 +77,12 @@ def _stage_rka_inputs(folder: Path) -> tuple[Path, Path, list[str]]:
 
 @tool(
     "run_batch_rka",
-    "Jalankan pipeline lengkap V6 reviu-rka-kl (digest + cross-check + render). "
+    "Jalankan pipeline V6 reviu-rka-kl (digest + cross-check anomali). "
     "Otomatis staging TOR/RAB dari folder upload ke struktur yang dibutuhkan V6. "
-    "Output: _KKP/anomalies-master.json, _KKP/tor-{N}.json, _KKP/rab-{N}.json, _LHP/LHR-DRAFT.docx.",
+    "Pipeline ini TIDAK merender LHR (jalan dengan --no-render): LHR adalah hasil "
+    "kompilasi temuan.json yang sudah diapprove KT, dirender terpisah oleh KT via "
+    "render_lhr_rka — BUKAN dari anomali mentah. "
+    "Output: _KKP/anomalies-master.json, _KKP/tor-{N}.json, _KKP/rab-{N}.json.",
     {
         "penugasan_folder": str,
         "workers": int,
@@ -114,14 +117,9 @@ async def run_batch_rka(args: dict) -> dict:
             "input/objek/RAB",
             "--workers",
             str(args.get("workers", 4)),
-            "--judul",
-            args.get("judul", "Laporan Hasil Reviu RKA-K/L"),
-            "--nomor",
-            args.get("nomor", "[DIISI AUDITOR]"),
-            "--tanggal",
-            args.get("tanggal", "[DIISI AUDITOR]"),
-            "--penerima",
-            args.get("penerima", "[DIISI AUDITOR]"),
+            # LHR di-render terpisah oleh KT dari temuan.json yang diapprove,
+            # bukan dari anomali mentah pipeline. Skip Phase 4 render di sini.
+            "--no-render",
         ],
         timeout=300,
     )

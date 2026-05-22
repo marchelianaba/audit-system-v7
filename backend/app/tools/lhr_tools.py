@@ -18,7 +18,11 @@ from pathlib import Path
 
 from claude_agent_sdk import tool
 
-from app.tools.v6_bridge import run_v6_script, safe_read_json
+from app.tools.v6_bridge import qc_summary_counts, run_v6_script, safe_read_json
+
+# Template LHP placeholder-driven, dimiliki app (bukan V6) supaya backend/v6/
+# tetap read-only. render_lhp.py V6 menerima override path lewat --template.
+_APP_TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
 @tool(
@@ -175,11 +179,18 @@ async def render_lhr_rka(args: dict) -> dict:
             "content": [{"type": "text", "text": "FAILED|rekomendasi.json belum ada"}],
             "is_error": True,
         }
+    template = _APP_TEMPLATE_DIR / "template-lhp-reviu-rka-kl.docx"
+    if not template.exists():
+        return {
+            "content": [{"type": "text", "text": f"FAILED|template LHP tidak ada: {template}"}],
+            "is_error": True,
+        }
     code, out, err = await run_v6_script(
         "scripts/render_lhp.py",
         [
             "--penugasan", str(folder),
             "--rekomendasi-file", str(rekomendasi),
+            "--template", str(template),
             "--judul", args["judul"],
             "--auditi", args["auditi"],
             "--dasar-permintaan", args["dasar_permintaan"],
@@ -244,11 +255,7 @@ async def run_qc_lhp(args: dict) -> dict:
     )
 
     checklist = safe_read_json(folder / "_QA-SAIPI" / "checklist-lhp.json")
-    items = checklist.get("items", []) if isinstance(checklist, dict) else []
-    total_kritis = sum(1 for i in items if i.get("severity") == "KRITIS" and i.get("status") == "GAP")
-    total_peringatan = sum(1 for i in items if i.get("severity") == "PERINGATAN" and i.get("status") == "GAP")
-    total_needs_review = sum(1 for i in items if i.get("severity") == "NEEDS_REVIEW")
-    total_ok = sum(1 for i in items if i.get("status") == "OK")
+    total_kritis, total_peringatan, total_needs_review, total_ok = qc_summary_counts(checklist)
 
     if total_kritis > 0:
         status_label = "BLOCKED_KRITIS"

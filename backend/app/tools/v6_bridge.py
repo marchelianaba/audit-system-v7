@@ -56,6 +56,33 @@ async def run_v6_script(
     )
 
 
+def qc_summary_counts(checklist: dict | list) -> tuple[int, int, int, int]:
+    """Ambil (kritis, peringatan, needs_review, ok) dari output qc_saipi.py.
+
+    qc_saipi.py menulis envelope {stage, summary, checklist[...]}. Sumber
+    kebenaran adalah `summary` (sudah dihitung script + cocok dengan laporan
+    markdown). Bila `summary` tidak ada (file lama), hitung dari array
+    `checklist`. CATATAN: array-nya berkunci `checklist`, BUKAN `items` —
+    bug lama membaca `items` sehingga selalu 0 → status PASS palsu.
+    """
+    if not isinstance(checklist, dict):
+        return (0, 0, 0, 0)
+    summary = checklist.get("summary")
+    if isinstance(summary, dict):
+        return (
+            int(summary.get("kritis", 0)),
+            int(summary.get("peringatan", 0)),
+            int(summary.get("needs_review", 0)),
+            int(summary.get("ok", 0)),
+        )
+    items = checklist.get("checklist", []) or []
+    kritis = sum(1 for i in items if i.get("severity") == "KRITIS" and i.get("status") == "GAP")
+    peringatan = sum(1 for i in items if i.get("severity") == "PERINGATAN" and i.get("status") == "GAP")
+    needs_review = sum(1 for i in items if i.get("severity") == "NEEDS_REVIEW")
+    ok = sum(1 for i in items if i.get("status") == "OK")
+    return (kritis, peringatan, needs_review, ok)
+
+
 def safe_read_json(path: Path) -> dict | list:
     """Baca JSON; return {} bila tidak ada / error."""
     if not path.exists():
