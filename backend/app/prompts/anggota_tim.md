@@ -27,6 +27,7 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 - `write_context_md(penugasan_folder, content)` — tulis/timpa context.md (dipakai untuk simpan context.md hasil generate AI)
 - `run_batch_rka(penugasan_folder, …)` / `run_batch_pbj(penugasan_folder, role)` — pipeline V6 deterministic
 - `read_pdf_page(pdf_path, halaman)` — baca 1 halaman PDF untuk verifikasi false positive anomali
+- `read_anomalies(penugasan_folder)` — baca daftar LENGKAP anomali pipeline (`_KKP/anomalies-master.json`/`anomalies.json`): rule_id, severity, judul, deskripsi, bukti, draft K/K/A. PAKAI setelah run_batch_* agar tidak ada anomali terlewat
 - `list_konteks()` — daftar konteks pendukung di wiki (pola-berulang, glossary, regulasi) — WAJIB DIBACA SEBELUM susun temuan
 - `get_konteks(kategori)` — baca isi lengkap konteks (kategori: `pola-berulang` / `glossary` / `regulasi`)
 - `list_temuan_patterns(skill)` — daftar pattern temuan yang tersedia di wiki tim (ID, judul, kategori, severity)
@@ -77,7 +78,7 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
    - reviu-rka-kl → `run_batch_rka(penugasan_folder, workers=4, judul, nomor, tanggal, penerima)`
    - reviu-pengadaan → `run_batch_pbj(penugasan_folder, role="AT")`
 6. **Bila pipeline FAILED:** lapor exit code + 600 karakter pertama stderr ke pengguna. **STOP.** Jangan coba jalankan rules manual.
-7. **Bila pipeline OK:** baca file output (`_KKP/anomalies.json` untuk pengadaan, `_KKP/anomalies-master.json` untuk RKA-KL) via `list_ingested` + baca via tool yang tersedia. Untuk setiap anomali HIGH/CRITICAL:
+7. **Bila pipeline OK:** panggil **`read_anomalies(penugasan_folder)`** untuk dapat daftar LENGKAP anomali (rule_id, severity, judul, deskripsi, bukti, draft K/K/A). **Telusuri SEMUA anomali** (jangan hanya sebagian) — terutama HIGH/CRITICAL:
    - Buka PDF di halaman yang dirujuk via `read_pdf_page(pdf_path, halaman)`.
    - Verifikasi: TERIMA, TOLAK (false positive), atau MODIFIKASI.
 8. **Tambahkan temuan substantif** yang tidak tertangkap rules:

@@ -248,6 +248,14 @@ async def run_qc_lhp(args: dict) -> dict:
     tidak dapat hasil → improvisasi sendiri.
     """
     folder = Path(args["penugasan_folder"])
+    if not folder.exists():
+        return {
+            "content": [{
+                "type": "text",
+                "text": f"FAILED|folder penugasan tidak ada: {folder} — cek path (typo?), jangan anggap PASS",
+            }],
+            "is_error": True,
+        }
     code, out, err = await run_v6_script(
         "scripts/qc_saipi.py",
         ["--penugasan", str(folder), "--stage", "lhp"],

@@ -234,6 +234,14 @@ async def run_qc_kkp(args: dict) -> dict:
     qc_saipi.py V6 dan return ringkasan untuk dipakai agen langsung.
     """
     folder = Path(args["penugasan_folder"])
+    if not folder.exists():
+        return {
+            "content": [{
+                "type": "text",
+                "text": f"FAILED|folder penugasan tidak ada: {folder} — cek path (typo?), jangan anggap PASS",
+            }],
+            "is_error": True,
+        }
     code, out, err = await run_v6_script(
         "scripts/qc_saipi.py",
         ["--penugasan", str(folder), "--stage", "kkp"],

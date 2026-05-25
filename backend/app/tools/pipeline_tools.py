@@ -1,4 +1,5 @@
 """Tool wrappers untuk orchestrator V6: run_batch.py per skill."""
+import json
 import shutil
 from pathlib import Path
 
@@ -203,4 +204,51 @@ async def read_pdf_page(args: dict) -> dict:
         }
 
 
-PIPELINE_TOOLS = [run_batch_rka, run_batch_pbj, read_pdf_page]
+@tool(
+    "read_anomalies",
+    "Baca daftar LENGKAP anomali hasil pipeline V6 dari _KKP/anomalies-master.json "
+    "(reviu-rka-kl) atau _KKP/anomalies.json (reviu-pengadaan). PAKAI SETELAH "
+    "run_batch_* supaya kamu tahu SEMUA anomali yang ditemukan rules (rule_id, "
+    "severity, aspek, judul, deskripsi, bukti, draft kondisi/kriteria/akibat, RO). "
+    "Cross-check sistematis: verifikasi tiap anomali via read_pdf_page lalu "
+    "TERIMA/TOLAK/MODIFIKASI sebelum append_temuan. Mencegah anomali terlewat.",
+    {"penugasan_folder": str},
+)
+async def read_anomalies(args: dict) -> dict:
+    folder = Path(args["penugasan_folder"])
+    for name in ("anomalies-master.json", "anomalies.json"):
+        path = folder / "_KKP" / name
+        if not path.exists():
+            continue
+        data = safe_read_json(path)
+        if isinstance(data, dict):
+            anomalies = data.get("anomalies", [])
+            ringkasan = data.get("ringkasan", {})
+        elif isinstance(data, list):
+            anomalies, ringkasan = data, {}
+        else:
+            anomalies, ringkasan = [], {}
+        return {
+            "content": [{
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "source": name,
+                        "total": len(anomalies),
+                        "ringkasan": ringkasan,
+                        "anomalies": anomalies[:50],
+                    },
+                    ensure_ascii=False,
+                ),
+            }]
+        }
+    return {
+        "content": [{
+            "type": "text",
+            "text": "FAILED|anomalies file tidak ada di _KKP/ — jalankan run_batch_* dulu",
+        }],
+        "is_error": True,
+    }
+
+
+PIPELINE_TOOLS = [run_batch_rka, run_batch_pbj, read_pdf_page, read_anomalies]
