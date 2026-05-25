@@ -521,6 +521,17 @@ v7 = **aplikasi internal penerima**; agent tetap service terpisah milik tim (tid
 - [x] **C2 otomasi** — sinyal LIVE (webhook/pull) otomatis buat usulan penugasan dari finding MERAH (config `CACM_AUTO_PROMOTE=off|merah|merah_kuning`), anti-duplikat per satker+kode; endpoint `/cacm/usulan/pending` + badge notifikasi di nav CACM. Offline ingest tidak auto-promote. (Scheduler = milik agent tim, cron 1 & 15 → push webhook.) Verified: webhook→5 MERAH auto-usulan, KUNING 0, dedup, offline 0.
 - [ ] W2 promosi pattern · [ ] W3 tulis-balik
 
+### Audit sistem + penyederhanaan workflow (25 Mei 2026)
+
+Audit read-only fokus kecepatan + buang yang tak optimal. Dikerjakan (commit terpisah, sudah di-push):
+
+- **Hapus kode mati (P1):** endpoint sync `POST /agen/{name}/run` + `runAgent`; **agen Ingestion** (nyatanya worker deterministik `_run_ingestion`) + **agen QC SAIPI** (nyatanya tool sinkron `run_qc_kkp`/`run_qc_lhp`). Sistem kini **2 agen ber-LLM** (AT + KT). −~560 baris.
+- **Perf (P2):** SQL `echo` di-gate `DEBUG_SQL` (default OFF) — hilangkan spam log + overhead query tiap request di dev.
+- **Penyederhanaan workflow (sesuai alur yang diminta):** hapus tombol "Mulai Ingestion" (digest **auto** saat upload); **Generate Context** jadi tombol terpisah + editable di tab Konteks, **di-gate**: hanya aktif bila **KT sudah isi sasaran** + **AT sudah upload dokumen ter-digest** (`storage.context_readiness` + hard gate `[MODE:CONTEXT]` di stream + endpoint `/context-readiness`). **Verified live**: run AT `[MODE:CONTEXT]` → susun `context.md` dari digest+sasaran lalu BERHENTI (tak lanjut pipeline).
+- **Gate kepatuhan QC dipindah lebih awal ke UI** (dari feedback agen): warning sasaran tanpa anggota (REN-006), Nomor ST kosong (REN-003), notice KP/PKP (REN-001/002); tool `read_anomalies` + guard folder QC.
+- **P3 (hapus digest-ganda) DIBATALKAN** — bertentangan dengan alur: `context.md` dibangun dari digest ingestion, jadi digest ingestion dipertahankan.
+- **Sisa usulan (P4/P5):** paralelkan digest (`asyncio.gather`), aktifkan `DocumentCache`, cache `search_wiki`, perbaiki N+1 `/cacm/runs`, hapus kolom mati (`Penugasan.context_md`, `AgentRun.tokens_*`).
+
 ---
 
 ## 14. Lihat Juga
@@ -533,4 +544,4 @@ v7 = **aplikasi internal penerima**; agent tetap service terpisah milik tim (tid
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei, direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1 selesai).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context).*
