@@ -518,7 +518,8 @@ v7 = **aplikasi internal penerima**; agent tetap service terpisah milik tim (tid
 - [x] **W1 baca vault** — `APP_VAULT_PATH` + `search_wiki`/`get_wiki_page` + endpoint + panel "Cari Wiki" (verified)
 - [x] **C1a ingest offline + usulan** — model `CacmRun`/`EwsFinding` + `PenugasanStatus.USULAN_CACM`; `routes/cacm.py` (`/ingest`, `/ingest-sample`, `/runs`, `/findings/{id}/promote|dismiss`, `/usulan/{id}/accept`); UI `/cacm` (ringkasan + findings + promote/dismiss). E2E verified via ASGI test (20 findings sample → promote → USULAN_CACM → accept→DRAFT)
 - [x] **C1b webhook/pull** — `POST /cacm/ews-webhook` (verifikasi HMAC `X-Agent-Signature`, no Bearer) + `POST /cacm/sync` & `/trigger` (REST `X-API-Key`); config `CACM_WEBHOOK_SECRET`/`CACM_AGENT_*`; tombol "Sync dari agent" + badge source di UI. Receiver verified (signed→200, bad/no sig→401, agent off→503). Live pull butuh agent ter-deploy.
-- [ ] **C2 otomasi** (berikutnya) · [ ] W2 promosi pattern · [ ] W3 tulis-balik
+- [x] **C2 otomasi** — sinyal LIVE (webhook/pull) otomatis buat usulan penugasan dari finding MERAH (config `CACM_AUTO_PROMOTE=off|merah|merah_kuning`), anti-duplikat per satker+kode; endpoint `/cacm/usulan/pending` + badge notifikasi di nav CACM. Offline ingest tidak auto-promote. (Scheduler = milik agent tim, cron 1 & 15 → push webhook.) Verified: webhook→5 MERAH auto-usulan, KUNING 0, dedup, offline 0.
+- [ ] W2 promosi pattern · [ ] W3 tulis-balik
 
 ---
 

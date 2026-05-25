@@ -159,6 +159,7 @@ async def _ingest(db: AsyncSession, payload: Any, source: str) -> CacmRun:
 
     await db.commit()
     await db.refresh(run)
+    await _maybe_auto_promote(db, run, source)
     return run
 
 
@@ -264,30 +265,10 @@ async def get_run(
     }
 
 
-@router.post("/findings/{finding_id}/promote", status_code=status.HTTP_201_CREATED)
-async def promote_finding(
-    finding_id: int,
-    current: tuple[User, Role] = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Jadikan finding EWS sebagai Penugasan baru (status USULAN_CACM, prefilled)."""
-    user, role = current
-    _require_pt(role)
-
-    f = (await db.execute(select(EwsFinding).where(EwsFinding.id == finding_id))).scalar_one_or_none()
-    if not f:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Finding tidak ditemukan")
-    if f.tindak_lanjut == "DIPROMOSIKAN" and f.penugasan_id:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Finding sudah dipromosikan jadi penugasan #{f.penugasan_id}.",
-        )
-    if f.status.upper() not in _PROMOTABLE:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"Status {f.status} tidak dapat dipromosikan (hanya MERAH/KUNING).",
-        )
-
+async def _create_usulan_from_finding(db: AsyncSession, f: EwsFinding) -> Penugasan:
+    """Buat Penugasan USULAN_CACM prefilled dari 1 finding. TIDAK commit & TIDAK
+    set field finding — caller yang mengatur f.tindak_lanjut/penugasan_id + commit.
+    Dipakai oleh promote manual (PT) maupun auto-promote (C2)."""
     judul_singkat = (f.judul or f.ringkasan or f.kode)[:120]
     obyek = f"Reviu Pengadaan {f.satker} — {f.kode}: {judul_singkat}"[:400]
 
@@ -296,7 +277,6 @@ async def promote_finding(
     payload = PenugasanCreate(obyek=obyek, skill=Skill.REVIU_PENGADAAN, nomor_st=None, tanggal_st=None)
     _scaffold_penugasan_files(folder=folder, kode=kode_pen, payload=payload, ketua_tim_name=None)
 
-    # Sisipkan konteks sinyal EWS ke context.md (di bawah scaffold) supaya AT/KT punya latar.
     paket_lines = "\n".join(
         f"  - {p.get('nama') or p.get('nama_paket','')} — Rp {(_to_int(p.get('pagu'))):,} "
         f"({p.get('metode','')}, {p.get('jenis','')})"
@@ -334,12 +314,118 @@ async def promote_finding(
     )
     db.add(p)
     await db.flush()
+    return p
 
+
+async def _open_usulan_exists(db: AsyncSession, satker_kode: str | None, kode: str) -> bool:
+    """True bila sudah ada usulan TERBUKA (penugasan USULAN_CACM) untuk
+    satker+kode EWS yang sama — anti-spam saat sinyal berulang tiap run."""
+    if not satker_kode:
+        return False
+    pen_ids = (
+        await db.execute(
+            select(EwsFinding.penugasan_id).where(
+                EwsFinding.satker_kode == satker_kode,
+                EwsFinding.kode == kode,
+                EwsFinding.tindak_lanjut == "DIPROMOSIKAN",
+                EwsFinding.penugasan_id.is_not(None),
+            )
+        )
+    ).scalars().all()
+    if not pen_ids:
+        return False
+    open_pens = (
+        await db.execute(
+            select(Penugasan.id).where(
+                Penugasan.id.in_(pen_ids),
+                Penugasan.status == PenugasanStatus.USULAN_CACM,
+            )
+        )
+    ).scalars().all()
+    return len(open_pens) > 0
+
+
+async def _maybe_auto_promote(db: AsyncSession, run: CacmRun, source: str) -> int:
+    """C2 — otomasi: untuk sinyal LIVE (webhook/pull), otomatis buat usulan
+    penugasan dari finding sesuai CACM_AUTO_PROMOTE, dengan anti-duplikat.
+    Offline ingest (demo/manual) tidak di-auto-promote."""
+    mode = (settings.cacm_auto_promote or "").strip().lower()
+    if source not in ("webhook", "pull") or mode not in ("merah", "merah_kuning"):
+        return 0
+    statuses = {"MERAH"} if mode == "merah" else {"MERAH", "KUNING"}
+    findings = (
+        await db.execute(
+            select(EwsFinding).where(
+                EwsFinding.cacm_run_id == run.id,
+                EwsFinding.tindak_lanjut == "BARU",
+            )
+        )
+    ).scalars().all()
+    count = 0
+    for f in findings:
+        if f.status.upper() not in statuses:
+            continue
+        if await _open_usulan_exists(db, f.satker_kode, f.kode):
+            continue
+        p = await _create_usulan_from_finding(db, f)
+        f.tindak_lanjut = "DIPROMOSIKAN"
+        f.penugasan_id = p.id
+        count += 1
+    if count:
+        await db.commit()
+        log.info("CACM auto-promote: %d usulan dibuat dari run %s (%s)", count, run.run_id, source)
+    return count
+
+
+@router.post("/findings/{finding_id}/promote", status_code=status.HTTP_201_CREATED)
+async def promote_finding(
+    finding_id: int,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Jadikan finding EWS sebagai Penugasan baru (status USULAN_CACM, prefilled)."""
+    user, role = current
+    _require_pt(role)
+
+    f = (await db.execute(select(EwsFinding).where(EwsFinding.id == finding_id))).scalar_one_or_none()
+    if not f:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Finding tidak ditemukan")
+    if f.tindak_lanjut == "DIPROMOSIKAN" and f.penugasan_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Finding sudah dipromosikan jadi penugasan #{f.penugasan_id}.",
+        )
+    if f.status.upper() not in _PROMOTABLE:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Status {f.status} tidak dapat dipromosikan (hanya MERAH/KUNING).",
+        )
+
+    p = await _create_usulan_from_finding(db, f)
     f.tindak_lanjut = "DIPROMOSIKAN"
     f.penugasan_id = p.id
     await db.commit()
+    return {"ok": True, "penugasan_id": p.id, "kode": p.kode, "obyek": p.obyek}
 
-    return {"ok": True, "penugasan_id": p.id, "kode": kode_pen, "obyek": obyek}
+
+@router.get("/usulan/pending")
+async def pending_usulan(
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Jumlah + daftar usulan CACM yang menunggu review PT (status USULAN_CACM).
+    Dipakai frontend untuk badge notifikasi."""
+    rows = (
+        await db.execute(
+            select(Penugasan)
+            .where(Penugasan.status == PenugasanStatus.USULAN_CACM)
+            .order_by(Penugasan.created_at.desc())
+        )
+    ).scalars().all()
+    return {
+        "count": len(rows),
+        "items": [{"id": p.id, "kode": p.kode, "obyek": p.obyek} for p in rows],
+    }
 
 
 @router.post("/findings/{finding_id}/dismiss")

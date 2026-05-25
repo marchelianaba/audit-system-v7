@@ -34,6 +34,7 @@ export default function DashboardPage() {
   // Awalnya null di server-render dan first client-render, lalu di-set di useEffect.
   const [session, setSessionState] = useState<Session | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [cacmPending, setCacmPending] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -48,6 +49,8 @@ export default function DashboardPage() {
       .then(setPenugasan)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+    // Badge notifikasi usulan CACM (abaikan error — fitur opsional)
+    api.getCacmPending().then((r) => setCacmPending(r.count)).catch(() => {});
   }, [router]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -127,10 +130,18 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/cacm"
-              className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700"
+              className="relative px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 text-gray-700"
               title="CACM — Continuous Audit / Continuous Monitoring"
             >
               🔔 CACM
+              {cacmPending > 0 && (
+                <span
+                  className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                  title={`${cacmPending} usulan CACM menunggu review`}
+                >
+                  {cacmPending}
+                </span>
+              )}
             </Link>
             <Link
               href="/knowledge"

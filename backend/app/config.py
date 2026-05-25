@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     cacm_webhook_secret: str = ""   # verifikasi X-Agent-Signature (HMAC sha256) push agent
     cacm_agent_base_url: str = ""   # mis. http://10.0.0.5:3000 (untuk pull/trigger)
     cacm_agent_api_key: str = ""    # X-API-Key untuk REST agent
+    # C2 — otomasi: dari sinyal LIVE (webhook/pull), otomatis buat usulan penugasan.
+    # "off" | "merah" (default) | "merah_kuning". Anti-duplikat per satker+kode.
+    cacm_auto_promote: str = "merah"
 
     # Token quota per user per jam (safety)
     rate_limit_runs_per_hour: int = 5

@@ -433,6 +433,12 @@ runAgent: (
   triggerCacm: () =>
     request<{ ok: boolean; agent_response: any }>('/cacm/trigger', { method: 'POST' }),
 
+  /** Jumlah usulan CACM yang menunggu review (status USULAN_CACM) — untuk badge. */
+  getCacmPending: () =>
+    request<{ count: number; items: Array<{ id: number; kode: string; obyek: string }> }>(
+      '/cacm/usulan/pending'
+    ),
+
   // ===== Feedback Aggregate Dashboard (Phase 2) =====
 
   /** Ringkasan agregat feedback agen cross-penugasan untuk N hari ke belakang. */

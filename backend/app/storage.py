@@ -43,10 +43,15 @@ def penugasan_folder(kode: str) -> Path:
 
 
 def gen_kode_penugasan(skill: str) -> str:
-    """Generate kode penugasan unik: YYYY-MM-{skill-slug}-{seq}."""
+    """Generate kode penugasan unik: YYYY-MM-{skill-slug}-{seq}.
+
+    Timestamp menyertakan mikrodetik (3 digit) supaya pembuatan beruntun dalam
+    1 detik (mis. auto-promote banyak finding sekaligus) tidak bentrok pada
+    constraint unik `kode`.
+    """
     now = datetime.utcnow()
     slug = skill.replace("-", "")
-    timestamp = now.strftime("%Y%m%d-%H%M%S")
+    timestamp = now.strftime("%Y%m%d-%H%M%S") + f"{now.microsecond:06d}"
     return f"{now.year}-{now.month:02d}-{slug}-{timestamp}"
 
 

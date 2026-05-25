@@ -573,7 +573,8 @@ Plus jebakan minor:
 - [x] **Tab top-level CACM (`/cacm`) & Knowledge (`/knowledge`)** ✅
 - [x] **W1 — baca vault** ✅ `APP_VAULT_PATH` + tool `search_wiki`/`get_wiki_page` (dipakai agen AT/KT) + `GET /knowledge/wiki/search|page` + panel "Cari Wiki".
 - [x] **C1a — ingest EWS SIRUP + usulan penugasan** ✅ integrasi dengan delivery EWS tim (`CACM/`, gitignored). Model `CacmRun`/`EwsFinding` + `USULAN_CACM`; `routes/cacm.py` (`/ingest`, `/ingest-sample`, `/runs`, `/findings/{id}/promote|dismiss`, `/usulan/{id}/accept`); UI `/cacm`. Demo: tombol "Muat contoh EWS".
-- [x] **C1b — webhook + pull** ✅ `POST /cacm/ews-webhook` (verifikasi HMAC `X-Agent-Signature`) + `POST /cacm/sync` & `/trigger` (REST `X-API-Key`); config `CACM_WEBHOOK_SECRET`/`CACM_AGENT_*`; UI "Sync dari agent" + badge source. Receiver terverifikasi; pull live butuh agent tim ter-deploy.
+- [x] **C1b — webhook + pull** ✅ `POST /cacm/ews-webhook` (verifikasi HMAC `X-Agent-Signature`) + `POST /cacm/sync` & `/trigger` (REST `X-API-Key`); config `CACM_WEBHOOK_SECRET`/`CACM_AGENT_*`; UI "Sync dari agent" + badge source. Diuji live terhadap agent tim lokal (`run --skip-crawl` di :3100).
+- [x] **C2 — otomasi** ✅ sinyal live (webhook/pull) otomatis jadi usulan penugasan untuk finding MERAH (`CACM_AUTO_PROMOTE=off|merah|merah_kuning`), anti-duplikat per satker+kode; `GET /cacm/usulan/pending` + badge notifikasi di nav. Scheduler = milik agent tim (cron tgl 1 & 15 → push webhook).
 - [ ] **Wiki W2/W3** — promosi pattern dari feedback + tulis-balik temuan ke vault. Rencana: [docs/rencana-cacm-wiki.html](docs/rencana-cacm-wiki.html) + [ROADMAP.md §13](ROADMAP.md).
 - [ ] Auto-inject ke INTEGRAL
 - [ ] Multi-tenant (lebih dari Inspektorat II)
