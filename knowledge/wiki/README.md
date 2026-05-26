@@ -12,8 +12,28 @@ Knowledge base yang dapat diakses agen Anggota Tim (AT) dan Ketua Tim (KT) saat 
 Saat agen menjalankan analisis, dia akan (urutan disarankan):
 
 1. **`list_konteks()` + `get_konteks(kategori)`** — wajib di awal, baca pola-berulang + glossary + regulasi untuk re-orientasi.
-2. **`list_temuan_patterns(skill)`** — dapat daftar pattern untuk skill (reviu-pengadaan / reviu-rka-kl).
+2. **`list_temuan_patterns(skill)`** — dapat daftar pattern untuk skill (tersedia untuk 12 skill spesifik; lihat tabel di bawah).
 3. **`get_temuan_pattern(pattern_id)`** — baca pattern spesifik yang relevan, pakai sebagai **referensi format & checklist** (bukan template copy-paste).
+
+## Skill yang punya pattern (selaras dengan registry `knowledge/skills/`)
+
+Tiap **skill spesifik** punya 1 folder pattern (1:1 dengan skill di `knowledge/skills/`).
+Skill **`*-umum`** (audit/reviu/pemantauan/evaluasi/konsultansi-umum) **tidak** punya
+folder pattern — bersifat *criteria-driven* (kriteria diunggah auditor saat penugasan),
+jadi tak butuh pustaka pattern.
+
+| Skill | Prefix ID | Skill | Prefix ID |
+|-------|-----------|-------|-----------|
+| `reviu-rka-kl` | `RKA-` | `evaluasi-spip` | `ESP-` |
+| `reviu-pengadaan` | `RP-` | `evaluasi-sakip` | `ESA-` |
+| `audit-pengadaan` | `AP-` | `evaluasi-manajemen-risiko` | `EMR-` |
+| `audit-kinerja` | `AK-` | `evaluasi-reformasi-birokrasi` | `ERB-` |
+| `konsultasi-pengadaan` | `KP-` | `kepatuhan-saipi` | `KS-` |
+| `pemantauan-pengadaan` | `PP-` | `pemantauan-tindak-lanjut` | `PTL-` |
+
+> Daftar di atas indikatif — sumber kebenaran adalah folder yang ADA di
+> `temuan-patterns/`. `list_temuan_patterns` menurunkan skill valid dari folder
+> (folder-driven), jadi **menambah folder skill = menambah skill** tanpa ubah kode.
 
 ## Struktur folder
 
@@ -21,26 +41,11 @@ Saat agen menjalankan analisis, dia akan (urutan disarankan):
 wiki/
 ├── README.md                          # file ini
 ├── temuan-patterns/
-│   ├── reviu-pengadaan/
-│   │   ├── README.md                  # index pattern reviu-pengadaan
-│   │   ├── RP-08-hps-rfi-minimum.md
-│   │   ├── RP-09-kontrak-tanpa-kontrak-sotk.md
-│   │   ├── RP-10-adendum-nomor-ganda.md
-│   │   ├── RP-11-pagu-sirup-draft-akhir-tw1.md
-│   │   ├── RP-12-kajian-tanpa-rencana-aksi.md
-│   │   ├── RP-13-vendor-confidentiality-audit-trail.md
-│   │   ├── RP-14-perpanjangan-lisensi-tanggal-awal.md
-│   │   ├── RP-15-e-katalog-tanpa-negosiasi.md
-│   │   └── RP-16-vendor-pjt-belum-berkontrak.md
-│   └── reviu-rka-kl/
-│       ├── README.md
-│       ├── RKA-01-tor-7-blok.md
-│       ├── RKA-02-ro-tanpa-parameter-keberhasilan.md
-│       ├── RKA-03-komponen-belum-cukup.md
-│       ├── RKA-04-tor-tanpa-metode-pengadaan.md
-│       ├── RKA-05-ketidakselarasan-metode-tahapan.md
-│       ├── RKA-06-cost-analysis-belum-ada.md
-│       └── RKA-07-indikator-om-tidak-sesuai-prinsip.md
+│   ├── <skill>/                       # 1 folder per skill spesifik (lihat tabel)
+│   │   ├── README.md                  # index pattern skill itu
+│   │   ├── <ID>-<slug-judul>.md       # mis. RP-08-hps-rfi-minimum.md
+│   │   └── ...
+│   └── ...                            # 12 folder skill (~65 pattern total)
 └── konteks/
     ├── README.md
     ├── pola-temuan-berulang.md        # 9 akar masalah lintas LHP/LHR 2025-2026
@@ -84,9 +89,9 @@ Risiko yang muncul bila kondisi tidak diperbaiki...
 ```
 
 **Field wajib** di frontmatter:
-- `id` — unique identifier (mis. `RP-08`, `RKA-15`)
-- `skill` — `reviu-pengadaan` | `reviu-rka-kl`
-- `kategori` — bebas (PBJ-HPS, RKA-TOR, dll)
+- `id` — unique identifier (mis. `RP-08`, `RKA-15`, `ESP-35`)
+- `skill` — nama skill spesifik; HARUS sama dengan nama folder induk (mis. `reviu-pengadaan`, `evaluasi-spip`)
+- `kategori` — bebas (PBJ-HPS, RKA-TOR, SPIP-MATURITAS, dll)
 - `severity` — `CRITICAL` | `HIGH` | `MEDIUM` | `LOW` | `INFO`
 - `judul` — string
 

@@ -249,6 +249,8 @@ Login **AT** → penugasan:
 
 **Tab Dokumen:** upload TOR/RAB (RKA-K/L) atau KAK/HPS/RFI/Kontrak (Pengadaan) **+ KP & PKP** (dari INTEGRAL — wajib agar QC tidak BLOKIR). Hanya AT yang boleh upload. **Digest otomatis di background** → `_INGESTED/` (tak ada tombol ingest manual).
 
+> **Digestion dua-tingkat.** (1) **Parser deterministik V6** = jalur utama (gratis/cepat/reproducible). (2) **Fallback LLM tier-2** (opsional, env `DIGEST_LLM_FALLBACK=true`): bila parser kehilangan field kunci (layout tak dikenali), model murah (Haiku) membaca **teks** dokumen & memulihkan field — selektif per dokumen, disimpan di blok `_llm_fallback` pada digest JSON. Asumsi: tidak ada dokumen scan. Untuk **uji** kualitas digest atas banyak dokumen, lihat `backend/scripts/digestion_harness.py` (`--llm-fallback` + deteksi gambar) dan korpus `digest-test-corpus/`.
+
 **Tab Konteks:** klik **✨ Generate Context (AI)** — tombol baru **aktif setelah** (a) KT mengisi sasaran **dan** (b) dokumen ter-digest. AI menyusun `context.md` dari digest + sasaran → **review/edit** (mis. isi Nomor ST, tambah info) → **Simpan Konteks**.
 
 **Tab Chat AT:** ketik *"Mulai analisis [skill] untuk penugasan ini."* Agen: `run_batch_*` (pipeline V6) → `read_anomalies` (telusuri SEMUA anomali) → `read_pdf_page` verifikasi → `append_temuan` → `render_kkp_docx` → `run_qc_kkp` → `submit_feedback`.
@@ -375,7 +377,9 @@ Implementasi: `backend/app/routes/agen.py` (endpoint) + `frontend/app/penugasan/
 
 ## Wiki / Pattern Library
 
-Folder `wiki/` adalah **knowledge base auditor** yang dapat diakses agen saat menjalankan reviu. Sekarang berisi `temuan-patterns/{skill}/`. Pattern adalah "rumus" temuan yang sudah teruji — judul baku, kriteria peraturan, bukti yang harus dicari, format penulisan, dan rekomendasi standar.
+Folder `wiki/` adalah **knowledge base auditor** yang dapat diakses agen saat menjalankan reviu. Berisi `temuan-patterns/{skill}/` untuk **12 skill spesifik** (~65 pattern) — selaras 1:1 dengan registry `knowledge/skills/`. Pattern adalah "rumus" temuan yang sudah teruji — judul baku, kriteria peraturan, bukti yang harus dicari, format penulisan, dan rekomendasi standar.
+
+> Skill `*-umum` (audit/reviu/pemantauan/evaluasi/konsultansi-umum) **tidak** punya folder pattern — bersifat *criteria-driven* (kriteria diunggah auditor saat penugasan). `list_temuan_patterns` menurunkan skill valid dari folder yang ADA (folder-driven), jadi menambah folder skill = menambah skill tanpa ubah kode.
 
 ### Cara kerja
 
@@ -395,13 +399,13 @@ Tanpa pattern, agen tetap berfungsi (pipeline V6 + judgment LLM). Pattern hanya 
 
 ### Cara menambahkan pattern baru
 
-1. Tentukan skill (`reviu-pengadaan` atau `reviu-rka-kl`)
+1. Tentukan skill spesifik (mis. `reviu-pengadaan`, `evaluasi-spip`, `audit-kinerja` — salah satu dari 12 folder yang ada)
 2. Bikin file `.md` di `wiki/temuan-patterns/{skill}/{ID}-{slug-judul}.md`
 3. Isi YAML frontmatter wajib:
    ```yaml
    ---
-   id: RP-12                    # unique identifier
-   skill: reviu-pengadaan       # reviu-pengadaan | reviu-rka-kl
+   id: RP-12                    # unique identifier (prefix per skill: RP-, RKA-, ESP-, ...)
+   skill: reviu-pengadaan       # HARUS sama dengan nama folder induk
    kategori: PBJ-METODE         # tag kategori untuk grouping
    severity: HIGH               # CRITICAL | HIGH | MEDIUM | LOW | INFO
    judul: "Metode Pemilihan Tidak Konsisten KAK ↔ Kontrak"
@@ -416,8 +420,9 @@ Tanpa pattern, agen tetap berfungsi (pipeline V6 + judgment LLM). Pattern hanya 
 Lihat contoh:
 - `wiki/temuan-patterns/reviu-pengadaan/RP-08-hps-rfi-minimum.md` — pattern HPS hanya 1 sumber harga (Perpres 16 Ps 26.5)
 - `wiki/temuan-patterns/reviu-rka-kl/RKA-01-tor-7-blok.md` — pattern TOR tidak lengkap (PMK 107/2024)
+- `wiki/temuan-patterns/evaluasi-spip/ESP-35-skor-pm-lebih-tinggi-qa.md` — skor PM > QA (optimism bias, PP 60/2008 + Perka BPKP 5/2021)
 
-Plus panduan lengkap di `wiki/README.md`.
+Plus tabel skill↔prefix + panduan lengkap di `wiki/README.md`.
 
 ### Konfigurasi
 

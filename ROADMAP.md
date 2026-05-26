@@ -550,8 +550,37 @@ Folder `skills/` (taksonomi `audit-system-v4`, 22 entri cowork) ditambahkan. v7 
   - ✅ Tombol gate one-click + "Jalankan Gate" (prefill Chat).
   - ✅ **LKE Excel (SAKIP/SPIP) — penjaminan kualitas atas self-assessment auditee, rumus utuh.** Alur: auditee isi penilaian mandiri (PM) → AT upload LKE → **agen menilai (APIP)**. `app/lke_writer.py` (`LKEWriter`, openpyxl `data_only=False`) + tools `read_lke` (baca self-assessment auditee) + `fill_lke` (tulis **kolom APIP** saja; **tolak** cell formula via cell-map + runtime `data_type=='f'` & sheet agregator; tak menimpa PM). Output `_KKP/LKE-terisi-<skill>.xlsx` (file auditee asli tak diubah). Terintegrasi **gate-based**: tiap gate = unsur LKE → `read_lke`→nilai APIP→`fill_lke`→catat selisih PM vs APIP (pola optimism-bias ESP-35). Verified: rumus identik sebelum/sesudah (live SPIP: fill_lke 62 cell sebelum temuan, `KKLEAD_SPIP!H9` tetap `=E9*F9`).
   - ✅ **Skema penilaian hemat token (banyak bukti × unsur LKE)** — `bukti_index.py`: ekstrak teks PDF sekali (pdfplumber) + cache per-penugasan `_BUKTI/index.json` (key sha256, skip re-extract) + **retrieval leksikal** (keyword, nol token) → snippet relevan. Tools `list_bukti`/`search_bukti`. Prinsip: kerja deterministik (index+retrieval+presence) terpisah dari judgment LLM; **per gate = 1 unsur**, tarik **cuplikan** via search_bukti (bukan baca seluruh PDF), **skor semua sub-kriteria unsur sekaligus** (batch) → `fill_lke` bulk kolom APIP. Token ∝ unsur×(kriteria+snippet), bukan dokumen×halaman. Verified: cache sha256 + retrieval relevan + output _KKP diabaikan.
-  - ✅ **Tes live**: audit-kinerja, gate SPIP, Memo, RB, graduasi, SPIP fill_lke (rumus utuh) — semua lulus.
-  - ⏳ Sisa: skeleton LHP non-KKSA lebih kaya bila perlu; tes live gabungan gate+LKE+search_bukti per-unsur.
+  - ✅ **Tes live**: audit-kinerja, gate SPIP, Memo, RB, graduasi, SPIP fill_lke (rumus utuh), gabungan gate+LKE+search_bukti per-unsur — semua lulus.
+  - ⏳ Sisa: skeleton LHP non-KKSA lebih kaya bila perlu.
+
+### Robustness digestion + selaras pattern temuan (26 Mei 2026)
+
+**Digestion dua-tingkat (dokumen "tanpa parser" + bergambar).** Asumsi: tidak ada dokumen
+scan (teks selalu terbaca), sehingga OCR full-page tidak diperlukan.
+- ✅ **Fallback LLM tier-2** (`app/llm_extract.py`, reusable, V6 read-only dijaga) — bila digest
+  deterministik kehilangan field kunci (parser tak menangani layout), model murah (Haiku, default
+  `claude-haiku-4-5`) membaca **TEKS** dokumen & memulihkan field yang hilang. Selektif per dokumen
+  (hanya yang field-nya kosong) → hemat token.
+  - **Harness** (`scripts/digestion_harness.py`): flag `--llm-fallback` + kolom `gbr`/`LLM pulih` di report.
+  - **Produksi** (`routes/agen._run_ingestion`): gated `DIGEST_LLM_FALLBACK` (off default) + `DIGEST_LLM_MODEL`;
+    hasil pulihan disimpan terpisah di blok `_llm_fallback` pada digest JSON; `_summarize_digest`
+    menumpangkannya ke ringkasan (+ provenans `_llm_recovered`), jadi `read_ingested_digest`/context.md
+    otomatis melihatnya. Paralel via `asyncio.to_thread` + semaphore; file-only (tak sentuh DB).
+  - **Verified E2E** (DB live, flag on): TOR narasi tanpa label → deterministik 0/6 → fallback pulih 6
+    field (nilai benar), status READY, `read_ingested_digest` menampilkan `_llm_recovered`. Default-off = no-op.
+- ✅ **Deteksi gambar** — harness menghitung gambar tertanam (`pdfplumber page.images`); bila field kunci
+  tetap hilang **dan** dokumen punya gambar → ditandai **"data mungkin di GAMBAR"** (data kemungkinan di
+  tabel/diagram yang di-render jadi gambar). Solusi: minta data bentuk teks atau cek manual.
+- ✅ **Korpus ujicoba** `digest-test-corpus/` (subfolder per jenis + `run.sh` + `golden.json`; dokumen asli
+  gitignored).
+- ✅ **Fix config** — env var **kosong** tak lagi menimpa `.env` (footgun pydantic: `export VAR=` mengalahkan
+  `.env`). `settings_customise_sources` menyaring env kosong; env berisi tetap menang.
+
+**Selaras pattern temuan ↔ skill (folder-driven).** Pustaka pattern kini menutup **semua 12 skill spesifik**
+(bukan lagi 2 contoh): ~65 file pattern, frontmatter `skill:` cocok 1:1 dengan nama folder, tervalidasi.
+Skill `*-umum` (5) sengaja tanpa pattern (criteria-driven). Docstring `wiki_tools.py` + `wiki/README.md`
+diperbarui dari "2 skill" → 12 skill. (Kode `list_temuan_patterns`/`get_temuan_pattern` sudah folder-driven
+sejak Fase A — tak perlu ubah.)
 
 ---
 
@@ -568,4 +597,4 @@ Folder `skills/` (taksonomi `audit-system-v4`, 22 entri cowork) ditambahkan. v7 
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; rencana perluasan skill pengawasan).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill).*

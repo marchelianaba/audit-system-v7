@@ -1,24 +1,27 @@
 """Tools wiki — agen akses pattern temuan + konteks dari knowledge base auditor.
 
 Folder wiki/ berisi pattern temuan + konteks pendukung (pola-berulang, glossary,
-regulasi). Struktur:
+regulasi). Struktur (folder-driven — 1 subfolder = 1 skill spesifik):
 
     wiki/
     ├── temuan-patterns/
-    │   ├── reviu-pengadaan/
-    │   │   ├── README.md
-    │   │   ├── RP-08-hps-rfi-minimum.md
-    │   │   ├── RP-09-kontrak-tanpa-kontrak-sotk.md
-    │   │   └── ... (RP-10 ... RP-16)
-    │   └── reviu-rka-kl/
-    │       ├── README.md
-    │       ├── RKA-01-tor-7-blok.md
-    │       └── ... (RKA-02 ... RKA-07)
+    │   ├── <skill>/                    # 1 folder per skill spesifik
+    │   │   ├── README.md               # index pattern skill itu
+    │   │   └── <ID>-<slug>.md          # mis. RP-08-..., RKA-01-..., ESP-35-...
+    │   └── ...                         # 12 skill: audit-kinerja, audit-pengadaan,
+    │       # evaluasi-{spip,sakip,manajemen-risiko,reformasi-birokrasi},
+    │       # kepatuhan-saipi, konsultasi-pengadaan, pemantauan-{pengadaan,tindak-lanjut},
+    │       # reviu-pengadaan, reviu-rka-kl  (~65 pattern total)
     └── konteks/
         ├── README.md
         ├── pola-temuan-berulang.md    (id KONTEKS-POLA-BERULANG)
         ├── glossary-komdigi.md         (id KONTEKS-GLOSSARY)
         └── regulasi-kunci.md           (id KONTEKS-REGULASI)
+
+Skill *-umum (audit/reviu/pemantauan/evaluasi/konsultansi-umum) sengaja TIDAK
+punya folder pattern — bersifat criteria-driven (kriteria diunggah auditor saat
+penugasan), bukan dari pustaka pattern. `_available_skills()` menurunkan daftar
+skill dari folder yang ADA, jadi menambah folder = menambah skill (tanpa ubah kode).
 
 Setiap file pattern punya YAML frontmatter (id, skill, kategori, severity,
 judul, kriteria_baku, tags) lalu body markdown.
