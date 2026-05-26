@@ -60,3 +60,11 @@ llm-wiki/
 
 # Output harness ujicoba digestion
 _digest-test/
+
+# Korpus ujicoba digestion: dokumen asli jangan di-commit (mungkin rahasia);
+# struktur folder + README + golden.json tetap di-track.
+digest-test-corpus/**/*.pdf
+digest-test-corpus/**/*.docx
+digest-test-corpus/**/*.xlsx
+digest-test-corpus/**/*.doc
+digest-test-corpus/**/*.xls

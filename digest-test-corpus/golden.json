@@ -1,0 +1,5 @@
+{
+  "_keterangan": "Anotasi nilai-harapan untuk sebagian dokumen sebagai sampel akurasi. Key = nama file persis (mis. 'TOR-xxx.pdf'). Value = {label: nilai_harapan} — dicocokkan sebagai substring (case-insensitive) ke isi JSON digest. Hapus contoh di bawah & isi punya Anda. Kosongkan ({}) bila belum ingin pakai golden.",
+  "CONTOH-TOR.pdf": { "kementerian": "Komunikasi dan Digital", "total_biaya": "2450000000" },
+  "CONTOH-HPS.pdf": { "nilai_hps": "8200000000" }
+}
