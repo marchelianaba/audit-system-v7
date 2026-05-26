@@ -23,8 +23,14 @@ from app.storage import (
     reset_downstream,
     save_upload,
     sha256_bytes,
+    stage_cached_digest,
     target_subfolder_for,
 )
+
+# Hanya digest per-file (TOR/RAB) yang aman di-cache by sha256. PBJ/KAK/HPS dst
+# di-digest level folder (gabungan banyak file), jadi tidak boleh dipakai ulang
+# lintas penugasan via cache.
+_CACHEABLE_JENIS = ("TOR", "RAB")
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/dokumen", tags=["dokumen"])
@@ -80,16 +86,23 @@ async def upload_dokumen(
     target = Path(p.folder_path) / sub / (file.filename or "dokumen.bin")
     await save_upload(content, target)
 
-    # Cek cache → kalau ada, langsung READY tanpa ingestion ulang
-    cached = (
-        await db.execute(select(DocumentCache).where(DocumentCache.sha256 == sha))
-    ).scalar_one_or_none()
+    # Cek cache (hanya TOR/RAB) → kalau ada, salin digest ke _INGESTED lokal
+    # supaya agen bisa menemukannya, lalu langsung READY tanpa subprocess ulang.
+    staged_path: str | None = None
+    if jenis_final in _CACHEABLE_JENIS:
+        cached = (
+            await db.execute(select(DocumentCache).where(DocumentCache.sha256 == sha))
+        ).scalar_one_or_none()
+        if cached:
+            staged_path = stage_cached_digest(
+                Path(p.folder_path), jenis_final, cached.ingested_json_path
+            )
 
     # Tentukan status awal:
-    # - Cache HIT       → READY (skip ingestion)
-    # - ST/KP/PKP/OTHER → langsung READY (tidak butuh digest script)
+    # - Cache HIT (digest ter-stage) → READY (skip ingestion)
+    # - ST/KP/PKP/OTHER             → langsung READY (tidak butuh digest script)
     # - TOR/RAB/KAK/HPS/RFI/KONTRAK → INGESTING (auto-trigger background)
-    if cached:
+    if staged_path:
         initial_status = DokumenStatus.READY
     elif jenis_final in ("TOR", "RAB", "KAK", "HPS", "RFI", "KONTRAK"):
         initial_status = DokumenStatus.INGESTING
@@ -106,8 +119,8 @@ async def upload_dokumen(
         sha256=sha,
         size_bytes=len(content),
         status=initial_status,
-        ingested_json_path=cached.ingested_json_path if cached else None,
-        ingested_at=datetime.utcnow() if (cached or initial_status == DokumenStatus.READY) else None,
+        ingested_json_path=staged_path,
+        ingested_at=datetime.utcnow() if (staged_path or initial_status == DokumenStatus.READY) else None,
     )
     db.add(d)
     await db.flush()

@@ -289,6 +289,36 @@ def delete_file_quiet(path: str | None) -> None:
         log.warning("delete_file_quiet: gagal hapus %s: %s", path, e)
 
 
+_INGESTED_PREFIX = {"TOR": "tor", "RAB": "rab"}
+
+
+def stage_cached_digest(folder: Path, jenis: str, source_json: str | None) -> str | None:
+    """Salin hasil digest dari cache ke _INGESTED/ penugasan ini.
+
+    Cache HIT (sha256 sama) cukup men-skip subprocess digest yang mahal, tapi
+    file hasilnya tetap harus ada di _INGESTED LOKAL karena tool agen
+    (list_ingested / read_ingested_digest) hanya glob folder penugasan ini.
+    Penamaan mengikuti konvensi tor-NN.json / rab-NN.json. Return path lokal,
+    atau None bila source tidak ada (caller perlakukan sebagai cache miss).
+    """
+    if not source_json:
+        return None
+    src = Path(source_json)
+    if not src.is_file():
+        return None
+    ingested_dir = folder / "_INGESTED"
+    ingested_dir.mkdir(parents=True, exist_ok=True)
+    prefix = _INGESTED_PREFIX.get(jenis, jenis.lower())
+    n = len(list(ingested_dir.glob(f"{prefix}-*.json"))) + 1
+    dest = ingested_dir / f"{prefix}-{n:02d}.json"
+    try:
+        shutil.copy2(src, dest)
+    except OSError as e:
+        log.warning("stage_cached_digest: gagal salin %s → %s: %s", src, dest, e)
+        return None
+    return str(dest)
+
+
 def append_audit_trail(folder: Path, event: dict) -> None:
     """Append 1 baris JSON ke _AUDIT-TRAIL/events.jsonl (sync, dipanggil dari tool)."""
     trail_file = folder / "_AUDIT-TRAIL" / "events.jsonl"

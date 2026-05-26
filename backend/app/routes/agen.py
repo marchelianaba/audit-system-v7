@@ -17,12 +17,25 @@ from app.agents import (
 )
 from app.auth import get_current_user
 from app.database import SessionLocal, get_db
-from app.models import AgentRun, Dokumen, DokumenStatus, Penugasan, PenugasanStatus, Role, User
+from app.models import (
+    AgentRun,
+    DocumentCache,
+    Dokumen,
+    DokumenStatus,
+    Penugasan,
+    PenugasanStatus,
+    Role,
+    User,
+)
 from app.storage import context_readiness, reset_downstream
 from app.tools.v6_bridge import run_v6_script
 
 # Jenis dokumen yang punya V6 digest script (perlu di-ingest ulang saat re-ingest)
 _DIGESTIBLE_JENIS = ("TOR", "RAB", "KAK", "HPS", "RFI", "KONTRAK")
+
+# Batas subprocess digest yang jalan bersamaan. Tiap digest = 1 proses python3
+# (CPU/mem). 4 cukup mempercepat penugasan multi-dokumen tanpa membanjiri host.
+_INGEST_CONCURRENCY = 4
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/agen", tags=["agen"])
@@ -37,8 +50,55 @@ AGENT_BUILDERS = {
 # INGESTION WORKER (synchronous, inline)
 # ============================================================
 
+async def _digest_subprocess(
+    sem: asyncio.Semaphore, script: str, args: list[str], out: Path, timeout: int
+) -> tuple[bool, str | None]:
+    """Jalankan 1 digest subprocess (independen, tidak menyentuh DB).
+
+    Dibatasi semaphore supaya banyak dokumen tidak membuka terlalu banyak proses
+    sekaligus. Return (success, error_message_bila_gagal).
+    """
+    async with sem:
+        code, _, err = await run_v6_script(script, args, timeout=timeout)
+    ok = code == 0 and out.exists()
+    return ok, (None if ok else (err or f"{script} returned non-zero"))
+
+
+async def _cache_put(db: AsyncSession, sha256: str, jenis: str | None, path: str) -> None:
+    """Upsert DocumentCache untuk digest per-file (TOR/RAB). Idempotent.
+
+    Sekali sebuah PDF di-extract, file identik (sha256 sama) di penugasan lain
+    bisa langsung pakai hasilnya tanpa subprocess ulang (lihat routes.dokumen).
+    """
+    existing = (
+        await db.execute(select(DocumentCache).where(DocumentCache.sha256 == sha256))
+    ).scalar_one_or_none()
+    if existing:
+        existing.ingested_json_path = path
+        existing.jenis = jenis or existing.jenis
+        existing.extracted_by = "deterministic"
+        existing.extracted_at = datetime.utcnow()
+    else:
+        db.add(
+            DocumentCache(
+                sha256=sha256,
+                jenis=jenis or "OTHER",
+                ingested_json_path=path,
+                extracted_by="deterministic",
+                extracted_at=datetime.utcnow(),
+            )
+        )
+
+
 async def _run_ingestion(penugasan_id: int) -> None:
-    """Jalankan digest deterministic V6 untuk semua dokumen di penugasan."""
+    """Jalankan digest deterministic V6 untuk semua dokumen di penugasan.
+
+    Digest TOR/RAB/PBJ dijalankan PARALEL (asyncio.gather, dibatasi semaphore)
+    karena tiap subprocess independen — mempercepat penugasan multi-dokumen.
+    Mutasi DB + tulis cache dilakukan SEKUENSIAL setelah gather (AsyncSession
+    tidak aman dipakai banyak coroutine bersamaan). Hasil digest per-file
+    (TOR/RAB) di-cache by sha256; PBJ folder-level tidak di-cache.
+    """
     async with SessionLocal() as db:
         p = (
             await db.execute(select(Penugasan).where(Penugasan.id == penugasan_id))
@@ -63,52 +123,63 @@ async def _run_ingestion(penugasan_id: int) -> None:
         pbj_docs = [d for d in docs if d.jenis in ("KAK", "HPS", "RFI", "KONTRAK")]
         other_docs = [d for d in docs if d.jenis in (None, "ST", "KP", "PKP", "OTHER")]
 
+        sem = asyncio.Semaphore(_INGEST_CONCURRENCY)
+        # Daftar job: (kind, payload, out_path, coro). kind="file" → cache-able;
+        # kind="pbj" → folder-level, satu output dipakai banyak dokumen.
+        jobs: list[tuple[str, object, Path, object]] = []
+
         for i, d in enumerate(tor_docs, start=1):
             out = ingested_dir / f"tor-{i:02d}.json"
-            code, _, err = await run_v6_script(
-                "scripts/reviu-rka-kl/digest_tor.py",
-                [d.file_path, "--no-raw", "-o", str(out)],
-                timeout=120,
-            )
-            if code == 0 and out.exists():
-                d.status = DokumenStatus.READY
-                d.ingested_json_path = str(out)
-                d.ingested_at = datetime.utcnow()
-            else:
-                d.status = DokumenStatus.FAILED
-                d.error_message = (err or "digest_tor returned non-zero")[:500]
-
+            jobs.append((
+                "file", d, out,
+                _digest_subprocess(
+                    sem, "scripts/reviu-rka-kl/digest_tor.py",
+                    [d.file_path, "--no-raw", "-o", str(out)], out, 120,
+                ),
+            ))
         for i, d in enumerate(rab_docs, start=1):
             out = ingested_dir / f"rab-{i:02d}.json"
-            code, _, err = await run_v6_script(
-                "scripts/reviu-rka-kl/digest_rab.py",
-                [d.file_path, "-o", str(out)],
-                timeout=120,
-            )
-            if code == 0 and out.exists():
-                d.status = DokumenStatus.READY
-                d.ingested_json_path = str(out)
-                d.ingested_at = datetime.utcnow()
-            else:
-                d.status = DokumenStatus.FAILED
-                d.error_message = (err or "digest_rab returned non-zero")[:500]
-
+            jobs.append((
+                "file", d, out,
+                _digest_subprocess(
+                    sem, "scripts/reviu-rka-kl/digest_rab.py",
+                    [d.file_path, "-o", str(out)], out, 120,
+                ),
+            ))
         if pbj_docs:
             out = ingested_dir / "pengadaan-digest.json"
-            code, _, err = await run_v6_script(
-                "scripts/audit-pengadaan/digest_pengadaan.py",
-                [str(folder), "-o", str(out)],
-                timeout=180,
-            )
-            success = code == 0 and out.exists()
-            for d in pbj_docs:
-                if success:
+            jobs.append((
+                "pbj", pbj_docs, out,
+                _digest_subprocess(
+                    sem, "scripts/audit-pengadaan/digest_pengadaan.py",
+                    [str(folder), "-o", str(out)], out, 180,
+                ),
+            ))
+
+        # Jalankan SEMUA subprocess paralel
+        results = await asyncio.gather(*(coro for _, _, _, coro in jobs))
+
+        # Terapkan hasil + cache (sekuensial — aman untuk satu AsyncSession)
+        for (kind, payload, out, _), (ok, err) in zip(jobs, results):
+            if kind == "file":
+                d = payload  # type: ignore[assignment]
+                if ok:
                     d.status = DokumenStatus.READY
                     d.ingested_json_path = str(out)
                     d.ingested_at = datetime.utcnow()
+                    await _cache_put(db, d.sha256, d.jenis, str(out))
                 else:
                     d.status = DokumenStatus.FAILED
-                    d.error_message = (err or "digest_pengadaan returned non-zero")[:500]
+                    d.error_message = (err or "digest returned non-zero")[:500]
+            else:  # pbj
+                for d in payload:  # type: ignore[assignment]
+                    if ok:
+                        d.status = DokumenStatus.READY
+                        d.ingested_json_path = str(out)
+                        d.ingested_at = datetime.utcnow()
+                    else:
+                        d.status = DokumenStatus.FAILED
+                        d.error_message = (err or "digest_pengadaan returned non-zero")[:500]
 
         for d in other_docs:
             d.status = DokumenStatus.READY
