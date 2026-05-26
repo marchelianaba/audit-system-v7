@@ -46,17 +46,11 @@ from app.llm_extract import (
     resolve_anthropic_key,
 )
 from app.storage import classify_doc_by_filename, target_subfolder_for
-from app.tools.kkp_tools import _summarize_digest
+from app.tools.kkp_tools import COVERAGE_KEYS, _summarize_digest
 from app.tools.v6_bridge import run_v6_script, safe_read_json
 
 _SUBFOLDER_JENIS = {"tor", "rab", "kak", "hps", "rfi", "kontrak"}
 _PBJ = {"KAK", "HPS", "RFI", "KONTRAK"}
-# Field kunci yang DIHARAPKAN ada per jenis (untuk %cakupan). Mengacu _summarize_digest.
-_COVERAGE_KEYS = {
-    "TOR": ["kementerian", "program_nama", "kegiatan_nama", "ro", "total_biaya", "dasar_hukum"],
-    "RAB": ["kementerian", "ro", "jumlah_komponen", "total_pagu"],
-    "PENGADAAN": ["obyek", "nilai_hps", "jangka_waktu"],
-}
 
 
 def classify(path: Path, corpus: Path) -> str:
@@ -67,7 +61,7 @@ def classify(path: Path, corpus: Path) -> str:
 
 
 def coverage(jenis_summary: str, summ: dict) -> tuple[int, int, list[str]]:
-    keys = _COVERAGE_KEYS.get(jenis_summary, [])
+    keys = COVERAGE_KEYS.get(jenis_summary, [])
     present = [k for k in keys if summ.get(k) not in (None, "", [], 0)]
     missing = [k for k in keys if k not in present]
     return len(present), len(keys), missing

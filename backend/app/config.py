@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.llm_extract import DEFAULT_LLM_MODEL
+
 
 class Settings(BaseSettings):
     """Konfigurasi sistem.
@@ -57,6 +59,14 @@ class Settings(BaseSettings):
 
     # Token quota per user per jam (safety)
     rate_limit_runs_per_hour: int = 5
+
+    # Fallback ekstraksi LLM saat digest deterministik kehilangan field kunci.
+    # OFF default → ingestion tetap gratis/cepat/reproducible. ON → untuk dokumen
+    # yang field kuncinya hilang (parser tak menangani), panggil model murah (Haiku)
+    # atas TEKS dokumen untuk memulihkan field — selektif per dokumen, hemat token.
+    # Asumsi: tidak ada dokumen scan (teks selalu terbaca). Butuh ANTHROPIC_API_KEY.
+    digest_llm_fallback: bool = False
+    digest_llm_model: str = DEFAULT_LLM_MODEL
 
     @property
     def cors_origins_list(self) -> list[str]:

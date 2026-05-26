@@ -284,7 +284,53 @@ async def run_qc_kkp(args: dict) -> dict:
 # =============================================================================
 
 
+# Field kunci yang DIHARAPKAN ada per jenis digest. Sumber tunggal — dipakai
+# _run_ingestion (deteksi field hilang → fallback LLM) dan digestion_harness
+# (metrik cakupan). Cocokkan dengan key yang diisi _summarize_digest_raw.
+COVERAGE_KEYS = {
+    "TOR": ["kementerian", "program_nama", "kegiatan_nama", "ro", "total_biaya", "dasar_hukum"],
+    "RAB": ["kementerian", "ro", "jumlah_komponen", "total_pagu"],
+    "PENGADAAN": ["obyek", "nilai_hps", "jangka_waktu"],
+}
+
+
+def _overlay_fallback(data: dict, out: dict) -> dict:
+    """Tumpangkan nilai dari blok `_llm_fallback` (hasil fallback LLM saat ingestion)
+    untuk key ringkasan yang KOSONG dari parse deterministik.
+
+    Digest deterministik dibiarkan apa adanya (jujur); nilai pulihan disimpan
+    terpisah di `data["_llm_fallback"]` saat ingestion. Di sini kita isikan ke
+    ringkasan agar konsumen (read_ingested_digest, harness) melihatnya. Provenans
+    dicatat di `out["_llm_recovered"]`.
+    """
+    if not isinstance(data, dict):
+        return out
+    fb = data.get("_llm_fallback")
+    if not isinstance(fb, dict):
+        return out
+    recovered = []
+    for k, v in fb.items():
+        if k == "_meta":
+            continue
+        if out.get(k) in (None, "", [], 0) and v not in (None, "", [], 0):
+            out[k] = v
+            recovered.append(k)
+    if recovered:
+        out["_llm_recovered"] = recovered
+    return out
+
+
 def _summarize_digest(name: str, data: dict) -> dict:
+    """Ringkasan field kunci satu file digest (untuk context.md / metrik / agen).
+
+    Membungkus parse deterministik (`_summarize_digest_raw`) lalu menumpangkan
+    field hasil fallback LLM bila ada (`_overlay_fallback`).
+    """
+    out = _summarize_digest_raw(name, data)
+    return _overlay_fallback(data, out)
+
+
+def _summarize_digest_raw(name: str, data: dict) -> dict:
     """Ambil field kunci dari satu file digest untuk bahan context.md.
 
     Catatan: digest RAB JUGA punya `identitas_ro` (seperti TOR), jadi RAB harus

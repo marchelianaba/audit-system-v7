@@ -27,8 +27,13 @@ from app.models import (
     Role,
     User,
 )
+from app.config import get_settings
+from app.llm_extract import extract_pdf_pages, llm_extract_fields
 from app.storage import INPUT_JENIS, context_readiness, reset_downstream
-from app.tools.v6_bridge import run_v6_script
+from app.tools.kkp_tools import COVERAGE_KEYS, _summarize_digest
+from app.tools.v6_bridge import run_v6_script, safe_read_json
+
+settings = get_settings()
 
 # Jenis dokumen yang punya V6 digest script (perlu di-ingest ulang saat re-ingest)
 _DIGESTIBLE_JENIS = ("TOR", "RAB", "KAK", "HPS", "RFI", "KONTRAK")
@@ -88,6 +93,89 @@ async def _cache_put(db: AsyncSession, sha256: str, jenis: str | None, path: str
                 extracted_at=datetime.utcnow(),
             )
         )
+
+
+def _llm_fallback_sync(out_path: Path, jenis_summary: str, pdf_paths: list[str], model: str) -> int:
+    """BLOCKING: pulihkan field kunci yang hilang dari digest deterministik via LLM murah.
+
+    Hanya dipanggil bila digest sukses tapi ada field kunci kosong (parser tak
+    menangani layout). Membaca TEKS dokumen (pdfplumber) lalu meminta model murah
+    mengekstrak field yang hilang, dan menyimpannya TERPISAH di blok `_llm_fallback`
+    pada file digest (parse deterministik dibiarkan apa adanya). `_summarize_digest`
+    yang menumpangkannya ke ringkasan. Return jumlah field yang berhasil dipulihkan.
+
+    Dipanggil lewat asyncio.to_thread (klien anthropic + pdfplumber blocking).
+    """
+    data = safe_read_json(out_path)
+    if not isinstance(data, dict) or not data:
+        return 0
+    summ = _summarize_digest(out_path.name, data)
+    keys = COVERAGE_KEYS.get(jenis_summary, [])
+    missing = [k for k in keys if summ.get(k) in (None, "", [], 0)]
+    if not missing:
+        return 0
+
+    pages: list[str] = []
+    for p in pdf_paths:
+        pages += extract_pdf_pages(p)
+    res = llm_extract_fields(pages, jenis_summary, missing, model=model)
+    if res.get("_error"):
+        log.warning("LLM fallback %s: %s", out_path.name, res["_error"])
+        return 0
+    recovered = {k: res[k] for k in missing if res.get(k) not in (None, "", [], 0)}
+    if not recovered:
+        return 0
+
+    fb = data.get("_llm_fallback") if isinstance(data.get("_llm_fallback"), dict) else {}
+    fb.update(recovered)
+    fb["_meta"] = {
+        "model": model,
+        "at": datetime.utcnow().isoformat() + "Z",
+        "fields": sorted(recovered.keys()),
+    }
+    data["_llm_fallback"] = fb
+    try:
+        out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as e:
+        log.warning("Gagal tulis _llm_fallback ke %s: %s", out_path, e)
+        return 0
+    log.info("LLM fallback %s: pulih %s", out_path.name, sorted(recovered.keys()))
+    return len(recovered)
+
+
+async def _run_llm_fallback(jobs: list, results: list) -> None:
+    """Jalankan fallback LLM untuk semua digest sukses yang field kuncinya hilang.
+
+    Paralel & dibatasi semaphore; tiap pekerjaan di thread (blocking IO+LLM).
+    Hanya menyentuh file digest JSON (bukan DB). No-op bila fitur OFF.
+    """
+    if not settings.digest_llm_fallback:
+        return
+    fb_jobs: list[tuple[Path, str, list[str]]] = []
+    for (kind, payload, out, _), (ok, _err) in zip(jobs, results):
+        if not ok:
+            continue
+        if kind == "file":
+            d = payload
+            js = "TOR" if d.jenis == "TOR" else ("RAB" if d.jenis == "RAB" else None)
+            if js:
+                fb_jobs.append((out, js, [d.file_path]))
+        else:  # pbj folder-level
+            fb_jobs.append((out, "PENGADAAN", [d.file_path for d in payload]))
+    if not fb_jobs:
+        return
+
+    model = settings.digest_llm_model
+    sem = asyncio.Semaphore(_INGEST_CONCURRENCY)
+
+    async def _one(out: Path, js: str, pdfs: list[str]) -> int:
+        async with sem:
+            return await asyncio.to_thread(_llm_fallback_sync, out, js, pdfs, model)
+
+    counts = await asyncio.gather(*(_one(*fj) for fj in fb_jobs), return_exceptions=True)
+    total = sum(c for c in counts if isinstance(c, int))
+    if total:
+        log.info("LLM fallback ingestion: pulih %d field di %d dokumen", total, len(fb_jobs))
 
 
 async def _run_ingestion(penugasan_id: int) -> None:
@@ -184,6 +272,10 @@ async def _run_ingestion(penugasan_id: int) -> None:
         for d in other_docs:
             d.status = DokumenStatus.READY
             d.ingested_at = datetime.utcnow()
+
+        # Tier-2 (opsional, OFF default): untuk digest yang field kuncinya hilang,
+        # pulihkan via LLM murah dari TEKS dokumen. File-only (tidak menyentuh DB).
+        await _run_llm_fallback(jobs, results)
 
         await db.commit()
 
