@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Dokumen, Penugasan, PenugasanStatus, Role, User
+from app.models import Dokumen, DokumenStatus, Penugasan, PenugasanStatus, Role, User
 from app.schemas import PenugasanCreate, PenugasanOut
 from app.storage import (
+    INPUT_JENIS,
     compute_penugasan_status,
     context_readiness,
     delete_penugasan_folder,
@@ -36,7 +37,7 @@ def _scaffold_penugasan_files(folder: Path, kode: str, payload: PenugasanCreate,
     # 1. context.md stub (placeholder fields yang nanti diisi Ketua Tim)
     context_md_path = folder / "context.md"
     if not context_md_path.exists():
-        skill_label = payload.skill.value.replace("-", " ").title()
+        skill_label = payload.skill.replace("-", " ").title()
         tanggal_str = (
             payload.tanggal_st.strftime("%d %B %Y") if payload.tanggal_st else "[DIISI AUDITOR]"
         )
@@ -46,7 +47,7 @@ def _scaffold_penugasan_files(folder: Path, kode: str, payload: PenugasanCreate,
 
 - Kode: {kode}
 - Obyek: {payload.obyek}
-- Skill / Jenis Pengawasan: {payload.skill.value}
+- Skill / Jenis Pengawasan: {payload.skill}
 - Nomor ST: {payload.nomor_st or "[DIISI AUDITOR]"}
 - Tanggal ST: {tanggal_str}
 
@@ -81,7 +82,7 @@ periode pelaksanaan, instansi auditi, dll.]
         sasaran_path.parent.mkdir(parents=True, exist_ok=True)
         stub = {
             "penugasan_id": kode,
-            "skill": payload.skill.value,
+            "skill": payload.skill,
             "schema_version": "v4.0.0",
             "tanggal_dibuat": datetime.utcnow().isoformat() + "Z",
             "sasaran": [
@@ -105,7 +106,7 @@ periode pelaksanaan, instansi auditi, dll.]
             "penugasan": {
                 "kode": kode,
                 "obyek": payload.obyek,
-                "jenis_pengawasan": payload.skill.value,
+                "jenis_pengawasan": payload.skill,
                 "nomor_st": payload.nomor_st or "[DIISI AUDITOR]",
                 "tanggal_st": payload.tanggal_st.isoformat() if payload.tanggal_st else None,
             },
@@ -132,7 +133,7 @@ async def create_penugasan(
             f"Hanya Pengendali Teknis (PT) yang boleh buat penugasan baru. Role Anda: {role.value}.",
         )
 
-    kode = gen_kode_penugasan(payload.skill.value)
+    kode = gen_kode_penugasan(payload.skill)
     folder = penugasan_folder(kode)
 
     # Scaffolding file V6 — context.md template, sasaran-assignment.json kosong, temuan.json envelope.
@@ -386,9 +387,21 @@ async def get_context_readiness(
     current: tuple[User, Role] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Prasyarat tombol Generate Context: sasaran (KT) + dokumen ter-digest (AT)."""
+    """Prasyarat tombol Generate Context: sasaran (KT) + bahan analisis (AT).
+
+    Bahan = dokumen ter-digest (RKA/PBJ) atau kriteria/objek (criteria-driven).
+    """
     p = await _get_penugasan_or_404(db, penugasan_id)
-    return context_readiness(Path(p.folder_path))
+    input_jenis = (
+        await db.execute(
+            select(Dokumen.jenis).where(
+                Dokumen.penugasan_id == p.id,
+                Dokumen.status == DokumenStatus.READY,
+            )
+        )
+    ).scalars().all()
+    has_input = any((j or "").upper() in INPUT_JENIS for j in input_jenis)
+    return context_readiness(Path(p.folder_path), skill=p.skill, has_input_docs=has_input)
 
 
 @router.get("/{penugasan_id}/context-md")

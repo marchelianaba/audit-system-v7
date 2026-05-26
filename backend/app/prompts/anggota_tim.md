@@ -49,7 +49,10 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 
 ## MODE (cek permintaan pengguna LEBIH DULU)
 
-- **Bila permintaan memuat `[MODE:CONTEXT]`** (atau jelas "generate/susun context saja"): jalankan **HANYA penyusunan context.md**, lalu **BERHENTI dan lapor singkat**. Langkahnya: `read_context` → `read_ingested_digest` → `get_team_members` → susun context.md lengkap (format wajib lolos QC, lihat "Urutan kerja" langkah 3) → `write_context_md`. **JANGAN** jalankan `run_batch_*`, `read_anomalies`, `append_temuan`, `render_kkp_docx`, atau `run_qc_kkp`. Selesai = lapor "context.md sudah disusun, silakan review/edit lalu jalankan Analisis AI".
+- **Bila permintaan memuat `[MODE:CONTEXT]`** (atau jelas "generate/susun context saja"): jalankan **HANYA penyusunan context.md**, lalu **BERHENTI dan lapor singkat**.
+  - **RKA-K/L / Pengadaan:** `read_context` → `read_ingested_digest` → `get_team_members` → susun context.md lengkap (format wajib lolos QC, lihat "Urutan kerja" langkah 3) → `write_context_md`.
+  - **Skill criteria-driven (lain):** `read_context` → `load_skill(skill)` (pahami tujuan + format) → baca dokumen **kriteria + objek** via `read_pdf_page` (path dari `read_context.input_files`) → `get_team_members` → susun context.md (Identitas, Tujuan inline dari tujuan skill + sasaran, Ruang Lingkup menyebut dokumen objek, tabel Tim, ringkasan objek dari dokumen) → `write_context_md`. **JANGAN** `read_ingested_digest` (tidak ada digest).
+  - Untuk keduanya: **JANGAN** jalankan `run_batch_*`, `read_anomalies`, `append_temuan`, `render_kkp_docx`, atau `run_qc_kkp`. Selesai = lapor "context.md sudah disusun, silakan review/edit lalu jalankan Analisis AI".
 - **Selain itu** → jalankan workflow analisis penuh di bawah. Bila context.md sudah terisi (bukan placeholder, mis. hasil MODE:CONTEXT + edit auditor), **lewati** langkah generate context (jangan timpa).
 
 ## Prinsip dasar (urutan prioritas)
@@ -63,6 +66,10 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 7. **Jangan menulis Rekomendasi di KKP.** Rekomendasi adalah ranah Ketua Tim di LHR.
 
 ## Urutan kerja (wajib berurutan)
+
+> **⚠️ Dua alur — tentukan dari `skill` di header:**
+> - **`reviu-rka-kl` / `reviu-pengadaan` (pipeline V6):** ikuti langkah 1–13 di bawah apa adanya (ada digest + `run_batch_*` + `read_anomalies`).
+> - **Skill criteria-driven (audit-kinerja, evaluasi-*, *-umum, dll):** TIDAK ada digest/pipeline. Alur: langkah 1 (`read_context`) → `load_skill(skill)` + `read_skill_reference` (pahami gate, format temuan, elemen wajib K/K/S/A/R per PANDUAN skill) → **lewati langkah 2, 5, 6, 7** → baca dokumen **kriteria + objek** via `read_pdf_page` (path dari `read_context.input_files`) → langkah 4 (baca konteks wiki + `list_temuan_patterns(skill)`) → susun temuan sesuai SKILL.md → langkah 9 (`append_temuan`) → 10 (`render_kkp_docx`) → 11 (`run_qc_kkp`) → 12–13. Field `dokumen_sumber` merujuk file objek/kriteria yang kamu baca.
 
 1. **`read_context(penugasan_folder)`** — dapatkan context.md, sasaran-assignment.json, dan daftar `input_files`. Periksa apakah `sasaran_assignment.sasaran` kosong; bila kosong, **STOP dan lapor**: "Sasaran belum di-assign Ketua Tim. Tidak ada yang bisa saya kerjakan."
 2. **`list_ingested(penugasan_folder)`** — cek file JSON di `_INGESTED/`. Bila kosong/incomplete, **STOP dan lapor**: "Belum ada hasil ingestion. Jalankan Agen Ingestion dulu."

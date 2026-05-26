@@ -535,7 +535,11 @@ Audit read-only fokus kecepatan + buang yang tak optimal. Dikerjakan (commit ter
 
 ### Perluasan skill pengawasan (26 Mei 2026) — rencana
 
-Folder `skills/` (taksonomi `audit-system-v4`, 22 entri cowork) ditambahkan. v7 baru kenal 2 skill (RKA-K/L, Pengadaan). Rencana **Hybrid**: bangun mesin **skill generik criteria-driven** (registry folder-driven + loader SKILL.md/references ke agen), pilot **audit-kinerja** (reuse renderer KKSA), graduasikan skill panas ke pipeline kemudian. Detail visual: **[docs/rencana-skill-pengawasan.html](docs/rencana-skill-pengawasan.html)**. Pra-kerja sudah jalan: `list_temuan_patterns` kini folder-driven (12 kategori pattern terbaca).
+Folder `skills/` (taksonomi `audit-system-v4`, 22 entri cowork) ditambahkan. v7 baru kenal 2 skill (RKA-K/L, Pengadaan). Rencana **Hybrid**: bangun mesin **skill generik criteria-driven** (registry folder-driven + loader SKILL.md/references ke agen), pilot **audit-kinerja** (reuse renderer KKSA), graduasikan skill panas ke pipeline kemudian. Detail visual: **[docs/rencana-skill-pengawasan.html](docs/rencana-skill-pengawasan.html)**.
+
+- **Fase A (selesai):** `skills_registry` folder-driven (17 skill terdaftar; meta-skill `graduasi` dikecualikan) + `Skill` enum→string ber-validasi registry + tools agen `load_skill`/`read_skill_reference` (path-safe, strip prefiks `audit-system-v4/`) + `GET /skills` + dropdown jenis penugasan dinamis. `list_temuan_patterns` juga folder-driven (12 kategori pattern). Verified.
+- **Fase B (selesai — pilot audit-kinerja):** input criteria-driven (jenis `KRITERIA`/`OBJEK` → READY tanpa digest, subfolder benar) + gate `context_readiness` skill-aware (pipeline=butuh digest, criteria-driven=butuh kriteria/objek) + prompt AT/KT branch (`load_skill` → ikuti SKILL.md, lewati `run_batch_*`) + LHP reuse `render_lhr_rka` (KKSA). E2E verified: create → upload kriteria/objek → gate true → render KKP + LHP-SUBSTANSI.
+- **Sisa (Fase C):** onboard skill spesifik lain (cukup folder+pattern), UX unggah kriteria, format output asli per PANDUAN.md (LHE/LHR-tabular/Memo/RB), integrasi meta-skill graduasi.
 
 ---
 

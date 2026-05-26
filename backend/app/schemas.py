@@ -43,13 +43,16 @@ class PenugasanCreate(BaseModel):
     nomor_st: str | None = None
     tanggal_st: str | None = None
 
-    @field_validator("skill")
+    @field_validator("skill", mode="before")
     @classmethod
-    def _skill_terdaftar(cls, v: str) -> str:
-        slug = str(v).strip().lower()
+    def _skill_terdaftar(cls, v) -> str:
+        # mode="before": v bisa berupa enum Skill (dari cacm.py) atau str (dari API).
+        # Ambil .value bila enum supaya tidak jadi "Skill.REVIU_PENGADAAN".
+        raw = getattr(v, "value", v)
+        slug = str(raw).strip().lower()
         if not skill_exists(slug):
             raise ValueError(
-                f"skill '{v}' tidak terdaftar. Tersedia: {', '.join(available_slugs())}"
+                f"skill '{raw}' tidak terdaftar. Tersedia: {', '.join(available_slugs())}"
             )
         return slug
 

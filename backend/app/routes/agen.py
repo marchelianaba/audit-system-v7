@@ -27,7 +27,7 @@ from app.models import (
     Role,
     User,
 )
-from app.storage import context_readiness, reset_downstream
+from app.storage import INPUT_JENIS, context_readiness, reset_downstream
 from app.tools.v6_bridge import run_v6_script
 
 # Jenis dokumen yang punya V6 digest script (perlu di-ingest ulang saat re-ingest)
@@ -429,9 +429,19 @@ async def stream_agent(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Penugasan tidak ditemukan")
 
     # Hard gate: Generate Context ([MODE:CONTEXT]) hanya boleh bila KT sudah isi
-    # sasaran + AT sudah upload dokumen yang ter-digest (ada bahan untuk context).
+    # sasaran + AT sudah upload bahan (digest untuk RKA/PBJ, atau kriteria/objek
+    # untuk skill criteria-driven).
     if "[MODE:CONTEXT]" in prompt:
-        rd = context_readiness(Path(p.folder_path))
+        input_jenis = (
+            await db.execute(
+                select(Dokumen.jenis).where(
+                    Dokumen.penugasan_id == p.id,
+                    Dokumen.status == DokumenStatus.READY,
+                )
+            )
+        ).scalars().all()
+        has_input = any((j or "").upper() in INPUT_JENIS for j in input_jenis)
+        rd = context_readiness(Path(p.folder_path), skill=p.skill, has_input_docs=has_input)
         if not rd["ready"]:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,

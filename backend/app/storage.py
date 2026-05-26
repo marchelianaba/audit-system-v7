@@ -84,6 +84,11 @@ def classify_doc_by_filename(name: str) -> str:
         return "RFI"
     if "kontrak" in n or "perjanjian" in n:
         return "KONTRAK"
+    # Skill criteria-driven (non RKA/PBJ): auditor unggah kriteria + dokumen objek.
+    if "kriteria" in n or "juknis" in n or "juklak" in n:
+        return "KRITERIA"
+    if "objek" in n or "obyek" in n:
+        return "OBJEK"
     if n.startswith("st") or "surat tugas" in n:
         return "ST"
     if n.startswith("kp") or "kartu penugasan" in n:
@@ -105,6 +110,8 @@ def target_subfolder_for(jenis: str) -> str:
         "HPS": "02-kontrak",
         "RFI": "02-kontrak",
         "KONTRAK": "02-kontrak",
+        "KRITERIA": "01-peraturan-internal",  # regulasi/SOP/juknis acuan (criteria-driven)
+        "OBJEK": "00-input",                   # dokumen objek pengawasan (criteria-driven)
     }
     return mapping.get(jenis, "00-input")
 
@@ -242,11 +249,27 @@ def reset_downstream(folder: Path, from_stage: str) -> list[str]:
     return removed
 
 
-def context_readiness(folder: Path) -> dict:
-    """Prasyarat Generate Context: KT sudah mengisi sasaran + AT sudah upload
-    dokumen yang ter-digest (ada di _INGESTED/). Tanpa keduanya, agen tak punya
-    bahan menyusun context.md.
+# Jenis dokumen yang dihitung sebagai "bahan analisis" untuk gate Generate Context
+# (criteria-driven). ST/KP/PKP = administratif, bukan bahan analisis.
+INPUT_JENIS = {"TOR", "RAB", "KAK", "HPS", "RFI", "KONTRAK", "KRITERIA", "OBJEK", "OTHER"}
+
+
+def context_readiness(
+    folder: Path, skill: str | None = None, has_input_docs: bool = False
+) -> dict:
+    """Prasyarat Generate Context: KT sudah mengisi sasaran + AT sudah unggah
+    bahan analisis. "Bahan" tergantung jenis skill:
+
+    - Skill pipeline (reviu-rka-kl/reviu-pengadaan): butuh dokumen ter-digest
+      (_INGESTED/*.json) karena context.md disusun dari hasil digest.
+    - Skill criteria-driven (audit-kinerja, evaluasi-*, dll): tidak ada digest;
+      cukup ada dokumen kriteria/objek yang diunggah (`has_input_docs`, dihitung
+      caller dari DB) — agen membaca langsung via read_pdf_page.
+
+    `skill=None` diperlakukan sebagai pipeline (kompatibilitas pemanggil lama).
     """
+    from app.skills_registry import LEGACY_SKILLS
+
     has_sasaran = False
     sa = folder / "_PKP" / "sasaran-assignment.json"
     if sa.exists():
@@ -258,15 +281,24 @@ def context_readiness(folder: Path) -> dict:
     ingested_dir = folder / "_INGESTED"
     has_ingested = ingested_dir.exists() and any(ingested_dir.glob("*.json"))
 
+    skill_norm = str(skill).strip().lower() if skill else None
+    is_pipeline = skill_norm is None or skill_norm in LEGACY_SKILLS
+    # Pipeline → wajib digest. Criteria-driven → cukup dokumen input (atau digest bila ada).
+    has_material = has_ingested if is_pipeline else (has_input_docs or has_ingested)
+
     reasons: list[str] = []
     if not has_sasaran:
         reasons.append("Ketua Tim belum mengisi sasaran")
-    if not has_ingested:
-        reasons.append("belum ada dokumen ter-digest (AT upload TOR/RAB atau KAK/HPS dulu)")
+    if not has_material:
+        if is_pipeline:
+            reasons.append("belum ada dokumen ter-digest (AT upload TOR/RAB atau KAK/HPS dulu)")
+        else:
+            reasons.append("belum ada dokumen kriteria/objek yang diunggah AT")
     return {
-        "ready": has_sasaran and has_ingested,
+        "ready": has_sasaran and has_material,
         "has_sasaran": has_sasaran,
         "has_ingested": has_ingested,
+        "has_input_docs": has_input_docs,
         "reason": "; ".join(reasons) if reasons else "Siap generate context",
     }
 
