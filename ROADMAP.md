@@ -553,6 +553,8 @@ Folder `skills/` (taksonomi `audit-system-v4`, 22 entri cowork) ditambahkan. v7 
 
 - [docs/rencana-cacm-wiki.html](docs/rencana-cacm-wiki.html) — rencana CACM & Wiki (versi visual)
 - [docs/rencana-skill-pengawasan.html](docs/rencana-skill-pengawasan.html) — rencana perluasan skill pengawasan (mesin skill generik, pilot audit-kinerja)
+- [docs/rencana-format-laporan.html](docs/rencana-format-laporan.html) — rencana format laporan non-KKSA (Memo Konsultansi + Eval RB 4-dimensi)
+- [docs/rencana-graduasi-skill.html](docs/rencana-graduasi-skill.html) — rencana meta-skill graduasi (auto-generate skill spesifik dari penugasan)
 - [README.md](README.md) — setup dev lokal + arsitektur teknis
 - [DEPLOY.md](DEPLOY.md) — panduan deploy Fly.io + Vercel
 - [wiki/README.md](wiki/README.md) — panduan menulis pattern temuan

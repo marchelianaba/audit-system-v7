@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rencana — Meta-Skill Graduasi | Audit AI v7</title>
+<style>
+  :root { --primary:#1e3a5f; --accent:#b7791f; --pipe:#2b6cb0; --bg:#f7f8fa; --card:#fff; --border:#e2e8f0; --text:#1a202c; --muted:#718096; --green:#2f855a; --amber:#b7791f; --red:#c53030; }
+  *{box-sizing:border-box;} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:15px;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 20px 80px;}
+  header.hero{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:40px 0 32px;margin-bottom:28px;}
+  header.hero .wrap{padding-bottom:0;} header.hero h1{margin:0 0 6px;font-size:27px;} header.hero .sub{opacity:.9;font-size:14px;} header.hero .meta{margin-top:14px;font-size:13px;opacity:.8;}
+  h2{font-size:21px;margin:38px 0 4px;padding-bottom:8px;border-bottom:2px solid var(--border);}
+  h3{font-size:16px;margin:20px 0 8px;} p{margin:8px 0;} ul,ol{margin:8px 0;padding-left:22px;} li{margin:4px 0;}
+  code{background:#edf2f7;padding:1px 6px;border-radius:4px;font-size:13px;font-family:"SF Mono",Menlo,Consolas,monospace;}
+  .lead{font-size:15px;color:var(--muted);}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;background:#fff;}
+  th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top;} th{background:#edf2f7;font-weight:600;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:14px 0;}
+  .phase{border-left:4px solid var(--pipe);} .phase.b{border-left-color:var(--amber);} .phase.c{border-left-color:var(--green);}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 9px;border-radius:999px;color:#fff;}
+  .pill.fa{background:var(--pipe);} .pill.fb{background:var(--amber);} .pill.fc{background:var(--green);}
+  .flow{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin:14px 0;overflow-x:auto;}
+  .flow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .node{border:1.5px solid var(--border);border-radius:8px;padding:7px 11px;font-size:12.5px;background:#fbfdff;text-align:center;}
+  .node.app{border-color:var(--accent);background:#fffaf0;} .node.human{border-color:var(--green);background:#f0fff4;}
+  .arrow{color:var(--muted);font-weight:700;}
+  .note{background:#fffaf0;border:1px solid #f6e05e;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:14px;}
+  .gap{background:#fff5f5;border:1px solid #fc8181;border-radius:8px;padding:10px 14px;margin:10px 0;} .gap b{color:var(--red);}
+  .ok{color:var(--green);font-weight:600;} .muted{color:var(--muted);} .small{font-size:13px;}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <h1>Rencana — Meta-Skill Graduasi</h1>
+  <div class="sub">Auto-generate skill spesifik dari pola penugasan yang sudah dikerjakan (skill umum → skill spesifik)</div>
+  <div class="meta">Inspektorat II Komdigi · port orchestrator <code>graduasi.py</code> ke v7 · human-in-the-loop (promote manual)</div>
+</div></header>
+<div class="wrap">
+
+  <h2>1. Tujuan</h2>
+  <p class="lead">Setelah beberapa penugasan dijalankan dengan skill <b>umum</b> (mis. <code>reviu-umum</code>) untuk objek yang sejenis, sistem bisa <b>menyuling pola</b>-nya (kriteria berulang, pola temuan, red-flag) menjadi <b>draft skill spesifik</b> baru — yang lalu direviu &amp; di-<i>promote</i> auditor menjadi skill penuh. Ini menutup loop "umum → spesifik" pada taksonomi skill.</p>
+
+  <h2>2. Yang sudah ada (modal)</h2>
+  <p>Tim cowork sudah menulis orchestrator lengkap: <code>knowledge/skills/graduasi-skill-spesifik/scripts/graduasi.py</code> + SKILL.md + 3 reference. Sudah punya fungsi deterministik:</p>
+  <table>
+    <tr><th>Fungsi</th><th>Keterangan</th></tr>
+    <tr><td><code>validate_inputs</code></td><td>cek penugasan (context.md + temuan.json + skill umum yang sama)</td></tr>
+    <tr><td><code>detect_domain_terms</code> / <code>detect_core_regulations</code></td><td>frekuensi term &amp; regulasi inti (anti-stopword ID)</td></tr>
+    <tr><td><code>suggest_skill_name</code> / <code>consolidate_kriteria</code></td><td>usul nama skill + konsolidasi kriteria berulang</td></tr>
+    <tr><td><code>cluster_temuan</code> (Jaccard)</td><td>kelompokkan pola temuan → kandidat red-flag</td></tr>
+    <tr><td><code>write_skill_md / write_regulasi_md / write_checklist_redflag</code></td><td>tulis draft ke <code>skills/_draft/&lt;nama&gt;/</code></td></tr>
+    <tr><td><code>--promote / --reject / --list</code></td><td>kelola draft</td></tr>
+  </table>
+  <div class="gap"><b>Kendala port:</b> script meng-asumsikan layout <code>audit-system-v4/</code>: <code>root/penugasan/&lt;id&gt;</code>, <code>root/skills</code>, <code>root/feedback/graduasi-log.json</code>. Di v7, penugasan ada di <b>folder data app</b> (kode penugasan, bukan id sederhana) &amp; skill di <b>knowledge/skills</b>. Promote harus memicu <b>refresh registry</b> v7.</p></div>
+
+  <h2>3. Alur target di v7</h2>
+  <div class="flow"><div class="flow-row">
+    <div class="node">Pilih ≥1 penugasan<br><span class="small muted">skill umum sama</span></div><span class="arrow">→</span>
+    <div class="node app">graduasi (gate 0–4)<br><span class="small muted">script + agen</span></div><span class="arrow">→</span>
+    <div class="node">Draft skill<br><span class="small muted">knowledge/skills/_draft/&lt;nama&gt;</span></div><span class="arrow">→</span>
+    <div class="node human">Reviu auditor</div><span class="arrow">→</span>
+    <div class="node human">Promote<br><span class="small muted">→ knowledge/skills/&lt;nama&gt;</span></div><span class="arrow">→</span>
+    <div class="node app">registry.refresh()</div>
+  </div></div>
+  <p>Analisis bahasa alami (penamaan domain, perumusan kriteria, narasi red-flag) oleh <b>agen graduasi</b> (memuat SKILL.md); operasi deterministik (scan/parse/cluster/tulis) oleh <b>script</b>. Gate 0–4 otomatis; <b>Gate 5 (promote) manual</b>.</p>
+
+  <h2>4. Fase</h2>
+  <div class="card phase"><h3><span class="pill fa">FASE 1</span> &nbsp;Port script + bridge</h3>
+  <ul>
+    <li>Parametrasi <code>graduasi.py</code>: argumen <code>--penugasan-dir</code>, <code>--skills-dir</code>, <code>--draft-dir</code>, <code>--log</code> (default dari env v7: data_dir/penugasan, knowledge/skills, knowledge/skills/_draft). <b>Salin ke folder app</b> (mis. <code>backend/app/scripts/graduasi.py</code>) supaya tak menyentuh knowledge/ saat eksekusi — atau panggil in-place read-only.</li>
+    <li>Bridge tool <code>run_graduasi(args)</code> (mirip <code>run_v6_script</code>) untuk operasi deterministik: list kandidat, generate draft, promote, reject.</li>
+    <li>Endpoint baca: <code>GET /graduasi/candidates</code> (penugasan per skill umum, status SELESAI), <code>GET /graduasi/drafts</code>.</li>
+  </ul></div>
+
+  <div class="card phase b"><h3><span class="pill fb">FASE 2</span> &nbsp;Agen + gate generate draft</h3>
+  <ul>
+    <li>Agen graduasi (atau mode PT/PM): <code>load_skill("graduasi-skill-spesifik")</code> → jalankan gate 0–4. Reuse pola gate engine (state <code>graduasi-progress.json</code>) bila perlu resume.</li>
+    <li>Output draft di <code>knowledge/skills/_draft/&lt;nama&gt;/</code>: <code>SKILL.md</code> (status DRAFT), <code>references/01-regulasi.md</code>, <code>references/02-checklist-redflag.md</code> + meta domain/kriteria.</li>
+    <li>Endpoint aksi: <code>POST /graduasi/run</code> {penugasan_ids, nama?} → draft.</li>
+  </ul></div>
+
+  <div class="card phase c"><h3><span class="pill fc">FASE 3</span> &nbsp;Reviu &amp; promote + UI</h3>
+  <ul>
+    <li><code>POST /graduasi/promote</code> {nama} → pindah <code>_draft/&lt;nama&gt;</code> → <code>knowledge/skills/&lt;nama&gt;</code> + <code>skills_registry.refresh()</code> (skill langsung muncul di dropdown). <code>POST /graduasi/reject</code> {nama}.</li>
+    <li>UI: panel di tab <b>Knowledge</b> — daftar kandidat (grup per skill umum), tombol "Graduasikan", daftar draft + tombol "Reviu/Promote/Tolak", preview SKILL.md draft.</li>
+    <li>Audit trail: log graduasi (siapa, kapan, dari penugasan mana) di feedback store.</li>
+  </ul></div>
+
+  <h2>5. Tingkat keyakinan output (dari SKILL cowork)</h2>
+  <table>
+    <tr><th>Jumlah penugasan</th><th>Kualitas draft</th></tr>
+    <tr><td>1 (Minimum)</td><td>skill kerangka — kriteria + 2-3 red-flag; <b>wajib</b> reviu berat</td></tr>
+    <tr><td>2–4 (Standar)</td><td>kriteria stabil + pola temuan ter-cluster</td></tr>
+    <tr><td>≥5 (Penuh)</td><td>checklist red-flag matang, layak jadi skill spesifik</td></tr>
+  </table>
+
+  <h2>6. Risiko &amp; non-goals</h2>
+  <ul>
+    <li><b>Human gate wajib</b> — draft TIDAK auto-aktif; promote selalu manual (kualitas + tanggung jawab profesional).</li>
+    <li>Penugasan v7 di DB+folder (kode, bukan id sederhana) → adaptasi <code>find_penugasan</code> ke layout v7.</li>
+    <li>Promote menulis ke <code>knowledge/skills/</code> (di-track git) → auditor commit hasil promote; registry refresh agar langsung terpakai.</li>
+    <li><b>Bukan tujuan:</b> auto-graduasi terjadwal; generate pipeline Python deterministik (skill hasil graduasi tetap criteria-driven dulu, bisa "naik kelas" lewat jalur lain).</li>
+    <li>Tidak mengarang regulasi/kriteria — semua disuling dari penugasan nyata + verifikasi auditor.</li>
+  </ul>
+  <p class="small muted" style="margin-top:24px">Disusun untuk persetujuan. Modal besar (script sudah ada) → fokus port + integrasi + UI. Urutan: Fase 1 (port) → 2 (generate) → 3 (promote+UI).</p>
+</div>
+</body>
+</html>

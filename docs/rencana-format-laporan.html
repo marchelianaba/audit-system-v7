@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rencana — Format Laporan Non-KKSA | Audit AI v7</title>
+<style>
+  :root { --primary:#1e3a5f; --accent:#6b46c1; --pipe:#2b6cb0; --bg:#f7f8fa; --card:#fff; --border:#e2e8f0; --text:#1a202c; --muted:#718096; --green:#2f855a; --amber:#b7791f; --red:#c53030; }
+  *{box-sizing:border-box;} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:15px;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 20px 80px;}
+  header.hero{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;padding:40px 0 32px;margin-bottom:28px;}
+  header.hero .wrap{padding-bottom:0;} header.hero h1{margin:0 0 6px;font-size:27px;} header.hero .sub{opacity:.9;font-size:14px;} header.hero .meta{margin-top:14px;font-size:13px;opacity:.8;}
+  h2{font-size:21px;margin:38px 0 4px;padding-bottom:8px;border-bottom:2px solid var(--border);}
+  h3{font-size:16px;margin:20px 0 8px;} p{margin:8px 0;} ul,ol{margin:8px 0;padding-left:22px;} li{margin:4px 0;}
+  code{background:#edf2f7;padding:1px 6px;border-radius:4px;font-size:13px;font-family:"SF Mono",Menlo,Consolas,monospace;}
+  .lead{font-size:15px;color:var(--muted);}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;background:#fff;}
+  th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top;} th{background:#edf2f7;font-weight:600;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:14px 0;}
+  .phase{border-left:4px solid var(--pipe);} .phase.b{border-left-color:var(--amber);} .phase.c{border-left-color:var(--green);}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 9px;border-radius:999px;color:#fff;}
+  .pill.fa{background:var(--pipe);} .pill.fb{background:var(--amber);} .pill.fc{background:var(--green);}
+  .gap{background:#fff5f5;border:1px solid #fc8181;border-radius:8px;padding:10px 14px;margin:10px 0;} .gap b{color:var(--red);}
+  .note{background:#fffaf0;border:1px solid #f6e05e;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:14px;}
+  .ok{color:var(--green);font-weight:600;} .muted{color:var(--muted);} .small{font-size:13px;}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+  <h1>Rencana — Format Laporan Non-KKSA</h1>
+  <div class="sub">Memo Konsultansi &amp; Evaluasi RB (tabel 4-dimensi) di luar paradigma KKSA reviu</div>
+  <div class="meta">Inspektorat II Komdigi · render sisi-app (V6 tetap read-only) · profil format per skill</div>
+</div></header>
+<div class="wrap">
+
+  <h2>1. Masalah</h2>
+  <p class="lead">Semua skill kini me-render LHP lewat <code>render_lhp.py</code> V6 — <b>placeholder-fill ber-paradigma "reviu" KKSA</b> (Kondisi-Kriteria-Akibat-Rekomendasi + simpulan keyakinan). Beberapa jenis pengawasan TIDAK memakai KKSA (lihat <code>knowledge/skills/panduan-format-umum/PANDUAN.md</code>):</p>
+  <table>
+    <tr><th>Jenis</th><th>Format wajib</th><th>Elemen</th></tr>
+    <tr><td><b>Konsultansi</b></td><td>Memo Konsultasi</td><td>Dasar hukum + Pertanyaan + <b>Pendapat/Saran</b> — <span class="muted">tanpa temuan, tanpa keyakinan</span></td></tr>
+    <tr><td><b>Evaluasi RB</b></td><td>Tabel 4-dimensi</td><td>Per komponen Renaksi: <b>Ketepatan Pelaksanaan · Ketercapaian Output · Kualitas Pelaksanaan · Kesesuaian Waktu</b> (Sesuai/Tidak Sesuai)</td></tr>
+    <tr><td>Reviu LKj (SAKIP) / SPIP</td><td>Tabel per-kriteria</td><td>Hasil per kriteria; <span class="muted">tanpa "Sebab"</span> (parsial — bisa menyusul)</td></tr>
+    <tr><td>Audit / Eval Kinerja-MR</td><td>KKSA penuh</td><td class="ok">✓ sudah didukung (KKSA)</td></tr>
+  </table>
+  <div class="gap"><b>Kendala:</b> <code>render_lhp.py</code> ada di <code>backend/v6/</code> (<b>read-only, tak boleh diubah</b>) dan mapping-nya menulis narasi reviu (mis. "catatan reviu … paradigma Kondisi-Kriteria-Akibat-Rekomendasi"). Memo &amp; RB butuh struktur &amp; narasi berbeda → perlu <b>renderer sisi-app</b>.</div>
+
+  <h2>2. Konsep: Profil Format per Skill</h2>
+  <p>Tiap skill punya <b>profil format laporan</b>. Diturunkan folder-driven dari frontmatter <code>SKILL.md</code> (tambah field <code>format_laporan: kksa|memo|rb-4dim|tabel-kriteria</code>) atau peta default. Renderer memilih jalur sesuai profil.</p>
+  <table>
+    <tr><th>Profil</th><th>Skill</th><th>Renderer</th><th>Sumber data</th></tr>
+    <tr><td><code>kksa</code> (default)</td><td>reviu-rka-kl, audit-*, evaluasi-kinerja/MR, pemantauan-*</td><td><b>render_lhp.py V6</b> (sudah jalan)</td><td>temuan.json + rekomendasi.json + context.md</td></tr>
+    <tr><td><code>memo</code></td><td>konsultansi-umum, konsultasi-pengadaan</td><td><b>app: render_memo</b> (python-docx)</td><td>saran.json (pertanyaan→pendapat/saran) + context.md</td></tr>
+    <tr><td><code>rb-4dim</code></td><td>evaluasi-reformasi-birokrasi</td><td><b>app: render_rb</b> (python-docx)</td><td>penilaian RB (4-dim per komponen) dari gate/LKE</td></tr>
+  </table>
+  <div class="note"><b>Prinsip:</b> V6 tetap read-only. Renderer baru (memo/rb) <b>milik app</b> (python-docx, mengisi skeleton <code>knowledge/templates/_skeleton-lhp/template-lhp-[skill].docx</code> yang sudah ada). Satu tool dispatcher <code>render_report(skill, …)</code> memilih jalur sesuai profil — menggantikan pemanggilan langsung <code>render_lhp</code> di prompt KT.</div>
+
+  <h2>3. Fase</h2>
+  <div class="card phase"><h3><span class="pill fa">FASE 1</span> &nbsp;Profil format + dispatcher</h3>
+  <ul>
+    <li><code>format_registry.py</code>: peta skill → profil (frontmatter <code>format_laporan</code> atau default; folder-driven).</li>
+    <li>Tool <code>render_report(penugasan_folder, skill, judul, …)</code> di <code>lhr_tools</code>: profil <code>kksa</code> → delegasi ke <code>render_lhp</code> (sekarang); profil lain → renderer app. Prompt KT pakai <code>render_report</code>.</li>
+    <li>Tidak mengubah perilaku skill KKSA (regresi nol).</li>
+  </ul></div>
+
+  <div class="card phase b"><h3><span class="pill fb">FASE 2</span> &nbsp;Memo Konsultansi</h3>
+  <ul>
+    <li>Skema <code>_LHP/saran.json</code>: <code>[{pertanyaan, dasar_hukum[], pendapat, saran}]</code> (AT/KT susun, bukan temuan KKSA).</li>
+    <li>Template <code>template-lhp-konsultasi-pengadaan.docx</code> + tambah placeholder <code>{{MEMO_BLOK}}</code> (loop pertanyaan→pendapat→saran). Konsultansi-umum: pakai template generik-memo.</li>
+    <li><code>render_memo</code> (app, python-docx): isi identitas + ekspansi blok memo; <b>tanpa</b> simpulan keyakinan/temuan. Bahasa "pendapat/saran, tidak mengikat".</li>
+    <li>Prompt: skill konsultansi → tulis <code>saran.json</code> via tool baru <code>append_saran</code>, lalu <code>render_report</code>.</li>
+  </ul></div>
+
+  <div class="card phase c"><h3><span class="pill fc">FASE 3</span> &nbsp;Evaluasi RB (tabel 4-dimensi)</h3>
+  <ul>
+    <li>Skema penilaian RB: per komponen Renaksi × 4 dimensi (Sesuai/Tidak Sesuai) + catatan. Sumber: hasil <b>gate bertahap RB</b> (sudah ada) / LKE-RB.</li>
+    <li>Template <code>template-lhp-evaluasi-reformasi-birokrasi.docx</code> + placeholder <code>{{RB_TABEL_4DIM}}</code> (ekspansi jadi tabel komponen × 4 dimensi) + <code>{{RB_ANALISIS_DAMPAK}}</code>.</li>
+    <li><code>render_rb</code> (app): bangun tabel 4-dimensi + analisis dampak + AoI; tanpa KKSA.</li>
+    <li>Integrasi dengan gate RB: skor dimensi yang dikunci tiap gate jadi sumber tabel.</li>
+  </ul></div>
+
+  <h2>4. QC SAIPI</h2>
+  <p>QC SAIPI saat ini berbasis temuan KKSA. Untuk profil memo/rb: <b>QC profil-aware</b> — lewati cek elemen KKSA yang tidak relevan (Memo: tak ada "akibat/keyakinan"; RB: format tabel). Tambah cek minimal khusus (Memo: ada dasar hukum &amp; pendapat; RB: tiap komponen terisi 4 dimensi). Bisa menyusul di akhir.</p>
+
+  <h2>5. Risiko &amp; non-goals</h2>
+  <ul>
+    <li><b>V6 read-only</b> dijaga — renderer memo/rb murni app-side.</li>
+    <li>Skeleton memo/RB yang ada saat ini masih bertemplate KKSA-reviu → perlu ditambah placeholder khusus (atau dibuat ulang ramping). Pekerjaan template manual oleh auditor bisa menyusul.</li>
+    <li><b>Bukan tujuan sekarang:</b> Reviu LKj/SPIP tabel-kriteria (profil <code>tabel-kriteria</code>) — fase lanjutan; sementara tetap KKSA/generik.</li>
+    <li>Tidak memalsukan dasar hukum/angka — narasi dari dokumen + wiki regulasi.</li>
+  </ul>
+  <p class="small muted" style="margin-top:24px">Disusun untuk persetujuan sebelum implementasi. Urutan disarankan: Fase 1 → 2 (Memo, lebih sederhana) → 3 (RB, terikat gate).</p>
+</div>
+</body>
+</html>
