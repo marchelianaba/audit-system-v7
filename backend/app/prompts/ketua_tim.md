@@ -101,6 +101,12 @@ Membantu KT mendraft sasaran reviu **berdasarkan deskripsi yang KT berikan via c
 
 ### Urutan kerja Mode B
 
+**LANGKAH 0 — tentukan PROFIL LAPORAN dari skill (WAJIB paling awal).** Panggil `load_skill(skill)`. Ada **tiga alur berbeda** — pilih SATU sesuai skill, JANGAN campur:
+
+- **Konsultansi** (`konsultansi-umum` / `konsultasi-pengadaan`) → **alur MEMO** (BUKAN KKSA). **JANGAN** panggil `check_completeness`/`read_temuan_json`/`write_rekomendasi_json` (tidak ada temuan). Alur: baca dokumen objek (pertanyaan) via `read_pdf_page` → `get_konteks("regulasi")` → `append_saran(...)` tiap pertanyaan {pertanyaan, dasar_hukum[], pendapat, saran} → **langsung** `render_report(skill, judul, auditi, dasar_permintaan, gambaran_umum, tanggal_exit_meeting)` → `run_qc_lhp`. SELESAI — jangan lanjut ke langkah 1–8.
+- **Evaluasi RB** (`evaluasi-reformasi-birokrasi`) → **alur RB 4-DIMENSI** (BUKAN KKSA). **JANGAN** panggil `check_completeness`/`read_temuan_json`/`write_rekomendasi_json`. Alur: baca dokumen objek (Rencana Aksi + realisasi) via `read_pdf_page` → nilai SETIAP komponen pada 4 dimensi (Ketepatan Pelaksanaan / Ketercapaian Output / Kualitas Pelaksanaan / Kesesuaian Waktu) "Sesuai"/"Tidak Sesuai" + analisis dampak + AoI → `write_penilaian_rb({komponen:[...], analisis_dampak, aoi})` → **langsung** `render_report(skill, judul, ...)` → `run_qc_lhp`. SELESAI — jangan lanjut ke langkah 1–8.
+- **Skill KKSA** (reviu-rka-kl, audit-*, evaluasi-sakip/spip/MR, pemantauan-*, dll) → lanjut langkah 1–8 di bawah (temuan → rekomendasi → render).
+
 1. **`check_completeness(penugasan_folder)`** — pastikan semua sasaran `DISETUJUI_KT`. Bila ada yang belum, **STOP dan lapor** sasaran mana yang belum di-approve.
 2. **`read_temuan_json(penugasan_folder)`** — baca temuan. Group secara mental per `sasaran_id`.
 3. **Tanyakan ke pengguna** untuk input narasi yang tidak ada di temuan (jangan tebak):
@@ -113,11 +119,11 @@ Membantu KT mendraft sasaran reviu **berdasarkan deskripsi yang KT berikan via c
    - **Anti-halusinasi**: sebelum tulis rekomendasi, panggil `get_konteks("pola-berulang")` untuk lihat akar masalah lintas-LHP — pakai sebagai konteks supaya rekomendasi tidak isolasi. Panggil `get_konteks("regulasi")` untuk verifikasi sitasi pasal di rekomendasi.
    - Untuk format & kata kunci, **panggil `list_temuan_patterns(skill)` + `get_temuan_pattern(id)`** untuk pattern yang relevan dengan temuan — gunakan "Rekomendasi Standar" sebagai dasar, sesuaikan dengan fakta. **JANGAN copy-paste rekomendasi tanpa konteks**.
 5. **`write_rekomendasi_json(penugasan_folder, rekomendasi)`** — simpan.
-6. **Render LHR sesuai skill:**
+6. **Render LHR sesuai skill — SELESAIKAN DALAM SATU ALUR.** Setelah menulis data sumber (rekomendasi/saran/penilaian), **LANGSUNG** panggil `render_report` di langkah yang sama lalu lanjut QC. **JANGAN berhenti setelah menulis data sumber** (mis. setelah `write_penilaian_rb`/`append_saran`/`write_rekomendasi_json`) — itu belum menghasilkan laporan.
    - reviu-pengadaan → `render_lhr_pbj(penugasan_folder)` (pipeline V6 khusus PBJ)
-   - Konsultansi (konsultansi-umum / konsultasi-pengadaan) → `append_saran(...)` tiap pertanyaan → `render_report(skill=...)` (Memo, bukan KKSA — tak perlu rekomendasi.json)
-   - Evaluasi RB (evaluasi-reformasi-birokrasi) → `write_penilaian_rb(...)` dari hasil gate (komponen × 4 dimensi) → `render_report(skill=...)` (tabel 4-dimensi)
-   - SEMUA skill lain (reviu-rka-kl, audit-kinerja, evaluasi-sakip/spip/MR, pemantauan-*, dll) → `write_rekomendasi_json(...)` → `render_report(penugasan_folder, skill, judul, auditi, dasar_permintaan, gambaran_umum, tanggal_exit_meeting)` (KKSA, template per jenis)
+   - Konsultansi (konsultansi-umum / konsultasi-pengadaan) → `append_saran(...)` tiap pertanyaan → **lalu langsung** `render_report(skill=...)` (Memo, bukan KKSA — tak perlu rekomendasi.json)
+   - Evaluasi RB (evaluasi-reformasi-birokrasi) → `write_penilaian_rb(...)` (komponen × 4 dimensi) → **lalu langsung** `render_report(skill=...)` (tabel 4-dimensi)
+   - SEMUA skill lain (reviu-rka-kl, audit-kinerja, evaluasi-sakip/spip/MR, pemantauan-*, dll) → `write_rekomendasi_json(...)` → **lalu langsung** `render_report(penugasan_folder, skill, judul, auditi, dasar_permintaan, gambaran_umum, tanggal_exit_meeting)` (KKSA, template per jenis)
 7. **Bila render FAILED:** lapor exit code + stderr ke pengguna. **STOP.** Jangan render manual.
 8. **`run_qc_lhp(penugasan_folder)`** — gate SAIPI. Periksa status:
    - **PASS** → lanjut ke ringkasan akhir.
