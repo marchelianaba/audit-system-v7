@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from claude_agent_sdk import tool
+from docx import Document
 
 from app.config import get_settings
 from app.tools.v6_bridge import qc_summary_counts, run_v6_script, safe_read_json
@@ -187,31 +188,11 @@ async def write_rekomendasi_json(args: dict) -> dict:
     return {"content": [{"type": "text", "text": f"OK|n_rekomendasi={len(args['rekomendasi'])}"}]}
 
 
-@tool(
-    "render_lhp",
-    "Render LHP/LHR via scripts/render_lhp.py V6, memakai TEMPLATE sesuai jenis "
-    "pengawasan (`skill`). Template diambil dari _skeleton-lhp/template-lhp-[skill].docx "
-    "(mis. audit-kinerja, evaluasi-sakip, reviu-rka-kl); bila skill tak punya skeleton "
-    "khusus, fallback ke template KKSA reviu-rka-kl. Butuh _LHP/rekomendasi.json + "
-    "_KKP/temuan.json (approved). Untuk reviu-pengadaan pakai `render_lhr_pbj` (pipeline terpisah).",
-    {
-        "penugasan_folder": str,
-        "skill": str,
-        "judul": str,
-        "auditi": str,
-        "dasar_permintaan": str,
-        "gambaran_umum": str,
-        "tanggal_exit_meeting": str,
-    },
-)
-async def render_lhp(args: dict) -> dict:
-    folder = Path(args["penugasan_folder"])
+async def _render_kksa(folder: Path, args: dict) -> dict:
+    """Render LHP paradigma KKSA via render_lhp.py V6 (placeholder {{...}})."""
     rekomendasi = folder / "_LHP" / "rekomendasi.json"
     if not rekomendasi.exists():
-        return {
-            "content": [{"type": "text", "text": "FAILED|rekomendasi.json belum ada"}],
-            "is_error": True,
-        }
+        return {"content": [{"type": "text", "text": "FAILED|rekomendasi.json belum ada"}], "is_error": True}
     skill = args.get("skill") or ""
     template = resolve_lhp_template(skill)
     if template is None:
@@ -237,11 +218,47 @@ async def render_lhp(args: dict) -> dict:
         timeout=120,
     )
     if code != 0:
-        return {
-            "content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}"}],
-            "is_error": True,
-        }
-    return {"content": [{"type": "text", "text": f"OK|template={template.name}|{out[:180]}"}]}
+        return {"content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}"}], "is_error": True}
+    return {"content": [{"type": "text", "text": f"OK|format=kksa|template={template.name}|{out[:160]}"}]}
+
+
+@tool(
+    "render_lhp",
+    "Render LHP paradigma KKSA (reviu/audit) via render_lhp.py V6 + template per "
+    "`skill`. Untuk skill non-KKSA (Konsultansi=memo, Eval RB=tabel 4-dimensi) gunakan "
+    "`render_report` yang otomatis memilih format. Butuh _LHP/rekomendasi.json + _KKP/temuan.json.",
+    {
+        "penugasan_folder": str, "skill": str, "judul": str, "auditi": str,
+        "dasar_permintaan": str, "gambaran_umum": str, "tanggal_exit_meeting": str,
+    },
+)
+async def render_lhp(args: dict) -> dict:
+    return await _render_kksa(Path(args["penugasan_folder"]), args)
+
+
+@tool(
+    "render_report",
+    "Render laporan hasil sesuai PROFIL FORMAT skill (otomatis): 'kksa' (reviu/audit → "
+    "render_lhp), 'memo' (Konsultansi → Memo pendapat/saran, butuh _LHP/saran.json), "
+    "'rb-4dim' (Eval RB → tabel 4-dimensi, butuh _LHP/penilaian-rb.json). Pakai tool ini "
+    "sebagai jalur utama penyusunan laporan untuk SEMUA skill kecuali reviu-pengadaan "
+    "(pakai render_lhr_pbj).",
+    {
+        "penugasan_folder": str, "skill": str, "judul": str, "auditi": str,
+        "dasar_permintaan": str, "gambaran_umum": str, "tanggal_exit_meeting": str,
+    },
+)
+async def render_report(args: dict) -> dict:
+    from app.format_registry import format_profile
+
+    folder = Path(args["penugasan_folder"])
+    skill = args.get("skill") or ""
+    profile = format_profile(skill)
+    if profile == "memo":
+        return _render_memo(folder, args)
+    if profile == "rb-4dim":
+        return _render_rb(folder, args)
+    return await _render_kksa(folder, args)
 
 
 @tool(
@@ -330,12 +347,183 @@ async def run_qc_lhp(args: dict) -> dict:
     }
 
 
+# =============================================================================
+# FORMAT NON-KKSA — Memo Konsultansi + Evaluasi RB (tabel 4-dimensi)
+# Renderer MILIK APP (python-docx) — V6 tetap read-only.
+# =============================================================================
+
+
+def _ctx_lines(folder: Path) -> dict:
+    """Ambil beberapa field identitas dari context.md (best-effort)."""
+    out: dict = {}
+    p = folder / "context.md"
+    if p.is_file():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^\s*[-*]?\s*(Kode|Obyek|Nomor ST|Tanggal ST)\s*:\s*(.+)$", line, re.IGNORECASE)
+            if m:
+                out[m.group(1).strip().lower()] = m.group(2).strip()
+    return out
+
+
+def _render_memo(folder: Path, args: dict) -> dict:
+    """Memo Konsultansi: dasar hukum + pertanyaan→pendapat/saran. Tanpa KKSA/keyakinan."""
+    saran_path = folder / "_LHP" / "saran.json"
+    if not saran_path.exists():
+        return {"content": [{"type": "text", "text": "FAILED|_LHP/saran.json belum ada (pakai append_saran)"}], "is_error": True}
+    try:
+        items = json.loads(saran_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        return {"content": [{"type": "text", "text": f"FAILED|baca saran.json: {e}"}], "is_error": True}
+    if not isinstance(items, list) or not items:
+        return {"content": [{"type": "text", "text": "FAILED|saran.json kosong"}], "is_error": True}
+
+    ctx = _ctx_lines(folder)
+    doc = Document()
+    doc.add_heading("MEMO KONSULTANSI", level=0)
+    doc.add_paragraph(args.get("judul") or "Memo Konsultansi")
+    meta = doc.add_paragraph()
+    meta.add_run(f"Auditan: {args.get('auditi') or ctx.get('obyek', '-')}\n")
+    meta.add_run(f"Dasar: {args.get('dasar_permintaan') or ctx.get('nomor st', '-')}\n")
+    meta.add_run(f"Kode penugasan: {ctx.get('kode', folder.name)}")
+    doc.add_paragraph(
+        "Catatan: dokumen ini berisi PENDAPAT/SARAN konsultansi berbasis dasar hukum, "
+        "TIDAK memberikan keyakinan, dan TIDAK mengikat pejabat berwenang.",
+    ).italic = True
+
+    # Dasar hukum gabungan (unik)
+    dh: list[str] = []
+    for it in items:
+        for d in (it.get("dasar_hukum") or []):
+            if d and d not in dh:
+                dh.append(d)
+    if dh:
+        doc.add_heading("Dasar Hukum", level=1)
+        for d in dh:
+            doc.add_paragraph(d, style="List Bullet")
+
+    doc.add_heading("Pendapat dan Saran", level=1)
+    for i, it in enumerate(items, start=1):
+        doc.add_heading(f"{i}. {it.get('pertanyaan', '(pertanyaan)')}", level=2)
+        if it.get("pendapat"):
+            p = doc.add_paragraph(); p.add_run("Pendapat: ").bold = True; p.add_run(str(it["pendapat"]))
+        if it.get("saran"):
+            p = doc.add_paragraph(); p.add_run("Saran: ").bold = True; p.add_run(str(it["saran"]))
+
+    out_path = folder / "_LHP" / "LHP-SUBSTANSI-MEMO.docx"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(out_path)
+    return {"content": [{"type": "text", "text": f"OK|format=memo|n_pertanyaan={len(items)}|{out_path.name}"}]}
+
+
+_RB_DIM = [
+    ("ketepatan", "Ketepatan Pelaksanaan"),
+    ("ketercapaian", "Ketercapaian Output"),
+    ("kualitas", "Kualitas Pelaksanaan"),
+    ("kesesuaian", "Kesesuaian Waktu"),
+]
+
+
+def _render_rb(folder: Path, args: dict) -> dict:
+    """Evaluasi RB: tabel komponen Renaksi × 4 dimensi (Sesuai/Tidak Sesuai)."""
+    pen_path = folder / "_LHP" / "penilaian-rb.json"
+    if not pen_path.exists():
+        return {"content": [{"type": "text", "text": "FAILED|_LHP/penilaian-rb.json belum ada (pakai write_penilaian_rb)"}], "is_error": True}
+    try:
+        data = json.loads(pen_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        return {"content": [{"type": "text", "text": f"FAILED|baca penilaian-rb.json: {e}"}], "is_error": True}
+    komponen = data.get("komponen") if isinstance(data, dict) else None
+    if not isinstance(komponen, list) or not komponen:
+        return {"content": [{"type": "text", "text": "FAILED|penilaian-rb.json: 'komponen' kosong"}], "is_error": True}
+
+    ctx = _ctx_lines(folder)
+    doc = Document()
+    doc.add_heading("LAPORAN HASIL EVALUASI REFORMASI BIROKRASI", level=0)
+    doc.add_paragraph(args.get("judul") or "Laporan Hasil Evaluasi Reformasi Birokrasi")
+    meta = doc.add_paragraph()
+    meta.add_run(f"Auditan: {args.get('auditi') or ctx.get('obyek', '-')}\n")
+    meta.add_run(f"Dasar: {args.get('dasar_permintaan') or ctx.get('nomor st', '-')}\n")
+    meta.add_run(f"Kode penugasan: {ctx.get('kode', folder.name)}")
+
+    doc.add_heading("Penilaian per Komponen Rencana Aksi (4 Dimensi)", level=1)
+    table = doc.add_table(rows=1, cols=2 + len(_RB_DIM))
+    table.style = "Table Grid"
+    hdr = table.rows[0].cells
+    hdr[0].text = "Komponen Renaksi"
+    for j, (_, label) in enumerate(_RB_DIM, start=1):
+        hdr[j].text = label
+    hdr[1 + len(_RB_DIM)].text = "Catatan"
+    for k in komponen:
+        row = table.add_row().cells
+        row[0].text = str(k.get("nama", "-"))
+        for j, (key, _) in enumerate(_RB_DIM, start=1):
+            row[j].text = str(k.get(key, "-"))
+        row[1 + len(_RB_DIM)].text = str(k.get("catatan", ""))
+
+    if data.get("analisis_dampak"):
+        doc.add_heading("Analisis Dampak", level=1)
+        doc.add_paragraph(str(data["analisis_dampak"]))
+    aoi = data.get("aoi") or []
+    if isinstance(aoi, list) and aoi:
+        doc.add_heading("Area of Improvement (AoI)", level=1)
+        for a in aoi:
+            doc.add_paragraph(str(a), style="List Bullet")
+
+    out_path = folder / "_LHP" / "LHP-SUBSTANSI-RB.docx"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(out_path)
+    return {"content": [{"type": "text", "text": f"OK|format=rb-4dim|n_komponen={len(komponen)}|{out_path.name}"}]}
+
+
+@tool(
+    "append_saran",
+    "Tambah butir Memo Konsultansi ke _LHP/saran.json (untuk skill konsultansi). "
+    "`saran` = dict/list of {pertanyaan, dasar_hukum[], pendapat, saran}. Konsultansi "
+    "tidak memakai temuan KKSA — pakai ini lalu render_report.",
+    {"penugasan_folder": str, "saran": dict},
+)
+async def append_saran(args: dict) -> dict:
+    path = Path(args["penugasan_folder"]) / "_LHP" / "saran.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    items = []
+    if path.exists():
+        try:
+            items = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(items, list):
+                items = []
+        except (json.JSONDecodeError, OSError):
+            items = []
+    new = args.get("saran")
+    items.extend(new if isinstance(new, list) else [new])
+    path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"content": [{"type": "text", "text": f"OK|total_saran={len(items)}"}]}
+
+
+@tool(
+    "write_penilaian_rb",
+    "Tulis (overwrite) _LHP/penilaian-rb.json untuk Evaluasi RB. Struktur: "
+    "{komponen:[{nama, ketepatan, ketercapaian, kualitas, kesesuaian, catatan}], "
+    "analisis_dampak, aoi:[...]}. Nilai dimensi 'Sesuai'/'Tidak Sesuai'. Sumber: hasil "
+    "gate evaluasi RB. Lalu render_report.",
+    {"penugasan_folder": str, "penilaian": dict},
+)
+async def write_penilaian_rb(args: dict) -> dict:
+    path = Path(args["penugasan_folder"]) / "_LHP" / "penilaian-rb.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(args["penilaian"], ensure_ascii=False, indent=2), encoding="utf-8")
+    n = len((args["penilaian"] or {}).get("komponen", []))
+    return {"content": [{"type": "text", "text": f"OK|n_komponen={n}"}]}
+
+
 LHR_TOOLS = [
     write_sasaran_assignment,  # Setup Penugasan mode
     read_temuan_json,
     check_completeness,
     write_rekomendasi_json,
-    render_lhp,        # per-jenis template (reviu-rka-kl + criteria-driven)
+    render_report,     # dispatcher per-profil (kksa/memo/rb-4dim) — jalur utama
+    render_lhp,        # KKSA eksplisit (reviu-rka-kl + criteria-driven KKSA)
     render_lhr_pbj,    # pipeline khusus reviu-pengadaan
+    append_saran,      # Memo Konsultansi
+    write_penilaian_rb,  # Evaluasi RB 4-dimensi
     run_qc_lhp,
 ]
