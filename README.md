@@ -511,7 +511,7 @@ Plus jebakan minor:
 
 ### Tier 1 — pipeline core (paling impact)
 
-- [x] **Alur Ketua Tim end-to-end.** ✅ done — UI tab "Setup Penugasan" untuk KT dengan editable form sasaran + context.md. Chat KT Mode A bantu draft sasaran via percakapan. KKP approval lewat status `DISETUJUI_KT` di Setup tab.
+- [x] **Alur Ketua Tim end-to-end.** ✅ done — UI tab "Setup Penugasan" untuk KT dengan editable form sasaran + context.md. Chat KT Mode A bantu draft sasaran via percakapan. KKP approval lewat status `DISETUJUI_KT` di Setup tab. **Stub SIMWAS sasaran sync** (W1.1 pivot): `POST /penugasan/{id}/sasaran/sync-from-simwas` + button "Impor dari SIMWAS" di Setup tab — paste payload PKP (source=`manual` hari ini; source=`api` placeholder 501 sampai kontrak SIMWAS resmi), strategy `replace`/`append`, auto-generate ID per skill yg melompati ID existing. Lihat `app/fixtures/simwas-sample-pkp.json`.
 - [x] **Apply pola hardening (tools=[], strict prompt) ke 3 agen lain:** Ingestion, KT, QC SAIPI. ✅ done
 - [x] **Agen Ingestion otomatis dipanggil saat upload dokumen.** ✅ done (BackgroundTasks di POST /dokumen)
 - [x] **Wiki / Pattern Library** dapat diakses agen lewat `list_temuan_patterns` + `get_temuan_pattern`. ✅ done — auditor tinggal populate `wiki/temuan-patterns/`.

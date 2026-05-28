@@ -824,6 +824,7 @@ function SetupPenugasanTab({
   const [err, setErr] = useState<string | null>(null);
   const [genCtx, setGenCtx] = useState(false); // generate context (AI) sedang berjalan
   const [ctxReady, setCtxReady] = useState<{ ready: boolean; reason: string } | null>(null);
+  const [simwasOpen, setSimwasOpen] = useState(false); // W1.1 — modal Impor dari SIMWAS
 
   const load = async () => {
     setLoading(true);
@@ -1259,16 +1260,34 @@ function SetupPenugasanTab({
         )}
 
         {canEditSasaran && (
-          <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
+          <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-2 items-center">
             <button
               onClick={addSasaran}
               className="px-3 py-1.5 text-sm rounded border border-primary text-primary hover:bg-primary hover:text-white transition"
             >
               + Tambah Sasaran
             </button>
+            <button
+              onClick={() => setSimwasOpen(true)}
+              className="px-3 py-1.5 text-sm rounded border border-indigo-500 text-indigo-600 hover:bg-indigo-600 hover:text-white transition"
+              title="Import sasaran dari payload PKP SIMWAS (paste JSON / sample). Pull API SIMWAS langsung belum aktif."
+            >
+              ↘ Impor dari SIMWAS
+            </button>
+            <span className="text-[11px] text-gray-400">
+              SIMWAS PKP → sasaran-assignment.json (manual paste hari ini; live API menyusul setelah kontrak SIMWAS resmi).
+            </span>
           </div>
         )}
       </div>
+
+      {canEditSasaran && simwasOpen && (
+        <SimwasImportModal
+          penugasanId={penugasanId}
+          onClose={() => setSimwasOpen(false)}
+          onSuccess={() => { setSimwasOpen(false); load(); }}
+        />
+      )}
 
       {canEditSasaran && (
         <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded p-3">
@@ -1580,6 +1599,175 @@ function GatePanel({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ====================================================================
+// W1.1 — Modal "Impor dari SIMWAS"
+//
+// Paste payload PKP dari SIMWAS (atau muat sample), pilih strategy
+// (replace = bersihkan sasaran lama; append = tambahkan ke yang sudah ada),
+// lalu submit ke POST /penugasan/{id}/sasaran/sync-from-simwas.
+// Sumber 'manual' aktif hari ini; 'api' akan hidup setelah SIMWAS REST + SSO.
+// ====================================================================
+
+const SIMWAS_SAMPLE = `{
+  "source": "manual",
+  "strategy": "replace",
+  "pkp_rows": [
+    {
+      "sasaran": "Kelengkapan dan kewajaran KAK",
+      "langkah_kerja": "Cek 12 komponen format TOR/KAK",
+      "dilaksanakan_oleh": "Sarah Aulia"
+    },
+    {
+      "sasaran": "Kelengkapan dan kewajaran KAK",
+      "langkah_kerja": "Cek dasar hukum & SLA terukur",
+      "dilaksanakan_oleh": "Sarah Aulia"
+    },
+    {
+      "sasaran": "Kewajaran HPS",
+      "langkah_kerja": "Verifikasi 2 sumber referensi harga",
+      "dilaksanakan_oleh": "Citra Lestari"
+    }
+  ]
+}`;
+
+function SimwasImportModal({
+  penugasanId,
+  onClose,
+  onSuccess,
+}: {
+  penugasanId: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [raw, setRaw] = useState('');
+  const [strategy, setStrategy] = useState<'replace' | 'append'>('replace');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<{ added_count: number; total_sasaran: number; added_sasaran: string[]; skipped_duplicate: number } | null>(null);
+
+  const submit = async () => {
+    setErr(null);
+    setResult(null);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e: any) {
+      setErr(`JSON tidak valid: ${e.message}`);
+      return;
+    }
+    const rows = parsed.pkp_rows ?? parsed.rows ?? parsed;
+    if (!Array.isArray(rows)) {
+      setErr('Body harus `{"pkp_rows":[...]}` atau langsung array. Tidak ditemukan `pkp_rows`.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api.syncSasaranFromSimwas(penugasanId, {
+        source: 'manual',
+        strategy,
+        pkp_rows: rows,
+      });
+      setResult({
+        added_count: r.added_count,
+        total_sasaran: r.total_sasaran,
+        added_sasaran: r.added_sasaran,
+        skipped_duplicate: r.skipped_duplicate,
+      });
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="px-5 py-3 border-b flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-primary-dark">Impor PKP dari SIMWAS</h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Source: <code>manual</code> (paste JSON). Source <code>api</code> aktif setelah integrasi resmi.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-5 overflow-y-auto space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Strategi</label>
+            <div className="flex gap-3 text-sm">
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={strategy === 'replace'} onChange={() => setStrategy('replace')} />
+                <span>Replace <span className="text-gray-400 text-xs">(ganti semua sasaran lama)</span></span>
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="radio" checked={strategy === 'append'} onChange={() => setStrategy('append')} />
+                <span>Append <span className="text-gray-400 text-xs">(tambahkan ke yang ada, anti-dup ID)</span></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold text-gray-700">Payload JSON</label>
+              <button onClick={() => setRaw(SIMWAS_SAMPLE)} className="text-[11px] text-indigo-600 hover:underline">
+                ↘ Muat contoh
+              </button>
+            </div>
+            <textarea
+              value={raw}
+              onChange={(e) => setRaw(e.target.value)}
+              placeholder='{"pkp_rows":[{"sasaran":"...","langkah_kerja":"...","dilaksanakan_oleh":"..."}]}'
+              className="w-full h-64 border border-gray-300 rounded p-2 text-xs font-mono"
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Setiap baris PKP = 1 langkah_kerja. v7 group otomatis berdasarkan field <code>sasaran</code>.
+              <code>sasaran_id</code> opsional — kalau kosong, auto-generate per skill (S-PBJ-NN, S-RKA-NN, dst).
+            </p>
+          </div>
+
+          {err && (
+            <div className="p-2 rounded bg-red-50 border border-red-200 text-red-700 text-xs">{err}</div>
+          )}
+          {result && (
+            <div className="p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+              ✅ Sukses. {result.added_count} sasaran baru ({result.added_sasaran.join(', ') || '—'}).
+              Total di file: {result.total_sasaran}.
+              {result.skipped_duplicate > 0 && ` ${result.skipped_duplicate} dilewati (ID duplikat).`}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          >
+            Tutup
+          </button>
+          {result ? (
+            <button
+              onClick={onSuccess}
+              className="px-3 py-1.5 text-sm rounded bg-primary text-white hover:bg-primary-dark"
+            >
+              Selesai & Refresh
+            </button>
+          ) : (
+            <button
+              onClick={submit}
+              disabled={busy || !raw.trim()}
+              className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
+            >
+              {busy ? 'Mengirim…' : 'Impor'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -416,10 +416,9 @@ Roadmap dikatakan berhasil bila per 19 Juni 2026:
 ## 10. Deliverables Checklist
 
 ### Minggu 1
-- [ ] Agen Ketua Tim ekstrak sasaran (kode + prompt + tool baru)
-- [ ] UI tab "Setup Penugasan" untuk KT
+- [x] **W1.1 — sasaran setup** ✅ pivoted & closed. Versi asli ("agen baca KP/PKP PDF + ekstrak sasaran") dibatalkan karena PKP/KP tak lagi diupload — diganti: (a) UI tab "Setup Penugasan" untuk KT (sudah ada — editable form sasaran + context.md), (b) Chat KT Mode A bantu draft via percakapan (sudah ada), (c) **stub SIMWAS** baru — `POST /penugasan/{id}/sasaran/sync-from-simwas` + button "Impor dari SIMWAS" di Setup tab (paste payload PKP, strategy replace/append, anti-tabrakan ID, source='manual' aktif hari ini + source='api' placeholder 501 sampai kontrak SIMWAS resmi). Saat API SIMWAS hidup, frontend tinggal fetch SIMWAS lalu kirim ke endpoint ini. Lihat `app/routes/penugasan.py` + `app/fixtures/simwas-sample-pkp.json`.
 - [ ] Production redeploy + verify AI jalan di Fly.io
-- [ ] 10 pattern wiki di-merge (5 RP + 5 RKA, total 12 dengan yang sudah ada)
+- [x] **10+ pattern wiki di-merge** ✅ ~65 file pattern tersebar di 12 skill folder (lihat §13 26 Mei "Selaras pattern temuan ↔ skill"), jauh melampaui target 10.
 - [x] E2E test reviu-rka-kl 1 penugasan ✅ done — bridge `run_batch_rka` di-fix (staging TOR/RAB ke `input/objek` + naming `[N]`), dummy-test-docs RKA diregenerate ke format PDF RKA-K/L, pipeline jalan E2E (exit 0, anomalies-master.json + LHR-DRAFT.docx)
 
 ### Minggu 2
@@ -583,6 +582,36 @@ Skill `*-umum` (5) sengaja tanpa pattern (criteria-driven). Docstring `wiki_tool
 diperbarui dari "2 skill" → 12 skill. (Kode `list_temuan_patterns`/`get_temuan_pattern` sudah folder-driven
 sejak Fase A — tak perlu ubah.)
 
+### W1.1 — pivoted ke stub SIMWAS sasaran sync (28 Mei 2026)
+
+Rencana awal "agen baca KP/PKP PDF + ekstrak sasaran" dibatalkan: KP/PKP PDF tak lagi
+diupload (prompt KT sudah merefleksikan ini sejak Fase audit penyederhanaan 25 Mei).
+Pivot baru: sasaran datang dari **SIMWAS** (lihat [[project-simwas-integration]]) — KP &
+PKP di SIMWAS punya field terstruktur, jadi tidak perlu OCR/parse PDF. v7 menerima
+payload sebagai JSON.
+
+- ✅ **Endpoint** `POST /penugasan/{id}/sasaran/sync-from-simwas` (`app/routes/penugasan.py`):
+  `SimwasPkpRow` (sasaran, langkah_kerja, dilaksanakan_oleh, waktu, no_kkp, sasaran_id
+  opsional) + `SimwasSyncPayload` (source `manual|api`, strategy `replace|append`,
+  pkp_rows). Konversi deterministik `pkp_rows_to_sasaran` group flat rows by sasaran,
+  dedupe langkah/assigned_to (order-preserving), auto-generate ID per skill (S-PBJ-NN,
+  S-RKA-NN, dll) yg **melompati `existing_ids`** saat append. PT/KT only. Strategy
+  `replace` overwrite; `append` tambah ke yg sudah ada dgn anti-dup ID eksplisit.
+  source='api' → 501 placeholder sampai kontrak SIMWAS REST/SSO resmi.
+- ✅ **Fixture** `app/fixtures/simwas-sample-pkp.json` — contoh payload PKP (5 baris → 3 sasaran).
+- ✅ **UI** — button "↘ Impor dari SIMWAS" di Setup Penugasan tab (samping "+ Tambah
+  Sasaran"), modal dgn radio strategy + textarea JSON + tombol "Muat contoh" + preview
+  hasil (added IDs + total + skipped duplicate). Refresh tabel sasaran setelah sukses.
+- Verified deterministik (converter — grouping, dedup, ID gen, lompati existing,
+  skill prefix mapping, fallback S-NN, skip empty/whitespace) + ASGI (AT→403, KT/PT
+  replace+append, anti-dup eksplisit, counter melompati existing → S-PBJ-04, 501 api,
+  400 empty/whitespace, GET compat) + browser end-to-end (login KT → Setup tab → modal
+  → muat sample → submit → 2 sasaran S-PBJ-01/02 muncul di tabel, langkah_kerja per
+  sasaran benar, file `_PKP/sasaran-assignment.json` dgn `sumber_import: simwas-manual`).
+
+Tutup W1 checklist §10: W1.1 (sasaran setup) ✅, 10+ pattern wiki ✅, E2E RKA ✅.
+Sisa W1: production redeploy Fly.io (ops).
+
 ---
 
 ## 14. Lihat Juga
@@ -598,4 +627,4 @@ sejak Fase A — tak perlu ubah.)
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync).*

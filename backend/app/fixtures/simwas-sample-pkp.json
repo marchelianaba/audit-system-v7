@@ -1,0 +1,42 @@
+{
+  "_komentar": "Contoh payload PKP dari SIMWAS untuk uji POST /penugasan/{id}/sasaran/sync-from-simwas. Strukturnya menebak field SIMWAS dari screenshot tab 'PKP': baris pivot per langkah_kerja, di-group ke sasaran di v7 (sasaran_id auto-generate kalau kosong). Skema mungkin disesuaikan saat kontrak API SIMWAS resmi tersedia.",
+  "source": "manual",
+  "strategy": "replace",
+  "pkp_rows": [
+    {
+      "sasaran": "Kelengkapan dan kewajaran Kerangka Acuan Kerja (KAK)",
+      "langkah_kerja": "Cek 12 komponen format TOR/KAK sesuai PMK 107/2024 Pasal 61",
+      "dilaksanakan_oleh": "Sarah Aulia",
+      "waktu": "2026-06-01 s.d. 2026-06-03",
+      "no_kkp": "KKP-1/255/IJ.3/KP.01.06/06/2026"
+    },
+    {
+      "sasaran": "Kelengkapan dan kewajaran Kerangka Acuan Kerja (KAK)",
+      "langkah_kerja": "Cek dasar hukum & SLA terukur",
+      "dilaksanakan_oleh": "Sarah Aulia",
+      "waktu": "2026-06-04",
+      "no_kkp": "KKP-2/255/IJ.3/KP.01.06/06/2026"
+    },
+    {
+      "sasaran": "Kewajaran HPS dan kecukupan referensi harga",
+      "langkah_kerja": "Verifikasi minimum 2 sumber referensi harga + Perpres 12/2021",
+      "dilaksanakan_oleh": "Citra Lestari",
+      "waktu": "2026-06-05",
+      "no_kkp": "KKP-3/255/IJ.3/KP.01.06/06/2026"
+    },
+    {
+      "sasaran": "Kewajaran HPS dan kecukupan referensi harga",
+      "langkah_kerja": "Konsistensi HPS dengan spesifikasi KAK",
+      "dilaksanakan_oleh": "Citra Lestari",
+      "waktu": "2026-06-06",
+      "no_kkp": "KKP-4/255/IJ.3/KP.01.06/06/2026"
+    },
+    {
+      "sasaran": "Traceability dokumen pengadaan",
+      "langkah_kerja": "Telusur konsistensi KAK ↔ HPS ↔ Kontrak",
+      "dilaksanakan_oleh": "Sarah Aulia",
+      "waktu": "2026-06-07 s.d. 2026-06-08",
+      "no_kkp": "KKP-5/255/IJ.3/KP.01.06/06/2026"
+    }
+  ]
+}

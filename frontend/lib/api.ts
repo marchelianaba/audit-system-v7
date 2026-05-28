@@ -362,6 +362,37 @@ export const api = {
       { method: 'PUT', body: JSON.stringify({ sasaran }) }
     ),
 
+  /** W1.1 — sync sasaran dari payload PKP SIMWAS (manual paste/upload hari ini;
+   * source='api' placeholder 501 sampai kontrak API + SSO SIMWAS resmi). PT/KT. */
+  syncSasaranFromSimwas: (
+    penugasanId: number,
+    payload: {
+      source?: 'manual' | 'api';
+      strategy?: 'replace' | 'append';
+      pkp_rows: Array<{
+        sasaran: string;
+        langkah_kerja?: string;
+        dilaksanakan_oleh?: string;
+        waktu?: string;
+        no_kkp?: string;
+        sasaran_id?: string;
+      }>;
+    }
+  ) =>
+    request<{
+      ok: boolean;
+      source: string;
+      strategy: string;
+      total_input_rows: number;
+      total_sasaran: number;
+      added_sasaran: string[];
+      added_count: number;
+      skipped_duplicate: number;
+    }>(`/penugasan/${penugasanId}/sasaran/sync-from-simwas`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   getContextMd: (penugasanId: number) =>
     request<{ content: string; exists: boolean }>(
       `/penugasan/${penugasanId}/context-md`

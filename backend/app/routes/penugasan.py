@@ -2,7 +2,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -378,6 +378,234 @@ async def put_sasaran_assignment(
         "ok": True,
         "total_sasaran": len(payload.sasaran),
         "path": str(path.relative_to(folder)),
+    }
+
+
+# ============================================================
+# SIMWAS sync — terima PKP dari SIMWAS → sasaran-assignment.json
+#
+# W1.1 versi v7 (asli "agen baca KP/PKP PDF" sudah dibatalkan). Sekarang KT
+# isi manual via tab Setup ATAU, untuk masa depan integrasi SIMWAS, frontend
+# fetch PKP dari API SIMWAS lalu kirim ke endpoint ini sebagai `pkp_rows`.
+# Hari ini dipakai dgn paste JSON manual (source='manual') — lihat fixture
+# app/fixtures/simwas-sample-pkp.json. Saat API SIMWAS live, ganti ke
+# source='api' (saat ini placeholder 501 sampai kontrak resmi tersedia).
+# ============================================================
+
+
+class SimwasPkpRow(BaseModel):
+    """Satu baris PKP dari SIMWAS (1 langkah_kerja per baris pivot).
+
+    Field-nya menebak struktur SIMWAS dari kartu "Detail Pelaksanaan Penugasan"
+    tab PKP: kolom (sasaran, langkah_kerja, dilaksanakan_oleh, waktu, No KKP).
+    `sasaran_id` opsional — kalau SIMWAS belum punya ID terpisah, kita auto-
+    generate (`S-RKA-NN` / `S-PBJ-NN` / `S-NN`).
+    """
+
+    sasaran: str = Field(default="", description="Deskripsi sasaran reviu (jadi grouping key). Baris kosong di-skip.")
+    langkah_kerja: str | None = Field(default=None, description="1 langkah per baris; di-aggregate per sasaran")
+    dilaksanakan_oleh: str | None = Field(default=None, description="Nama anggota tim yg ditugaskan")
+    waktu: str | None = Field(default=None, description="Periode kerja — disimpan untuk audit trail, tdk masuk sasaran-assignment")
+    no_kkp: str | None = Field(default=None, description="Nomor KKP yg di-track SIMWAS — disimpan untuk audit trail")
+    sasaran_id: str | None = Field(default=None, description="Opsional. Kalau SIMWAS punya, dipakai; kalau tidak, auto-generate.")
+
+
+class SimwasSyncPayload(BaseModel):
+    """Body POST /penugasan/{id}/sasaran/sync-from-simwas."""
+
+    source: Literal["manual", "api"] = Field(
+        default="manual",
+        description="`manual` = paste JSON (testing hari ini). `api` = pull live dari SIMWAS (501 sampai integrasi resmi).",
+    )
+    strategy: Literal["replace", "append"] = Field(
+        default="replace",
+        description="`replace` = overwrite sasaran-assignment.json. `append` = tambahkan ke yang sudah ada (anti-dup by sasaran_id).",
+    )
+    pkp_rows: list[SimwasPkpRow]
+
+
+def _generate_sasaran_id(prefix: str | None, counter: int) -> str:
+    """Skill-aware ID: reviu-rka-kl → S-RKA-NN; reviu-pengadaan → S-PBJ-NN; lain → S-NN."""
+    if prefix:
+        return f"S-{prefix}-{counter:02d}"
+    return f"S-{counter:02d}"
+
+
+def _skill_prefix(skill_value: str) -> str | None:
+    mapping = {
+        "reviu-rka-kl": "RKA",
+        "reviu-pengadaan": "PBJ",
+        "audit-kinerja": "KIN",
+        "audit-pengadaan": "PBJ",
+        "pemantauan-pengadaan": "PBJ",
+        "pemantauan-tindak-lanjut": "TL",
+        "evaluasi-spip": "SPIP",
+        "evaluasi-sakip": "SAKIP",
+        "evaluasi-manajemen-risiko": "MR",
+        "evaluasi-reformasi-birokrasi": "RB",
+        "kepatuhan-saipi": "SAIPI",
+        "konsultasi-pengadaan": "KONS",
+    }
+    return mapping.get(skill_value)
+
+
+def pkp_rows_to_sasaran(
+    rows: list[SimwasPkpRow],
+    skill_value: str,
+    existing_ids: set[str] | None = None,
+) -> list[SasaranItem]:
+    """Group flat PKP rows → SasaranItem records.
+
+    Deterministik (no LLM). Aturan:
+    - Grouping key = `sasaran_id` (kalau ada) else `sasaran` (deskripsi).
+    - `langkah_kerja` di-dedup per sasaran (order-preserving).
+    - `assigned_to` di-dedup per sasaran (order-preserving).
+    - `sasaran_id` di-auto-generate per skill bila kosong; counter melompati
+      `existing_ids` (penting untuk strategy='append' supaya tidak tabrakan
+      dengan ID yang sudah ada di sasaran-assignment.json).
+    - Status default `AKTIF`.
+    - Baris dengan `sasaran` kosong di-skip (anti-junk).
+    """
+    groups: dict[str, dict] = {}
+    order: list[str] = []
+    for row in rows:
+        key = (row.sasaran_id or row.sasaran or "").strip()
+        if not key:
+            continue
+        if key not in groups:
+            groups[key] = {
+                "sasaran_id": (row.sasaran_id or "").strip() or None,
+                "deskripsi": (row.sasaran or "").strip(),
+                "assigned_to": [],
+                "langkah_kerja": [],
+            }
+            order.append(key)
+        g = groups[key]
+        lk = (row.langkah_kerja or "").strip()
+        if lk and lk not in g["langkah_kerja"]:
+            g["langkah_kerja"].append(lk)
+        ao = (row.dilaksanakan_oleh or "").strip()
+        if ao and ao not in g["assigned_to"]:
+            g["assigned_to"].append(ao)
+
+    prefix = _skill_prefix(skill_value)
+    used_ids: set[str] = set(existing_ids or set())
+    result: list[SasaranItem] = []
+    counter = 1
+    for key in order:
+        g = groups[key]
+        sid = g["sasaran_id"]
+        if not sid:
+            while True:
+                candidate = _generate_sasaran_id(prefix, counter)
+                counter += 1
+                if candidate not in used_ids:
+                    sid = candidate
+                    break
+        used_ids.add(sid)
+        result.append(
+            SasaranItem(
+                sasaran_id=sid,
+                deskripsi=g["deskripsi"],
+                assigned_to=g["assigned_to"],
+                langkah_kerja=g["langkah_kerja"],
+                status="AKTIF",
+            )
+        )
+    return result
+
+
+@router.post("/{penugasan_id}/sasaran/sync-from-simwas")
+async def sync_sasaran_from_simwas(
+    penugasan_id: int,
+    payload: SimwasSyncPayload,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Konversi PKP SIMWAS → `_PKP/sasaran-assignment.json`.
+
+    PT/KT only. Default `source='manual'` (paste JSON; sah untuk test &
+    bootstrap hari ini). `source='api'` masih 501 sampai kontrak REST/SSO
+    SIMWAS resmi tersedia — saat itu frontend akan fetch PKP dari SIMWAS
+    lalu mengirim ke endpoint ini dengan source='api' + token sesi.
+    """
+    user, role = current
+    _require_sasaran_setup_role(role)
+
+    if payload.source == "api":
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "Pull live dari API SIMWAS belum aktif. Gunakan source='manual' "
+            "(paste payload PKP). Akan hidup setelah kontrak API + SSO SIMWAS resmi.",
+        )
+
+    if not payload.pkp_rows:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "pkp_rows kosong — tidak ada yang di-sync.")
+
+    p = await _get_penugasan_or_404(db, penugasan_id)
+    skill_value = p.skill if isinstance(p.skill, str) else p.skill.value
+
+    folder = Path(p.folder_path)
+    path = folder / "_PKP" / "sasaran-assignment.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Pre-load existing IDs supaya converter melompati saat append (anti-tabrakan
+    # auto-gen counter dgn ID yang sudah ada).
+    existing_sasaran: list[dict] = []
+    existing_ids: set[str] = set()
+    if payload.strategy == "append" and path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            existing_sasaran = existing.get("sasaran") or []
+            existing_ids = {
+                str(s.get("sasaran_id")) for s in existing_sasaran
+                if isinstance(s, dict) and s.get("sasaran_id")
+            }
+        except (json.JSONDecodeError, OSError):
+            existing_sasaran = []
+            existing_ids = set()
+
+    converted = pkp_rows_to_sasaran(payload.pkp_rows, skill_value, existing_ids=existing_ids)
+    if not converted:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Tidak ada sasaran valid setelah grouping — periksa field 'sasaran' di pkp_rows.",
+        )
+
+    if payload.strategy == "append":
+        # Anti-dup berdasar sasaran_id explicit (yang muncul di PKP rows dgn ID).
+        # Converter sudah memastikan auto-gen tidak tabrakan dgn existing_ids,
+        # jadi yang bisa duplicate hanyalah sasaran_id eksplisit.
+        final_sasaran = list(existing_sasaran)
+        added_ids: list[str] = []
+        for s in converted:
+            if s.sasaran_id in existing_ids:
+                continue
+            final_sasaran.append(s.model_dump())
+            added_ids.append(s.sasaran_id)
+    else:
+        final_sasaran = [s.model_dump() for s in converted]
+        added_ids = [s.sasaran_id for s in converted]
+
+    data = {
+        "penugasan_id": p.kode,
+        "skill": skill_value,
+        "schema_version": "v4.0.0",
+        "tanggal_dibuat": datetime.utcnow().isoformat() + "Z",
+        "sasaran": final_sasaran,
+        "sumber_import": f"simwas-{payload.source}",
+    }
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {
+        "ok": True,
+        "source": payload.source,
+        "strategy": payload.strategy,
+        "total_input_rows": len(payload.pkp_rows),
+        "total_sasaran": len(final_sasaran),
+        "added_sasaran": added_ids,
+        "added_count": len(added_ids),
+        "skipped_duplicate": len(converted) - len(added_ids) if payload.strategy == "append" else 0,
     }
 
 
