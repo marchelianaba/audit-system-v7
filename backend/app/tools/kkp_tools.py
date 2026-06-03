@@ -494,7 +494,13 @@ async def write_context_md(args: dict) -> dict:
     }
 
 
+# `read_temuan_json` aslinya didefinisikan di lhr_tools (untuk KT). Kita reuse
+# di AT supaya bisa deteksi REFINE mode (apakah temuan existing sudah ada) —
+# tanpa ini agen AT selalu mulai dari nol saat auditor minta koreksi.
+from app.tools.lhr_tools import read_temuan_json  # noqa: E402
+
 KKP_TOOLS = [
     read_context, list_ingested, read_ingested_digest, get_team_members,
     write_context_md, append_temuan, render_kkp_docx, run_qc_kkp,
+    read_temuan_json,
 ]

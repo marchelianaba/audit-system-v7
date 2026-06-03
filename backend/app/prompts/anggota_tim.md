@@ -45,6 +45,7 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 - `get_temuan_pattern(pattern_id)` — baca isi lengkap satu pattern dari wiki (format temuan, kriteria, bukti yang dicari, contoh)
 - `search_wiki(query, limit)` — cari di vault pengetahuan organisasi (profil auditi/unit, riwayat temuan BPK, profil vendor, regulasi, Renja/RKA). Pakai untuk menarik KONTEKS auditi/vendor/riwayat yang relevan dengan penugasan
 - `get_wiki_page(name)` — baca isi lengkap satu catatan vault hasil `search_wiki`
+- `read_temuan_json(penugasan_folder)` — baca `_KKP/temuan.json` (deteksi mode REFINE; lihat LANGKAH 0 di bawah). Read-only.
 - `append_temuan(penugasan_folder, temuan)` — append 1 temuan ke `_KKP/temuan.json` (bridge transform skema otomatis)
 - `render_kkp_docx(penugasan_folder, nama_anggota)` — render KKP-{nama}.docx
 - `run_qc_kkp(penugasan_folder)` — jalankan QC SAIPI stage KKP secara sync, return status + breakdown
@@ -78,6 +79,23 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 7. **Jangan menulis Rekomendasi di KKP.** Rekomendasi adalah ranah Ketua Tim di LHR.
 
 ## Urutan kerja (wajib berurutan)
+
+> **🔄 LANGKAH 0 — DETEKSI MODE: Fresh-run vs REFINE.**
+>
+> Sebelum menjalankan apapun, baca `_KKP/temuan.json` via `read_temuan_json(penugasan_folder)`:
+> - **Bila belum ada atau `temuan: []` kosong** → mode **FRESH-RUN**: ikuti langkah 1–13 di bawah dari awal.
+> - **Bila sudah memuat ≥1 temuan** → mode **REFINE/INCREMENTAL**:
+>   - **JANGAN re-run `run_batch_*`** — pipeline V6 sudah dijalankan, hasil di `_KKP/anomalies*.json` & `temuan.json` masih sah.
+>   - **JANGAN baca ulang seluruh konteks dari nol.** Cukup baca `read_context` (sasaran-assignment + context.md), lewati digest deep-read, lewati `list_konteks/get_konteks` & `list_temuan_patterns` kecuali permintaan auditor butuh itu.
+>   - **Fokus pada permintaan auditor** di pesan terakhir. Empat skenario REFINE yang umum:
+>     - **(a) Tambah temuan baru** ("masih ada yang kurang", "cek aspek X juga") → `list_temuan_patterns` + `search_wiki` + `read_pdf_page` sesuai kebutuhan → `append_temuan` (hanya temuan BARU; jangan ulang yg sudah ada — periksa judul/sasaran_id supaya tidak duplikat).
+>     - **(b) Sempurnakan temuan tertentu** ("perbaiki temuan T-002", "tambah kutipan kondisi") → baca temuan target, tools v7 saat ini hanya `append_temuan` (no in-place edit) — bila perubahan ringan tetap tulis 1 temuan baru dgn judul yg dimodifikasi & catat di chat agar KT/auditor hapus versi lama via UI Output & QC. Hindari menggandakan ID.
+>     - **(c) Tolak temuan / mark false positive** → laporkan ID temuan + alasan di chat; auditor hapus via UI. Jangan delete dari sini.
+>     - **(d) Jawab pertanyaan tentang temuan existing** → langsung jawab pakai data `temuan.json` + `read_pdf_page` bila perlu cross-check. Jangan re-analisis full pipeline hanya untuk menjawab.
+>   - **Setelah refine: WAJIB `render_kkp_docx` ulang** (KKP regenerate dgn temuan terkini) + `run_qc_kkp` untuk gate SAIPI.
+>   - **Submit feedback** tetap (langkah 12) — `summary` sebutkan "REFINE: <ringkasan perubahan>".
+>
+> **Aturan emas REFINE**: pekerjaan AT sebelumnya adalah BASELINE. Tambahkan/sempurnakan, jangan ulangi dari nol. Bila auditor minta "analisis ulang dari awal" eksplisit, baru jalankan FRESH-RUN — dan beri tahu auditor bahwa temuan lama akan ter-replace (`temuan.json` di-rewrite).
 
 > **⚠️ Dua alur — tentukan dari `skill` di header:**
 > - **`reviu-rka-kl` / `reviu-pengadaan` (pipeline V6):** ikuti langkah 1–13 di bawah apa adanya (ada digest + `run_batch_*` + `read_anomalies`).

@@ -652,6 +652,65 @@ Setup → "⋆ Mulai dari template" → 3 tab tampil (2 historis, 5 skeleton, 0 
 preview historis → Pakai → tabel sasaran ter-prefill dgn 4 baris (S-PBJ-01..04 +
 deskripsi panjang KAK/HPS/Traceability/Pemilihan).
 
+### Fix substansi reviu pengadaan — Isu uji lapangan tim (3 Juni 2026)
+
+Dua isu nyata dari run reviu pengadaan oleh tim auditor (penugasan Reviu
+Lisensi Firewall PSrE Induk TA 2026):
+
+**Isu 1 — KAK & HPS tidak terdeteksi → temuan substantif terlewat.** File
+`Signed_KAK Pengadaan Lisensi Firewall 2026.pdf` dan `Signed_HPS Pengadaan...
+.pdf` masuk `unclassified_files` di `pengadaan-digest.json` karena V6
+`FILENAME_PATTERNS['kak'] = [r'\\bKAK\\b', ...]` gagal match: underscore =
+`\\w` di regex, jadi tidak ada word-boundary sebelum `K` di `Signed_KAK`.
+Akibat: `missing_types = ['kak','hps']`, agen tidak ekstrak isi KAK/HPS,
+temuan auditor manual ("KAK tidak memuat Dasar Hukum", "Perencanaan waktu
+pengadaan lewat batas lisensi", "Vendor RFI bukan jasa sejenis") tidak
+ketemu sistem.
+
+V6 read-only. Fix di layer v7 — `backend/app/digest_postprocess.py`:
+- `classify_robust(filename)` — strip prefix `Signed_/eMaterai_/TTD_/Paraf_/
+  approved_/...` (multi-layer) sebelum regex; separator yg dianggap word-
+  boundary diperluas ke `[\\s_\\-\\.]` (Windows-style nama file `1.RFI...`
+  jadi ikut match).
+- `repair_pengadaan_digest(digest_path, folder)` — import V6 module
+  dinamis (singleton cache), loop `unclassified_files`, re-classify, jalankan
+  parser V6 (`parse_kak`/`parse_hps`/`parse_kontrak`/dst), update digest
+  JSON dgn entri rescued + audit trail `_v7_postprocess` + recompute
+  `missing_types`. File-only, V6 untouched.
+- Wire-up di `routes/agen.py:_run_ingestion` setelah V6 subprocess + LLM
+  fallback: panggil `repair_pengadaan_digest(out, folder=folder)` best-effort.
+
+Verifikasi: 14 sample filename pass (5 Signed_/eMaterai_/TTD_ + period
+prefix `1.RFI` + anti-overmatch `AKAR-MASALAH` tidak ke-KAK + `PHPS Holding`
+tidak ke-HPS) + E2E pakai `pengadaan-digest.json` user dgn dummy PDF stub:
+2 file rescued benar (KAK + HPS), `missing_types ['kak','hps'] → []`, 6 file
+sengaja tetap unclassified (KP/PKP/cetak_pesanan/Proposal/PI bukan dokumen
+pipeline pengadaan). Bug POSIX (`\` bukan separator → substring "kontrak" di
+dir prefix `02-kontrak\\` salah match) ditemukan dan di-fix dgn normalisasi
+`\\` → `/` sebelum `Path().name`.
+
+**Isu 2 — Auditor minta koreksi → agen analisis ulang dari nol.** Prompt AT
+sebelumnya selalu mulai dari step 1 (read_context → list_ingested → digest
+→ run_batch → temuan). Saat auditor pesan "ada yang kurang" via chat,
+pipeline V6 di-rerun + temuan.json overwrite full (kerja sebelumnya hilang).
+
+Fix di prompt + tool wiring:
+- `backend/app/prompts/anggota_tim.md` — tambah **LANGKAH 0** sebelum
+  urutan kerja: deteksi mode FRESH-RUN vs REFINE via `read_temuan_json`.
+  Mode REFINE: skip `run_batch_*` & deep-read konteks, fokus 4 skenario
+  (tambah temuan baru / sempurnakan / tolak FP / jawab pertanyaan), wajib
+  `render_kkp_docx` + `run_qc_kkp` setelah refine, feedback summary
+  prefix `REFINE:`.
+- `backend/app/tools/kkp_tools.py` — tambah `read_temuan_json` ke
+  `KKP_TOOLS` (reuse dari `lhr_tools`). Sebelumnya hanya AT tidak punya
+  akses ke `temuan.json` — KT iya. Sekarang AT pakai sbg signal mode.
+- Dokumentasi tool di prompt diperbarui supaya agen tahu read_temuan_json
+  ada.
+
+Aturan emas REFINE di prompt: "Pekerjaan AT sebelumnya adalah BASELINE.
+Tambahkan/sempurnakan, jangan ulangi dari nol. Bila auditor minta 'analisis
+ulang dari awal' eksplisit, baru jalankan FRESH-RUN."
+
 ---
 
 ## 14. Lihat Juga
@@ -667,4 +726,4 @@ deskripsi panjang KAK/HPS/Traceability/Pemilihan).
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE).*

@@ -277,6 +277,20 @@ async def _run_ingestion(penugasan_id: int) -> None:
         # pulihkan via LLM murah dari TEKS dokumen. File-only (tidak menyentuh DB).
         await _run_llm_fallback(jobs, results)
 
+        # Post-process digest pengadaan: rescue file yg masuk `unclassified_files`
+        # karena pattern V6 terlalu ketat (mis. prefix `Signed_` dari Privy/eMaterai
+        # membuat `\bKAK\b` gagal). Robust classifier + re-parse via V6 module.
+        # File-only, V6 read-only. Lihat app.digest_postprocess.
+        for (kind, payload, out, _) in jobs:
+            if kind == "pbj" and out.exists():
+                try:
+                    from app.digest_postprocess import repair_pengadaan_digest
+
+                    repair_pengadaan_digest(out, folder=folder)
+                except Exception as exc:
+                    # Repair best-effort; jangan gagalkan ingestion bila gagal.
+                    print(f"[digest_postprocess] warning: {exc}")
+
         await db.commit()
 
 
