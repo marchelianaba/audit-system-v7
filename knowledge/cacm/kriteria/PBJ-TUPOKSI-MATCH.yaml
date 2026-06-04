@@ -1,0 +1,91 @@
+# Kriteria CACM — Kelas 2 (Semantic Anomaly) — sample PoC
+# ====================================================
+# Status: DRAFT pre-implementation. Lihat docs/rencana-cacm-kriteria.html §2.5.
+# Menjawab pertanyaan tim 3 Jun 2026: "kalau pengadaan aneh dan jauh
+# korelasinya dengan direktorat, apakah bisa ke-detect?" Jawaban: ya, lewat
+# semantic match nama_paket vs profil tupoksi Satker.
+# ====================================================
+
+id: PBJ-TUPOKSI-MATCH
+revisi: "2026-Q2-draft"
+nama: "Kesesuaian Paket dengan Tupoksi Direktorat"
+
+tipe: semantic_anomaly
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]   # butuh profil di knowledge/cacm/profil-satker/
+
+regulasi:
+  - "Perpres 16/2018 Pasal 4 (efektivitas: pengadaan harus sesuai kebutuhan)"
+  - "PMK 107/2024 Pasal 61 (output harus mendukung program induk)"
+
+# Cara evaluasi: dua mode, evaluator pilih sesuai env / config penugasan.
+# Mode B (Haiku) lebih akurat tapi butuh API call per paket. Default Mode A
+# karena cepat; Mode B aktif kalau auditor request "deep eval" di UI.
+mode_evaluasi:
+  default: "keyword_jaccard"     # Mode A — gratis, cepat, ~70% akurasi
+  fallback_deep: "haiku_judge"   # Mode B — ~$0.001/paket, ~90% akurasi
+
+# Knowledge reference yang dipakai
+knowledge_required:
+  - "knowledge/cacm/profil-satker/{data.satker_kode}.yaml"
+
+# Mode A — keyword Jaccard
+mode_keyword_jaccard:
+  # Tokenisasi: lowercase, buang stopword ID, ambil kata ≥3 char
+  metric_expression: |
+    jaccard(
+      tokens(data.nama_paket),
+      tokens(profil_satker.tupoksi + profil_satker.pengadaan_wajar.flatten())
+    )
+  satuan: "skor 0-1"
+  format_display: "{:.2f}"
+
+# Mode B — Haiku judge
+mode_haiku_judge:
+  model: "claude-haiku-4-5-20251001"
+  prompt_template: |
+    Anda evaluator pengadaan pemerintah. Direktorat {profil_satker.nama}
+    memiliki tupoksi: {profil_satker.tupoksi}.
+    Kategori pengadaan yang WAJAR: {profil_satker.pengadaan_wajar}.
+    Anti-pattern: {profil_satker.pengadaan_anomali_jelas}.
+
+    Paket: "{data.nama_paket}" senilai Rp {data.pagu:,}, metode {data.metode}.
+
+    Jawab JSON: { "skor": 0-100, "kesesuaian": "tinggi|sedang|rendah",
+                  "alasan": "1 kalimat" }
+  output_field: "skor"  # untuk dievaluasi di threshold
+
+# Threshold (sama untuk kedua mode — normalisasi ke 0-100 saat parsing)
+thresholds:
+  - status: HIJAU
+    condition: ">=60"
+    catatan: "Paket relevan dgn tupoksi Direktorat"
+  - status: KUNING
+    condition: ">=30 AND <60"
+    catatan: "Korelasi lemah; review auditor utk klarifikasi"
+  - status: MERAH
+    condition: "<30"
+    catatan: "Paket TIDAK terkait tupoksi Direktorat — anomali"
+
+evidence_fields:
+  - data.satker
+  - data.satker_kode
+  - data.nama_paket
+  - data.pagu
+  - data.jenis_pengadaan
+  - data.metode
+
+promote:
+  skill: reviu-pengadaan
+  pattern_ids_hint: []           # belum ada pattern utk anomali tupoksi — bisa di-graduasi nanti
+  prefilled_obyek_tpl: "Reviu Kesesuaian Pengadaan dgn Tupoksi — {satker_nama} ({nama_paket})"
+  prefilled_dasar_permintaan: "Hasil CACM finding PBJ-TUPOKSI-MATCH"
+
+catatan_implementasi: |
+  - Mode keyword Jaccard butuh stopword list ID + tokenizer (sudah ada di
+    digest_postprocess.py + knowledge_browse.py — bisa reuse).
+  - Mode Haiku judge baru, butuh prompt template engine sederhana ({var}
+    substitusi dari context dict).
+  - knowledge/cacm/profil-satker/ harus diisi tim sebelum kriteria ini hidup
+    (min: itjen, ekosdig, wasdig + setiap Direktorat di bawahnya). Workshop.

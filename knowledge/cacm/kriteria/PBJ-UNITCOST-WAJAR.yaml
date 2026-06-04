@@ -1,0 +1,73 @@
+# Kriteria CACM — Kelas 3 (Benchmark Unit-Cost) — sample PoC
+# ====================================================
+# Status: DRAFT pre-implementation. Lihat docs/rencana-cacm-kriteria.html §2.5.
+# Menjawab pertanyaan tim 3 Jun 2026: "kalau anggaran tidak wajar, apakah
+# bisa ke-detect?" Jawaban: ya, lewat bandingkan unit cost paket vs
+# benchmark per kategori barang/jasa.
+# ====================================================
+
+id: PBJ-UNITCOST-WAJAR
+revisi: "2026-Q2-draft"
+nama: "Kewajaran Unit Cost vs Benchmark Per Kategori"
+
+tipe: benchmark_unitcost
+dimensi: PENGADAAN_REALISASI                  # butuh data SPSE (rincian kontrak), bukan SIRUP saja
+sumber_data: spse                              # nyala saat F3 SPSE hidup. Fallback: rincian RAB di reviu-rka-kl.
+satker_terapkan: [ALL]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 26 ayat 5 (HPS dari survei pasar yang wajar)"
+  - "Perpres 16/2018 Pasal 4 (efisiensi)"
+
+# Cara evaluasi: deterministik (lookup ke benchmark/<kategori>.yaml).
+# 1. Cocokkan nama paket dgn keyword_pemicu di benchmark per kategori.
+# 2. Ambil unit_cost = nilai_kontrak / unit_count (dari SPSE).
+# 3. Bandingkan vs distribusi (min/p25/median/p75/max) di benchmark.
+# 4. Pilih status sesuai threshold_deviasi di benchmark kategori.
+mode_evaluasi:
+  default: "benchmark_lookup"
+
+knowledge_required:
+  - "knowledge/cacm/benchmark-harga/*.yaml"    # semua benchmark dimuat, evaluator pilih yg match
+
+# Pre-processing: pilih benchmark kategori yang cocok dgn paket
+match_kategori:
+  algorithm: "best_keyword_match"              # keyword_pemicu vs nama_paket
+  fallback_if_no_match: "INFO"                 # paket tak tertulis kategorinya — tidak dieval (bukan MERAH)
+
+# Metric expression — di-evaluate atas data SPSE
+metric:
+  expression: "data.nilai_kontrak / max(data.unit_count, 1)"
+  satuan: "Rp/unit"
+  format_display: "Rp {:,.0f}"
+
+# Threshold di-inherit dari benchmark kategori (lihat benchmark-harga/<kat>.yaml
+# field threshold_deviasi). Tidak hardcode di kriteria ini.
+thresholds_source: "from_benchmark"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.nilai_kontrak
+  - data.unit_count
+  - data.kategori_matched          # diisi evaluator: kategori benchmark yg dipakai
+  - data.unit_cost_computed        # diisi evaluator: hasil hitungan unit cost
+  - data.deviasi_persen            # diisi evaluator: % dari median benchmark
+
+promote:
+  skill: reviu-pengadaan
+  pattern_ids_hint:
+    - RP-08                         # HPS tidak didukung 2 sumber harga independen
+    - RP-13                         # Nilai kontrak > 80% HPS tanpa justifikasi
+  prefilled_obyek_tpl: "Reviu Kewajaran Harga — {nama_paket} ({satker_nama})"
+  prefilled_dasar_permintaan: "Hasil CACM finding PBJ-UNITCOST-WAJAR (unit cost {deviasi_persen}% di atas median benchmark)"
+
+catatan_implementasi: |
+  - Benchmark seed awal: workshop tim isi 20-30 kategori paling sering (laptop,
+    server, lisensi, jasa konsultansi). Sumber: e-katalog LKPP + historis
+    pengadaan Komdigi 2024-2025.
+  - Setelah 6-12 bulan data SPSE terkumpul di v7, build auto-update benchmark
+    via job mingguan (median moving window 18 bulan).
+  - Limitasi SIRUP: tidak ada unit_count + nilai_kontrak (hanya pagu paket).
+    Kriteria ini AKTIF saat F3 SPSE hidup, atau bisa di-trigger manual dari
+    rincian RAB di reviu-rka-kl penugasan terkait.

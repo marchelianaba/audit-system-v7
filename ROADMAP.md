@@ -722,6 +722,28 @@ supaya gitable + PR-able + audit trail via git log.
 Plan visual lengkap: [docs/rencana-cacm-kriteria.html](docs/rencana-cacm-kriteria.html).
 Sample skema YAML: [knowledge/cacm/kriteria/PBJ-PDN-RASIO.yaml](knowledge/cacm/kriteria/PBJ-PDN-RASIO.yaml).
 
+**Tiga kelas kriteria** (ekspansi 3 Jun 2026 atas pertanyaan tim "pengadaan
+aneh / jauh tupoksi dan anggaran tidak wajar — bisakah?"):
+1. **`numeric_threshold`** — agregat rasio/persentase (9 EWS SIRUP existing
+   semua kelas ini): PDN%, peserta &lt;3, realisasi, dst. Gratis, deterministik.
+2. **`semantic_anomaly`** — paket vs tupoksi Direktorat. Knowledge base
+   `knowledge/cacm/profil-satker/<kode>.yaml` (tupoksi + pengadaan_wajar +
+   anomali_jelas + pengecualian). Mode A: keyword Jaccard (gratis, ~70% akurasi).
+   Mode B: Haiku judge (~$0.001/paket, ~90% akurasi). Sample
+   [PBJ-TUPOKSI-MATCH.yaml](knowledge/cacm/kriteria/PBJ-TUPOKSI-MATCH.yaml) +
+   [wasdig.yaml](knowledge/cacm/profil-satker/wasdig.yaml).
+3. **`benchmark_unitcost`** — unit cost vs benchmark per kategori. Knowledge
+   base `knowledge/cacm/benchmark-harga/<kategori>.yaml` (distribusi
+   min/p25/median/p75/max + threshold_deviasi + keyword_pemicu/exclude).
+   Sumber awal: e-katalog LKPP + historis Komdigi + SBM. Auto-update
+   moving-window median setelah 6-12 bulan data SPSE. Sample
+   [PBJ-UNITCOST-WAJAR.yaml](knowledge/cacm/kriteria/PBJ-UNITCOST-WAJAR.yaml) +
+   [laptop-developer.yaml](knowledge/cacm/benchmark-harga/laptop-developer.yaml).
+
+**Composite severity:** 1 paket bisa trigger multi-kriteria lintas kelas
+(mis. "renovasi kantin di Wasdig Rp 800jt PL" → MERAH semantic + MERAH numeric
+PL-batas-nilai). Status final = severity tertinggi + narasi gabungan.
+
 **Keputusan strategis ditetapkan 3 Jun 2026:**
 - Threshold di-OWN v7 (re-evaluate dari raw `paket_detail[]` yg agent sudah kirim).
 - Storage YAML di repo (Git PR utk revisi, UI read-only awal).
@@ -816,4 +838,4 @@ nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar)).*

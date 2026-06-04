@@ -150,6 +150,142 @@
   </ul>
 </section>
 
+<!-- 2.5 Tiga kelas kriteria -->
+<section>
+  <h2>2.5 · Tiga Kelas Kriteria (ditambah 3 Jun 2026)</h2>
+  <p>Pertanyaan tim: "kalau kriteria seperti pengadaan aneh dan jauh korelasinya dengan direktoratnya, atau anggarannya tidak wajar, apakah bisa?" — <strong>Bisa, tapi bukan numeric threshold sederhana.</strong> Tiga kelas:</p>
+
+  <table>
+    <tr><th>Kelas</th><th>Tipe yaml</th><th>Cocok untuk</th><th>Cost</th></tr>
+    <tr>
+      <td><strong>1. Numeric threshold</strong></td>
+      <td><code>tipe: numeric_threshold</code></td>
+      <td>Rasio/persentase/agregat yang bisa diukur deterministik dari raw fields (PDN%, realisasi%, &lt;3 peserta, dst). <strong>9 EWS SIRUP existing semua kelas ini.</strong></td>
+      <td>Gratis</td>
+    </tr>
+    <tr>
+      <td><strong>2. Semantic anomaly</strong></td>
+      <td><code>tipe: semantic_anomaly</code></td>
+      <td>"Apakah paket X sesuai dgn tupoksi/program direktorat Y?" — mis. Ditjen Wasdig beli pelatihan tata boga = anomali. Butuh knowledge base profil Satker + judge.</td>
+      <td>~$0.001/paket (Haiku) atau gratis (keyword Jaccard, kurang akurat)</td>
+    </tr>
+    <tr>
+      <td><strong>3. Benchmark unit-cost</strong></td>
+      <td><code>tipe: benchmark_unitcost</code></td>
+      <td>"Apakah harga per unit wajar?" — mis. 1 laptop Rp 80jt vs benchmark ~Rp 22jt. Butuh database harga referensi (SBM, historis v7, e-katalog).</td>
+      <td>Gratis (lookup + statistik)</td>
+    </tr>
+  </table>
+
+  <h3>2.5.1 Kelas 2 — Semantic Anomaly (pengadaan aneh / jauh tupoksi)</h3>
+  <p><strong>Dua mode evaluasi:</strong></p>
+  <ol>
+    <li><strong>Mode A — Keyword similarity (cheap, deterministic):</strong> hitung Jaccard antara token <code>nama_paket</code> vs token kata kunci tupoksi direktorat. Threshold &lt;0.05 → KUNING (potensi anomali). Cepat tapi banyak false positive — auditor masih review.</li>
+    <li><strong>Mode B — Haiku judge (better, ~$0.001/paket):</strong> kirim Haiku <code>{nama_paket, tupoksi_direktorat}</code> → minta skor relevansi 0-100 + alasan. Skor &lt;30 → MERAH, 30-60 → KUNING, &gt;60 → HIJAU. Reproducible dgn temperature=0.</li>
+  </ol>
+
+  <p><strong>Knowledge base baru:</strong> <code>knowledge/cacm/profil-satker/&lt;kode&gt;.yaml</code> — sumber bisa dari Renstra/RKT/profil unit. Sample:</p>
+  <pre><code># knowledge/cacm/profil-satker/wasdig.yaml
+kode: wasdig
+nama: "Direktorat Jenderal Pengawasan Ruang Digital"
+kementerian: "Komunikasi dan Digital"
+sumber_profil: "Renstra Komdigi 2025-2029 + Permenkomdigi 1/2025"
+
+# Bidang pekerjaan utama — jadi acuan untuk evaluasi semantic anomaly
+tupoksi:
+  - "Pengawasan konten digital"
+  - "Sertifikasi elektronik (PSrE)"
+  - "Trust anchor nasional"
+  - "Tanda tangan elektronik"
+  - "Manajemen risiko ruang digital"
+
+# Kategori barang/jasa yang WAJAR direktorat ini procure
+pengadaan_wajar:
+  infrastruktur_it:
+    - "lisensi firewall"
+    - "monitoring tools (SIEM, IDS/IPS)"
+    - "server / storage"
+    - "HSM (hardware security module)"
+    - "PKI infrastructure"
+  jasa_konsultansi:
+    - "audit keamanan siber"
+    - "kajian regulasi PSE"
+  pelatihan:
+    - "sertifikasi siber (CISA, CISM, CISSP)"
+    - "ISO 27001"
+    - "pengawasan konten"
+
+# Anti-pattern: jenis pengadaan yang ANEH/CURIGA bila muncul di direktorat ini
+pengadaan_anomali_jelas:
+  - "pelatihan tata boga / kuliner"
+  - "renovasi gedung non-data-center"
+  - "konsultansi pemasaran ritel"
+  - "pengadaan kendaraan operasional &gt;5 unit"
+</code></pre>
+
+  <h3>2.5.2 Kelas 3 — Benchmark Unit-Cost (anggaran tidak wajar)</h3>
+  <p><strong>Sumber referensi harga (urutan prioritas):</strong></p>
+  <ol>
+    <li><strong>SBM Kementerian Keuangan</strong> — standar biaya masukan untuk komponen umum (transport, honorarium, ATK). Tarik dari PMK SBM TA berjalan.</li>
+    <li><strong>e-Katalog LKPP</strong> — barang/jasa generik dgn harga indikatif. Scraping by-kategori (semi-manual; tidak ada API publik).</li>
+    <li><strong>Historis v7 sendiri</strong> — auto-build dari paket SIRUP yang sudah selesai &amp; tidak di-flag MERAH. Setelah 6-12 bulan data terkumpul, ini jadi sumber utama untuk pola Satker-specific.</li>
+    <li><strong>Manual workshop tim</strong> — auditor input benchmark untuk kategori yang tidak ada di sumber lain.</li>
+  </ol>
+
+  <p><strong>Schema benchmark:</strong> <code>knowledge/cacm/benchmark-harga/&lt;kategori&gt;.yaml</code>. Sample:</p>
+  <pre><code># knowledge/cacm/benchmark-harga/laptop-developer.yaml
+kategori_kode: "LAPTOP-DEV"
+kategori_nama: "Laptop pengembang / engineering workstation"
+satuan: "unit"
+periode_berlaku: "2026"
+sumber:
+  - "e-Katalog LKPP per Mei 2026 (top 5 produk Lenovo/Dell/HP)"
+  - "Riwayat pengadaan Komdigi 2024-2025"
+
+# Distribusi harga (rupiah). Auditor mengisi dari survey/data; updated periodik.
+harga:
+  min: 15000000          # Rp 15 juta
+  p25: 18000000
+  median: 22000000
+  p75: 28000000
+  max: 40000000
+
+# Threshold deviasi — dipakai evaluator untuk klasifikasi MERAH/KUNING/HIJAU
+threshold_deviasi:
+  - status: HIJAU
+    condition: "unit_cost &lt;= p75"
+  - status: KUNING
+    condition: "unit_cost &gt; p75 AND unit_cost &lt;= max"
+  - status: MERAH
+    condition: "unit_cost &gt; max"
+
+# Keyword mapper — paket dgn nama match keyword ini di-evaluasi vs benchmark
+keyword_pemicu:
+  - "laptop"
+  - "notebook"
+  - "engineering workstation"
+  - "developer workstation"
+keyword_exclude:                # supaya tidak nyangkut laptop konsumer
+  - "macbook air"               # MacBook Air bukan dev workstation
+  - "chromebook"
+</code></pre>
+
+  <p><strong>Limitasi nyata:</strong></p>
+  <ul>
+    <li>SIRUP publik tidak ada <em>unit count</em> &amp; <em>unit cost</em> — hanya <em>pagu total paket</em>. Jadi benchmark cuma bisa jalan di data <strong>SPSE realisasi</strong> (yang memuat rincian kontrak) atau saat auditor masukkan rincian manual via reviu pengadaan.</li>
+    <li>Auditor PT/PM perlu workshop awal untuk seed 20-30 kategori paling sering (laptop, server, lisensi mainstream, jasa konsultansi standar).</li>
+  </ul>
+
+  <h3>2.5.3 Kombinasi: semantic + benchmark + numeric → severity composite</h3>
+  <p>Saat 1 paket trigger multi-kriteria, status composite = severity tertinggi. Mis. paket "renovasi kantin Rp 800jt" di Wasdig:</p>
+  <ul>
+    <li>Kelas 2 (semantic): renovasi kantin tidak di pengadaan_wajar Wasdig → <strong>MERAH</strong></li>
+    <li>Kelas 1 (numeric): Pengadaan Langsung Rp 800jt &gt; threshold Rp 200jt → <strong>MERAH</strong></li>
+    <li>Kelas 3 (benchmark): kategori "renovasi" tidak terdaftar (no comparison) → <strong>INFO</strong></li>
+  </ul>
+  <p>Composite: <strong>MERAH</strong> + narasi gabungan ("Paket renovasi kantin tidak sesuai tupoksi Wasdig DAN Pengadaan Langsung melebihi batas Rp 200jt").</p>
+</section>
+
 <!-- 3. Skema YAML kriteria -->
 <section>
   <h2>3 · Skema YAML Kriteria</h2>
@@ -160,6 +296,7 @@ id: PBJ-PDN-RASIO
 revisi: "2026-Q2"
 nama: "Rasio Produk Dalam Negeri (PDN) per Satker"
 
+tipe: numeric_threshold             # numeric_threshold / semantic_anomaly / benchmark_unitcost
 dimensi: PENGADAAN_RENCANA          # SIRUP / DIPA / SPSE / KINERJA
 sumber_data: sirup                  # ingest channel (sesuai CacmObservasi.sumber)
 satker_terapkan: [itjen, ekosdig, wasdig, ALL]

@@ -1,0 +1,61 @@
+# Benchmark unit-cost untuk evaluasi kewajaran anggaran CACM — sample PoC
+# ====================================================
+# Status: DRAFT pre-implementation. Lihat docs/rencana-cacm-kriteria.html §2.5.2.
+# Dipakai oleh kriteria PBJ-UNITCOST-WAJAR untuk menilai apakah harga per
+# unit suatu paket wajar dibandingkan benchmark.
+# ====================================================
+
+kategori_kode: "LAPTOP-DEV"
+kategori_nama: "Laptop pengembang / engineering workstation"
+satuan: "unit"
+periode_berlaku: "2026"
+revisi: "2026-Q2-draft"
+
+sumber:
+  - "e-Katalog LKPP per Mei 2026 (top 5 produk Lenovo ThinkPad / Dell Latitude / HP EliteBook)"
+  - "Riwayat pengadaan Komdigi 2024-2025 (laptop pengembang)"
+  - "Survei pasar Tokopedia/Bhinneka top vendor B2B"
+
+# Distribusi harga (rupiah). Auditor PT/PM workshop kalibrasi awal;
+# nanti auto-update dari historis SPSE setelah F3 hidup.
+harga:
+  min: 15000000          # Rp 15 juta — laptop entry-level
+  p25: 18000000
+  median: 22000000
+  p75: 28000000
+  max: 40000000          # Rp 40 juta — workstation high-end (Lenovo P-series / Dell Precision)
+
+# Threshold deviasi — dipakai evaluator (PBJ-UNITCOST-WAJAR) untuk klasifikasi
+# MERAH/KUNING/HIJAU. Variable `unit_cost` di-substitusi runtime.
+threshold_deviasi:
+  - status: HIJAU
+    condition: "unit_cost <= 28000000"            # <= p75
+    catatan: "Harga di kisaran wajar (≤ kuartil 3 benchmark)"
+  - status: KUNING
+    condition: "unit_cost > 28000000 AND unit_cost <= 40000000"
+    catatan: "Harga premium (di atas p75, masih di bawah max benchmark) — perlu justifikasi spesifikasi"
+  - status: MERAH
+    condition: "unit_cost > 40000000"
+    catatan: "Harga melebihi maks benchmark — tidak wajar tanpa justifikasi khusus"
+
+# Keyword mapper — paket dgn nama match keyword ini di-evaluasi vs benchmark.
+# Match algorithm: substring case-insensitive di nama_paket.
+keyword_pemicu:
+  - "laptop"
+  - "notebook"
+  - "engineering workstation"
+  - "developer workstation"
+  - "mobile workstation"
+
+# Exclude — supaya laptop konsumer tidak nyangkut di benchmark ini
+keyword_exclude:
+  - "macbook"            # Apple punya benchmark terpisah
+  - "chromebook"         # Tablet-class, beda spec
+  - "ultrabook"          # Mungkin masuk ke benchmark "laptop-thin"
+
+catatan_kalibrasi: |
+  Workshop tim 3-7 Jun 2026 (sebelum F3 SPSE rilis):
+  - Verifikasi p25/p75 dengan e-katalog terbaru
+  - Confirm threshold dengan 3 contoh kontrak Komdigi 2024-2025
+  - Override per Satker (Wasdig butuh workstation high-end utk forensik —
+    threshold MERAH mungkin perlu dinaikkan ke Rp 50jt utk Wasdig saja)
