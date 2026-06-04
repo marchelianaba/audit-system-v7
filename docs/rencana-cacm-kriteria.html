@@ -178,50 +178,45 @@
   </table>
 
   <h3>2.5.1 Kelas 2 — Semantic Anomaly (pengadaan aneh / jauh tupoksi)</h3>
-  <p><strong>Dua mode evaluasi:</strong></p>
-  <ol>
-    <li><strong>Mode A — Keyword similarity (cheap, deterministic):</strong> hitung Jaccard antara token <code>nama_paket</code> vs token kata kunci tupoksi direktorat. Threshold &lt;0.05 → KUNING (potensi anomali). Cepat tapi banyak false positive — auditor masih review.</li>
-    <li><strong>Mode B — Haiku judge (better, ~$0.001/paket):</strong> kirim Haiku <code>{nama_paket, tupoksi_direktorat}</code> → minta skor relevansi 0-100 + alasan. Skor &lt;30 → MERAH, 30-60 → KUNING, &gt;60 → HIJAU. Reproducible dgn temperature=0.</li>
-  </ol>
 
-  <p><strong>Knowledge base baru:</strong> <code>knowledge/cacm/profil-satker/&lt;kode&gt;.yaml</code> — sumber bisa dari Renstra/RKT/profil unit. Sample:</p>
-  <pre><code># knowledge/cacm/profil-satker/wasdig.yaml
-kode: wasdig
-nama: "Direktorat Jenderal Pengawasan Ruang Digital"
-kementerian: "Komunikasi dan Digital"
-sumber_profil: "Renstra Komdigi 2025-2029 + Permenkomdigi 1/2025"
+  <div class="ok"><strong>Revisi 3 Jun 2026 (feedback tim):</strong> sumber tupoksi <strong>BUKAN</strong> di YAML <code>knowledge/cacm/profil-satker/&lt;kode&gt;.yaml</code> (rancangan awal — sudah di-drop), melainkan di <strong>catatan Direktorat di vault</strong> (<code>llm-wiki/wiki/direktorat-*.md</code>) yang sudah ada. Alasan: vault = single source of truth, multi-purpose, konteks kaya (Renstra + program + IKU + kepemimpinan + sumber dana), tools agen (<code>search_wiki</code> + <code>get_wiki_page</code>) sudah dipakai AT/KT.</div>
 
-# Bidang pekerjaan utama — jadi acuan untuk evaluasi semantic anomaly
-tupoksi:
-  - "Pengawasan konten digital"
-  - "Sertifikasi elektronik (PSrE)"
-  - "Trust anchor nasional"
-  - "Tanda tangan elektronik"
-  - "Manajemen risiko ruang digital"
+  <p><strong>Catatan Direktorat existing yang sudah di vault:</strong> <code>direktorat-jenderal-pengawasan-ruang-digital.md</code>, <code>direktorat-jenderal-ekosistem-digital.md</code>, <code>direktorat-pengembangan-ekosistem-digital.md</code>, <code>inspektorat-jenderal-kemkomdigi.md</code>, dst.</p>
 
-# Kategori barang/jasa yang WAJAR direktorat ini procure
-pengadaan_wajar:
-  infrastruktur_it:
-    - "lisensi firewall"
-    - "monitoring tools (SIEM, IDS/IPS)"
-    - "server / storage"
-    - "HSM (hardware security module)"
-    - "PKI infrastructure"
-  jasa_konsultansi:
-    - "audit keamanan siber"
-    - "kajian regulasi PSE"
-  pelatihan:
-    - "sertifikasi siber (CISA, CISM, CISSP)"
-    - "ISO 27001"
-    - "pengawasan konten"
+  <p><strong>Tambahan struktur (workshop tim 3-7 Jun 2026 — lihat <code>knowledge/cacm/STANDARDISASI-CATATAN-DIREKTORAT.md</code>):</strong> setiap catatan ditambah 3 section konsisten:</p>
+  <ul>
+    <li><code>## Pengadaan Wajar</code> — kategori barang/jasa relevan tupoksi (whitelist agen)</li>
+    <li><code>## Anti-Pattern Pengadaan</code> — jenis pengadaan yg aneh bila muncul (akselerator MERAH)</li>
+    <li><code>## Pengecualian Tupoksi</code> — whitelist khusus (anti-false-positive)</li>
+  </ul>
 
-# Anti-pattern: jenis pengadaan yang ANEH/CURIGA bila muncul di direktorat ini
-pengadaan_anomali_jelas:
-  - "pelatihan tata boga / kuliner"
-  - "renovasi gedung non-data-center"
-  - "konsultansi pemasaran ritel"
-  - "pengadaan kendaraan operasional &gt;5 unit"
-</code></pre>
+  <h4>Tiga mode evaluasi (cascade)</h4>
+  <table>
+    <tr><th>Mode</th><th>Trigger</th><th>Cost</th><th>Akurasi</th><th>Cara kerja</th></tr>
+    <tr>
+      <td><code>vault_lookup_keyword</code></td>
+      <td>Default: batch CACM ingestion</td><td>Gratis</td><td>~70%</td>
+      <td>Parse 3 section dari vault `.md`, tokenize lowercase + buang stopword ID, hitung Jaccard composite (positif untuk Pengadaan Wajar, ×0.5 negatif untuk Anti-Pattern, ×0.3 positif untuk Pengecualian), normalisasi 0-100.</td>
+    </tr>
+    <tr>
+      <td><code>vault_lookup_haiku</code></td>
+      <td>Filter post-numeric: hanya paket KUNING+ dari Kelas 1 yg di-judge ulang</td><td>~$0.001/paket</td><td>~92%</td>
+      <td>Panggil <code>get_wiki_page("direktorat-<kode>")</code>, kirim Haiku konteks penuh + nama paket → JSON `{skor, kesesuaian, alasan, section_match}`. Reproducible dgn temperature=0.</td>
+    </tr>
+    <tr>
+      <td><code>vault_lookup_sonnet</code></td>
+      <td>On-demand: auditor klik "Analisis Relevansi" di UI CACM finding</td><td>~$0.01/click</td><td>~95%</td>
+      <td>Sonnet baca konteks vault penuh + paket detail + Perpres 16/2018 Pasal 4 → rationale 3-5 kalimat dgn cite section vault + rekomendasi tindak.</td>
+    </tr>
+  </table>
+
+  <p><strong>Tidak ada batch full-LLM</strong> untuk semua paket SIRUP — terlalu mahal &amp; redundansi dgn numeric. Cascade: <em>numeric_threshold (kelas 1) filter → keyword cek semua → Haiku judge KUNING+ post-numeric → Sonnet on-demand auditor</em>.</p>
+
+  <p><strong>Sample kriteria + standardisasi:</strong></p>
+  <ul>
+    <li><a href="../knowledge/cacm/kriteria/PBJ-TUPOKSI-MATCH.yaml"><code>knowledge/cacm/kriteria/PBJ-TUPOKSI-MATCH.yaml</code></a> — kriteria revisi v2, refer vault</li>
+    <li><a href="../knowledge/cacm/STANDARDISASI-CATATAN-DIREKTORAT.md"><code>knowledge/cacm/STANDARDISASI-CATATAN-DIREKTORAT.md</code></a> — template section yg ditambah ke catatan vault</li>
+  </ul>
 
   <h3>2.5.2 Kelas 3 — Benchmark Unit-Cost (anggaran tidak wajar)</h3>
   <p><strong>Sumber referensi harga (urutan prioritas):</strong></p>

@@ -726,12 +726,17 @@ Sample skema YAML: [knowledge/cacm/kriteria/PBJ-PDN-RASIO.yaml](knowledge/cacm/k
 aneh / jauh tupoksi dan anggaran tidak wajar — bisakah?"):
 1. **`numeric_threshold`** — agregat rasio/persentase (9 EWS SIRUP existing
    semua kelas ini): PDN%, peserta &lt;3, realisasi, dst. Gratis, deterministik.
-2. **`semantic_anomaly`** — paket vs tupoksi Direktorat. Knowledge base
-   `knowledge/cacm/profil-satker/<kode>.yaml` (tupoksi + pengadaan_wajar +
-   anomali_jelas + pengecualian). Mode A: keyword Jaccard (gratis, ~70% akurasi).
-   Mode B: Haiku judge (~$0.001/paket, ~90% akurasi). Sample
-   [PBJ-TUPOKSI-MATCH.yaml](knowledge/cacm/kriteria/PBJ-TUPOKSI-MATCH.yaml) +
-   [wasdig.yaml](knowledge/cacm/profil-satker/wasdig.yaml).
+2. **`semantic_anomaly`** — paket vs tupoksi Direktorat. **Revisi 3 Jun 2026:**
+   sumber tupoksi langsung dari vault `llm-wiki/wiki/direktorat-*.md` (sudah ada,
+   tools `search_wiki`/`get_wiki_page` di v7 sudah dipakai AT/KT). YAML
+   `profil-satker/*.yaml` di-drop — drift risk + duplikasi vault. Tambahan
+   minimal: 3 section konsisten di tiap catatan Direktorat (`## Pengadaan Wajar`,
+   `## Anti-Pattern Pengadaan`, `## Pengecualian Tupoksi`) — workshop tim 3-7 Jun.
+   3 mode cascade: keyword Jaccard (default batch, gratis, ~70%); Haiku judge
+   (filter KUNING+ post-numeric, ~$0.001/paket, ~92%); Sonnet (on-demand "Analisis
+   Relevansi" button di UI CACM, ~$0.01/click, ~95%). Sample
+   [PBJ-TUPOKSI-MATCH.yaml v2](knowledge/cacm/kriteria/PBJ-TUPOKSI-MATCH.yaml) +
+   [STANDARDISASI-CATATAN-DIREKTORAT.md](knowledge/cacm/STANDARDISASI-CATATAN-DIREKTORAT.md).
 3. **`benchmark_unitcost`** — unit cost vs benchmark per kategori. Knowledge
    base `knowledge/cacm/benchmark-harga/<kategori>.yaml` (distribusi
    min/p25/median/p75/max + threshold_deviasi + keyword_pemicu/exclude).
@@ -838,4 +843,4 @@ nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar)).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet).*

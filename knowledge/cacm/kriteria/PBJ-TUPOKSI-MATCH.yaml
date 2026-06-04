@@ -1,69 +1,119 @@
-# Kriteria CACM — Kelas 2 (Semantic Anomaly) — sample PoC
+# Kriteria CACM — Kelas 2 (Semantic Anomaly) — sample PoC (revisi v2)
 # ====================================================
-# Status: DRAFT pre-implementation. Lihat docs/rencana-cacm-kriteria.html §2.5.
-# Menjawab pertanyaan tim 3 Jun 2026: "kalau pengadaan aneh dan jauh
-# korelasinya dengan direktorat, apakah bisa ke-detect?" Jawaban: ya, lewat
-# semantic match nama_paket vs profil tupoksi Satker.
+# Status: DRAFT pre-implementation (revisi 3 Jun 2026).
+# Menjawab pertanyaan tim: "kalau pengadaan aneh dan jauh korelasinya dengan
+# direktorat, apakah bisa ke-detect?" Jawaban: ya, lewat semantic match
+# nama_paket vs catatan Direktorat di vault llm-wiki.
+#
+# REVISI v2: drop pendekatan YAML profil-satker terpisah. Sumber tupoksi
+# sekarang langsung dari vault llm-wiki/wiki/direktorat-*.md (sudah ada,
+# kaya konteks, multi-purpose). Lihat:
+#   - knowledge/cacm/STANDARDISASI-CATATAN-DIREKTORAT.md (section yg ditambah)
+#   - docs/rencana-cacm-kriteria.html §2.5.1
 # ====================================================
 
 id: PBJ-TUPOKSI-MATCH
-revisi: "2026-Q2-draft"
-nama: "Kesesuaian Paket dengan Tupoksi Direktorat"
+revisi: "2026-Q2-draft-v2"
+nama: "Kesesuaian Paket dengan Tupoksi Direktorat (vault-driven)"
 
 tipe: semantic_anomaly
 dimensi: PENGADAAN_RENCANA
 sumber_data: sirup
-satker_terapkan: [itjen, ekosdig, wasdig]   # butuh profil di knowledge/cacm/profil-satker/
+satker_terapkan: [itjen, ekosdig, wasdig]
 
 regulasi:
   - "Perpres 16/2018 Pasal 4 (efektivitas: pengadaan harus sesuai kebutuhan)"
   - "PMK 107/2024 Pasal 61 (output harus mendukung program induk)"
 
-# Cara evaluasi: dua mode, evaluator pilih sesuai env / config penugasan.
-# Mode B (Haiku) lebih akurat tapi butuh API call per paket. Default Mode A
-# karena cepat; Mode B aktif kalau auditor request "deep eval" di UI.
-mode_evaluasi:
-  default: "keyword_jaccard"     # Mode A — gratis, cepat, ~70% akurasi
-  fallback_deep: "haiku_judge"   # Mode B — ~$0.001/paket, ~90% akurasi
-
-# Knowledge reference yang dipakai
+# Sumber pengetahuan tupoksi: catatan Direktorat di vault.
+# Setiap catatan vault harus punya 3 section: "Pengadaan Wajar",
+# "Anti-Pattern Pengadaan", "Pengecualian Tupoksi" (lihat
+# STANDARDISASI-CATATAN-DIREKTORAT.md).
 knowledge_required:
-  - "knowledge/cacm/profil-satker/{data.satker_kode}.yaml"
+  vault_pages:
+    # Template: ganti '{data.satker_kode}' dgn nilai runtime saat eval.
+    # Evaluator panggil get_wiki_page() pakai pola ini.
+    - "direktorat-jenderal-{data.satker_kode}"          # mis. 'direktorat-jenderal-pengawasan-ruang-digital'
+    - "direktorat-{data.direktorat_slug}"               # mis. 'direktorat-pengawasan-sertifikasi-dan-transaksi-elektronik'
 
-# Mode A — keyword Jaccard
-mode_keyword_jaccard:
-  # Tokenisasi: lowercase, buang stopword ID, ambil kata ≥3 char
+# Tiga mode evaluasi — pilih per situasi.
+mode_evaluasi:
+  default: "vault_lookup_keyword"      # gratis, batch CACM ingestion
+  on_demand: "vault_lookup_sonnet"     # auditor klik button "Analisis Relevansi"
+  fallback: "vault_lookup_haiku"       # untuk paket KUNING+ post-numeric filter
+
+# Mode A — Keyword Jaccard dari vault sections (gratis, deterministik)
+mode_vault_lookup_keyword:
+  parser:
+    # Ambil bullet list dari 2 section vault, tokenize, gabung jadi corpus
+    sections_wajar: ["## Pengadaan Wajar"]
+    sections_anomali: ["## Anti-Pattern Pengadaan"]
+    sections_pengecualian: ["## Pengecualian Tupoksi"]
+    tokenize: lowercase + strip_stopwords_id + min_len_3
   metric_expression: |
     jaccard(
       tokens(data.nama_paket),
-      tokens(profil_satker.tupoksi + profil_satker.pengadaan_wajar.flatten())
+      tokens(vault.sections_wajar)
+    ) - 0.5 * jaccard(
+      tokens(data.nama_paket),
+      tokens(vault.sections_anomali)
     )
-  satuan: "skor 0-1"
-  format_display: "{:.2f}"
+    + 0.3 * jaccard(
+      tokens(data.nama_paket),
+      tokens(vault.sections_pengecualian)
+    )
+  satuan: "skor -0.5 sd 1.0 → di-normalisasi ke 0-100"
+  format_display: "{:.1f}"
+  catatan_evaluator: |
+    Komposit: skor positif = match Pengadaan Wajar; penalty kuat untuk match
+    Anti-Pattern (×0.5 dikurangkan); bonus kecil untuk match Pengecualian
+    (×0.3 ditambahkan). Hasil dinormalisasi linear ke 0-100.
 
-# Mode B — Haiku judge
-mode_haiku_judge:
+# Mode B — Haiku judge baca catatan vault penuh
+mode_vault_lookup_haiku:
   model: "claude-haiku-4-5-20251001"
-  prompt_template: |
-    Anda evaluator pengadaan pemerintah. Direktorat {profil_satker.nama}
-    memiliki tupoksi: {profil_satker.tupoksi}.
-    Kategori pengadaan yang WAJAR: {profil_satker.pengadaan_wajar}.
-    Anti-pattern: {profil_satker.pengadaan_anomali_jelas}.
+  system_prompt: |
+    Anda evaluator pengadaan pemerintah. Tugas: nilai apakah suatu paket
+    pengadaan sesuai dengan tupoksi Direktorat berdasarkan catatan vault.
+    Jawab HANYA JSON valid: {"skor":0-100, "kesesuaian":"tinggi|sedang|rendah",
+    "alasan":"1 kalimat", "section_match":"Pengadaan Wajar|Anti-Pattern|Pengecualian|None"}
+  user_prompt_template: |
+    Catatan vault tentang Direktorat ini:
+    ---
+    {vault_content}
+    ---
 
-    Paket: "{data.nama_paket}" senilai Rp {data.pagu:,}, metode {data.metode}.
+    Paket: "{data.nama_paket}"
+    Pagu: Rp {data.pagu:,}
+    Metode: {data.metode}
+    Jenis: {data.jenis_pengadaan}
 
-    Jawab JSON: { "skor": 0-100, "kesesuaian": "tinggi|sedang|rendah",
-                  "alasan": "1 kalimat" }
-  output_field: "skor"  # untuk dievaluasi di threshold
+    Nilai relevansi dgn tupoksi Direktorat ini.
+  output_field: "skor"
 
-# Threshold (sama untuk kedua mode — normalisasi ke 0-100 saat parsing)
+# Mode C — Sonnet untuk on-demand deep dive (auditor klik UI)
+mode_vault_lookup_sonnet:
+  model: "claude-sonnet-4-6"
+  system_prompt: |
+    Anda auditor senior Inspektorat II Komdigi. Berikan analisis mendalam
+    apakah paket pengadaan sesuai dgn tupoksi Direktorat. Selain skor 0-100,
+    sertakan: (1) rationale 3-5 kalimat dgn cite section catatan vault yg
+    relevan, (2) rekomendasi tindak (terima/klarifikasi/reviu).
+  user_prompt_template: |
+    {vault_content}
+
+    Paket detail: {data}
+
+    Profil dasar regulasi pengadaan: Perpres 16/2018 Pasal 4 efektivitas.
+
+# Threshold (sama untuk 3 mode — normalisasi ke 0-100)
 thresholds:
   - status: HIJAU
     condition: ">=60"
     catatan: "Paket relevan dgn tupoksi Direktorat"
   - status: KUNING
     condition: ">=30 AND <60"
-    catatan: "Korelasi lemah; review auditor utk klarifikasi"
+    catatan: "Korelasi lemah; review auditor untuk klarifikasi"
   - status: MERAH
     condition: "<30"
     catatan: "Paket TIDAK terkait tupoksi Direktorat — anomali"
@@ -75,17 +125,25 @@ evidence_fields:
   - data.pagu
   - data.jenis_pengadaan
   - data.metode
+  # Diisi runtime evaluator
+  - vault_page_used                   # nama catatan vault yang dipakai
+  - mode_used                          # mode evaluasi yang dipakai
+  - skor_raw                           # skor sebelum normalisasi
+  - section_match                      # (mode Haiku/Sonnet) section vault yg dicocokkan
 
 promote:
   skill: reviu-pengadaan
-  pattern_ids_hint: []           # belum ada pattern utk anomali tupoksi — bisa di-graduasi nanti
+  pattern_ids_hint: []                # belum ada pattern utk anomali tupoksi
   prefilled_obyek_tpl: "Reviu Kesesuaian Pengadaan dgn Tupoksi — {satker_nama} ({nama_paket})"
-  prefilled_dasar_permintaan: "Hasil CACM finding PBJ-TUPOKSI-MATCH"
+  prefilled_dasar_permintaan: "Hasil CACM finding PBJ-TUPOKSI-MATCH (skor {skor_display})"
 
 catatan_implementasi: |
-  - Mode keyword Jaccard butuh stopword list ID + tokenizer (sudah ada di
-    digest_postprocess.py + knowledge_browse.py — bisa reuse).
-  - Mode Haiku judge baru, butuh prompt template engine sederhana ({var}
-    substitusi dari context dict).
-  - knowledge/cacm/profil-satker/ harus diisi tim sebelum kriteria ini hidup
-    (min: itjen, ekosdig, wasdig + setiap Direktorat di bawahnya). Workshop.
+  - Evaluator mode keyword pakai stopword list ID + tokenizer yg sudah ada di
+    digest_postprocess.py / knowledge_browse.py.
+  - Vault `.md` di llm-wiki/wiki/ harus punya 3 section: "Pengadaan Wajar",
+    "Anti-Pattern Pengadaan", "Pengecualian Tupoksi" — lihat
+    STANDARDISASI-CATATAN-DIREKTORAT.md.
+  - Tools agen `search_wiki` + `get_wiki_page` sudah ada di v7. Evaluator
+    panggil get_wiki_page secara internal (atau via vault_get_page langsung).
+  - Workshop tim sebelum mode B/C aktif: kalibrasi prompt + uji 20 paket
+    historis (10 wajar + 10 anomali) → confusion matrix → adjust threshold.
