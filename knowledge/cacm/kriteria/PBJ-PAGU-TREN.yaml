@@ -1,0 +1,40 @@
+# EWS-08 port — Tren Pagu Antar Periode (placeholder Fase 1)
+id: PBJ-PAGU-TREN
+revisi: "2026-Q2"
+nama: "Tren Pagu Per Satker Antar Periode"
+catatan_revisi: |
+  Port dari EWS-08 (ews-rules-verified.md). NOTE Fase 1: butuh data periode
+  sebelumnya untuk hitung delta. Sementara metric memakai field
+  `data.pagu_delta_persen` yg di-set agent EWS dari rekap_lalu vs sekarang.
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 — RUP boleh direvisi tapi harus terdokumentasi"
+
+metric:
+  # Asumsi: agent EWS sudah set `data.pagu_delta_persen` per row paket
+  # (positive = naik, negative = turun). Kita ambil maks absolut.
+  # Implementasi alternatif (history-aware) di Fase 2.
+  expression: "max(data.pagu_delta_persen)"
+  satuan: persen
+  format_display: "{:+.1f}%"
+
+thresholds:
+  - status: HIJAU
+    condition: "<20"
+    catatan: "Perubahan pagu antar periode wajar (<20%)"
+  - status: KUNING
+    condition: ">=20 AND <40"
+    catatan: "Perubahan signifikan — cek apakah ada revisi DIPA / RUP"
+  - status: MERAH
+    condition: ">=40"
+    catatan: "Perubahan sangat besar — investigasi alasan revisi"
+
+evidence_fields:
+  - data.satker
+  - data.pagu_delta_persen
+  - data.pagu

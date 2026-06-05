@@ -160,6 +160,66 @@ class EwsFinding(Base):
     run: Mapped["CacmRun"] = relationship(back_populates="findings")
 
 
+# ============================================================
+# CACM Mesin Kriteria Multi-Sumber (Fase 1 — numeric_threshold SIRUP)
+# ============================================================
+#
+# Berjalan paralel dgn EwsFinding existing. EwsFinding = legacy, status dari
+# agent. CacmObservasi+CacmFinding = v7-native: raw observasi (tanpa status) +
+# hasil eval berdasarkan kriteria YAML (`knowledge/cacm/kriteria/*.yaml`).
+# Saat agent baru / data source baru (DIPA/SPSE/Kinerja) ditambah, tabel ini
+# tetap dipakai.
+# ============================================================
+
+
+class CacmObservasi(Base):
+    """Satu observasi mentah dari ingest channel (SIRUP/DIPA/SPSE/Kinerja).
+
+    Tidak ada status di sini — status dihitung dari kriteria saat evaluate.
+    `data` JSONB berisi raw fields per source (mis. paket SIRUP punya keys
+    `pagu`, `metode`, `pdn`, `ukm`, `bulan_pemilihan`, dst).
+    """
+
+    __tablename__ = "cacm_observasi"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sumber: Mapped[str] = mapped_column(String(40))          # 'sirup' | 'dipa' | 'spse' | 'kinerja_*'
+    dimensi: Mapped[str] = mapped_column(String(40))         # 'PENGADAAN_RENCANA' | ...
+    satker_kode: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    satker_nama: Mapped[str] = mapped_column(String(200))
+    periode_label: Mapped[str] = mapped_column(String(40))   # mis. '2026-Q1' | '2026-05'
+    data: Mapped[dict] = mapped_column(JSON, default=dict)   # raw fields
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    raw_source_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    cacm_run_id: Mapped[int | None] = mapped_column(ForeignKey("cacm_runs.id"), nullable=True, index=True)
+
+
+class CacmFinding(Base):
+    """Hasil evaluasi 1 kriteria atas observasi (atau agregat observasi)."""
+
+    __tablename__ = "cacm_finding"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kriteria_id: Mapped[str] = mapped_column(String(80), index=True)
+    kriteria_revisi: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20))          # MERAH/KUNING/HIJAU/INFO
+    metric_value: Mapped[float | None] = mapped_column(nullable=True)
+    metric_satuan: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    metric_display: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    satker_kode: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    satker_nama: Mapped[str] = mapped_column(String(200))
+    periode_label: Mapped[str] = mapped_column(String(40))
+    dimensi: Mapped[str] = mapped_column(String(40))
+    bukti_observasi_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    narasi: Mapped[str] = mapped_column(Text)
+    tindak_lanjut: Mapped[str] = mapped_column(String(20), default="BARU")
+    # BARU | DIPROMOSIKAN | DIABAIKAN — sama enum dgn EwsFinding utk konsistensi
+    penugasan_id: Mapped[int | None] = mapped_column(ForeignKey("penugasan.id"), nullable=True)
+    cacm_run_id: Mapped[int | None] = mapped_column(ForeignKey("cacm_runs.id"), nullable=True, index=True)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class AgentRun(Base):
     """Setiap eksekusi agen di-log lengkap untuk audit trail."""
 

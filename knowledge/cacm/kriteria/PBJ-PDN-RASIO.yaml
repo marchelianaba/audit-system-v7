@@ -1,74 +1,41 @@
-# Kriteria CACM — sample PoC (draft pre-implementasi)
-# ====================================================
-# Status: BELUM dipakai mesin evaluator. File ini cuma contoh skema untuk
-# review tim sebelum implementasi. Lihat docs/rencana-cacm-kriteria.html.
-# ====================================================
-
+# EWS-03 port — Rasio Produk Dalam Negeri (PDN) per Satker
 id: PBJ-PDN-RASIO
-revisi: "2026-Q2-draft"
+revisi: "2026-Q2"
 nama: "Rasio Produk Dalam Negeri (PDN) per Satker"
-catatan_revisi: "Port awal dari EWS-03 (ews-rules-verified.md, 25 Mei 2026)."
+catatan_revisi: "Port deterministik dari EWS-03 (ews-rules-verified.md, 25 Mei 2026)."
 
-# Dimensi & sumber data — dipakai router evaluator memilih observasi.
-dimensi: PENGADAAN_RENCANA      # ENUM: PENGADAAN_RENCANA | ANGGARAN | PENGADAAN_REALISASI | KINERJA
-sumber_data: sirup              # ENUM: sirup | dipa | spse | kinerja_<source>
-
-# Scope — di Satker mana kriteria ini berlaku.
-satker_terapkan:
-  - itjen
-  - ekosdig
-  - wasdig
-  # 'ALL' = berlaku semua satker auditee (alternatif daftar eksplisit)
-
-# Periode relevansi opsional (bulan mulai-selesai). Di luar periode → skip.
-periode_relevansi:
-  mulai_bulan: 1
-  selesai_bulan: 12
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
 
 regulasi:
   - "Inpres 2/2022 (Percepatan Penggunaan PDN)"
   - "Perpres 12/2021 Pasal 66"
 
-# Metric DSL — dieksekusi atas CacmObservasi.data (JSONB raw fields).
-# Operator yang didukung Fase 1: sum, avg, count, ratio, max, min, delta.
-# Threshold expression: numeric comparison string (>=, <, AND, OR).
 metric:
-  expression: |
-    sum(data.pagu WHERE data.pdn == "Produk Dalam Negeri")
-      / sum(data.pagu)
-      * 100
+  expression: 'sum(data.pagu WHERE data.pdn == "Produk Dalam Negeri") / sum(data.pagu) * 100'
   satuan: persen
   format_display: "{:.1f}%"
-  catatan_evaluator: |
-    Agregasi atas semua paket SIRUP satker untuk periode yang sedang dievaluasi.
-    Bila total pagu = 0, status default = INFO (tidak ada paket → tidak bisa dinilai).
 
-# Threshold MERAH/KUNING/HIJAU — dievaluasi top-to-bottom; status pertama yang
-# kondisinya TRUE akan dipilih. Kalau semua FALSE → INFO.
 thresholds:
   - status: HIJAU
     condition: ">=60"
-    catatan: "Sesuai target Inpres 2/2022 (min 40% sudah jauh terlampaui)."
+    catatan: "Sesuai target Inpres 2/2022 (min 40% sudah jauh terlampaui)"
   - status: KUNING
     condition: ">=40 AND <60"
-    catatan: "Memenuhi minimum tapi mendekati ambang; perlu dipantau."
+    catatan: "Memenuhi minimum tapi mendekati ambang; perlu dipantau"
   - status: MERAH
     condition: "<40"
-    catatan: "Di bawah ambang Inpres 2/2022 — pelanggaran kebijakan PDN."
+    catatan: "Di bawah ambang Inpres 2/2022 — pelanggaran kebijakan PDN"
 
-# Field raw yg disnapshot ke CacmFinding.evidence saat finding tercipta.
-# Audit trail: auditor bisa lihat data dasar penilaian tanpa harus query observasi.
 evidence_fields:
   - data.satker
   - data.nama_paket
   - data.pagu
   - data.pdn
 
-# Konfigurasi promote ke Penugasan ketika finding MERAH/KUNING di-promote PT.
 promote:
   skill: reviu-pengadaan
-  pattern_ids_hint:
-    - RP-04   # KAK tidak memuat preferensi PDN
-    - RP-12   # HPS tidak konsisten dgn ketentuan TKDN
-  prefilled_obyek_tpl: "Reviu Kepatuhan PDN — {satker_nama} TA {tahun}"
+  prefilled_obyek_tpl: "Reviu Kepatuhan PDN — {satker} TA {tahun}"
   prefilled_dasar_permintaan: "Inpres 2/2022 + Perpres 12/2021 Pasal 66"

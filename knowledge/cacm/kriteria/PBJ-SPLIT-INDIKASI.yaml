@@ -1,0 +1,43 @@
+# EWS-09 port — Indikasi Pemecahan Paket (Splitting) — versi sederhana
+id: PBJ-SPLIT-INDIKASI
+revisi: "2026-Q2"
+nama: "Indikasi Pemecahan Paket (Splitting)"
+catatan_revisi: |
+  Port dari EWS-09 (ews-rules-verified.md). Catatan: deteksi splitting via text
+  similarity dilakukan AGENT EWS sebelum kirim ke v7 (offline). Field
+  `data.split_score` (0-1) + `data.split_pair_pagu_total` di-set agent.
+  v7 cuma threshold rasio dan flagging.
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 23 ayat (4) — DILARANG memecah pengadaan utk menghindari Tender"
+
+metric:
+  # Jumlah pasangan paket dgn similarity ≥0.7 dan kombinasi pagu > batas PL
+  expression: |
+    count(WHERE data.split_score >= 0.7 AND data.split_pair_pagu_total > 200000000)
+  satuan: "pasangan"
+  format_display: "{:.0f} pasangan"
+
+thresholds:
+  - status: HIJAU
+    condition: "==0"
+    catatan: "Tidak ada indikasi splitting"
+  - status: KUNING
+    condition: ">=1 AND <=2"
+    catatan: "1-2 pasangan mirip — wajib review auditor"
+  - status: MERAH
+    condition: ">=3"
+    catatan: "Banyak pasangan mirip — indikasi splitting sistematis"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.metode
+  - data.split_score
+  - data.split_pair_pagu_total

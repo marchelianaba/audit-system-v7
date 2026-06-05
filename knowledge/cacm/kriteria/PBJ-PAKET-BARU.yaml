@@ -1,0 +1,37 @@
+# EWS-06 port — Paket Baru Terdeteksi (Delta Detection)
+id: PBJ-PAKET-BARU
+revisi: "2026-Q2"
+nama: "Jumlah Paket Baru Terdeteksi Sejak Crawl Sebelumnya"
+catatan_revisi: "Port dari EWS-06 (ews-rules-verified.md). Mengandalkan field `data.paket_baru` (bool) yang di-set agent EWS saat delta-diff."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 — perencanaan pengadaan harus dipublikasikan tepat waktu"
+
+metric:
+  # Jumlah paket baru dgn pagu signifikan (>200jt) yg di-flag agent
+  expression: 'count(WHERE data.paket_baru == TRUE AND data.pagu > 200000000)'
+  satuan: "paket"
+  format_display: "{:.0f} paket"
+
+thresholds:
+  - status: HIJAU
+    condition: "==0"
+    catatan: "Tidak ada paket baru signifikan dalam periode crawl"
+  - status: KUNING
+    condition: ">=1 AND <=3"
+    catatan: "Beberapa paket baru — review konteks tambahan / revisi RUP"
+  - status: MERAH
+    condition: ">=4"
+    catatan: "Banyak paket baru signifikan — periksa kepatuhan jadwal RUP"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.metode
+  - data.paket_baru

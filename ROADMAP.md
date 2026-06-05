@@ -781,6 +781,75 @@ YAML SIRUP dari `ews-rules-verified.md`.
 hanya README + 1 sample PoC schema. Eksekusi menunggu review tim + workshop
 kalibrasi threshold.
 
+### Fase 1 — Backend core CACM evaluator (3 Juni 2026) — IMPLEMENTED
+
+User minta lanjut eksekusi setelah review plan. Scope: backend core only
+(parser + evaluator + 9 YAML port + model DB). Tidak wire-up routes/cacm.py
+existing, tidak UI panel — commit terpisah supaya reviewer bisa validate
+engine sebelum integrasi.
+
+**Modul baru:**
+- `backend/app/cacm_schema.py` — pydantic `KriteriaModel` validasi YAML
+  at-load-time (id pattern, dimensi enum, threshold ≥1 MERAH/HIJAU, anti-dup
+  status). Skip kelas semantic/benchmark untuk Fase 1.
+- `backend/app/cacm_dsl.py` — DSL parser & interpreter:
+  - Metric DSL: `sum/avg/count/ratio/max/min(field WHERE cond) + - * /` +
+    parentheses + WHERE expression dgn AND/OR/NOT.
+  - Threshold DSL: comparison `>=/<=/>/</==/!=` + AND/OR/NOT, dgn `value`
+    sbg LHS implisit ("`>=60`" jadi "`value >= 60`").
+  - Aman: TIDAK pakai `eval()` mentah. Tokenize → recursive descent →
+    AST → interpret.
+- `backend/app/cacm_evaluator.py` — registry singleton (load semua YAML di
+  `knowledge/cacm/kriteria/*.yaml`), `evaluate(kriteria_id, rows)` →
+  `EvaluasiHasil(status, value, value_display, narasi, evidence, ...)`.
+  `evaluate_all_for_dimensi(dimensi, rows)` untuk batch CACM ingest nanti.
+
+**Model DB baru** (`backend/app/models.py`):
+- `CacmObservasi` — raw observasi per ingest channel (sumber, dimensi,
+  satker, periode, `data` JSONB, raw_source_id anti-dup, cacm_run_id FK).
+- `CacmFinding` — hasil eval kriteria (kriteria_id, revisi, status,
+  metric_value, metric_display, satker, periode, dimensi, bukti_observasi_ids,
+  evidence, narasi, tindak_lanjut, penugasan_id, cacm_run_id, evaluated_at).
+- `init_db` create_all auto-pickup; verified via psql `\d cacm_*`.
+
+**9 YAML kriteria port** dari `ews-rules-verified.md` ke
+`knowledge/cacm/kriteria/`:
+- PBJ-PDN-RASIO (EWS-03) — rasio PDN <40/40-60/>=60 → M/K/H
+- PBJ-NON-KOMPETITIF (EWS-07) — % PL+PjL+Dikecualikan
+- PBJ-PL-BATAS-NILAI (EWS-01) — jumlah paket PL >200jt
+- PBJ-PJL-INDIKASI (EWS-02) — % PjL
+- PBJ-UKM-RASIO (EWS-05) — % pagu UKM/Koperasi
+- PBJ-PEMILIHAN-Q4 (EWS-04) — % pagu Nov-Des (relevansi Aug-Dec)
+- PBJ-PAKET-BARU (EWS-06) — count paket baru >200jt (butuh `data.paket_baru`)
+- PBJ-PAGU-TREN (EWS-08) — max delta pagu (butuh `data.pagu_delta_persen`)
+- PBJ-SPLIT-INDIKASI (EWS-09) — count pasangan similar (butuh
+  `data.split_score` + `data.split_pair_pagu_total` dari agent)
+
+**Verifikasi (deterministik):**
+- DSL smoke: tokenize, parse metric `sum(...)/sum(...)*100`, parse threshold
+  `>=60`/`<40`/`>=40 AND <60`, eval atas data sample → PDN rasio 65%, count
+  paket >40jt = 2, sum filter benar.
+- Registry load: 9 numeric kriteria sukses, 0 error (2 file kelas
+  semantic/benchmark di-skip dgn graceful).
+- E2E 9 kriteria atas 6-row SIRUP sample Wasdig: hasil status persis match
+  expected (PDN 45% KUNING, NK 45.7% KUNING, PL 2 paket KUNING, PjL 28.8%
+  KUNING, UKM 0.4% MERAH, Q4 45.7% MERAH, paket-baru 3 KUNING, tren 50%
+  MERAH, split 1 KUNING).
+- Edge cases: empty rows → INFO (NaN%); unknown kriteria → INFO + error;
+  evidence_fields snapshot komplit; narasi auto-gen punya ID + status.
+- DB schema verified via psql `\d cacm_observasi` + `\d cacm_finding`.
+
+**Belum dikerjakan (commit berikutnya):**
+- Wire-up di routes/cacm.py: setelah ingest webhook/pull, panggil evaluator
+  paralel → tulis `CacmObservasi` + `CacmFinding`. EwsFinding tetap (compat).
+- Endpoint `GET /knowledge/cacm/kriteria/library` + `/{id}` (mirror Pattern
+  Library).
+- UI panel "Kriteria CACM" di `/knowledge`.
+- Re-eval manual button "Re-evaluate run" di UI `/cacm`.
+
+V6 read-only — semua menulis di v7 (`app/cacm_*.py`, `knowledge/cacm/`,
+model paralel dgn EwsFinding existing).
+
 ### Hybrid agresif pengadaan: parser-first + Haiku fallback default ON (3 Juni 2026)
 
 KAK & HPS pengadaan sering **tidak terstandar** — layout berbeda per Satker,
@@ -843,4 +912,4 @@ nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet; Fase 1 CACM backend core implemented: schema+DSL parser+evaluator+9 YAML kriteria port+model DB CacmObservasi/Finding).*

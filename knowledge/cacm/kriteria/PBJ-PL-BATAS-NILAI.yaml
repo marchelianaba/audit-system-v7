@@ -1,0 +1,45 @@
+# EWS-01 port — Metode Pengadaan Langsung Melampaui Batas Nilai
+id: PBJ-PL-BATAS-NILAI
+revisi: "2026-Q2"
+nama: "Metode Pengadaan Langsung Melampaui Batas Nilai"
+catatan_revisi: "Port dari EWS-01 (ews-rules-verified.md). Simplified: hitung jumlah paket PL pelanggaran (Barang/Jasa Lainnya/Konstruksi > 200jt)."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 38 ayat (2) — PL Barang/Konstruksi/Jasa Lainnya ≤ Rp200jt"
+  - "Perpres 16/2018 Pasal 38 ayat (3) — PL Konsultansi ≤ Rp100jt"
+
+metric:
+  # Hitung jumlah paket PL Barang/Konstruksi/JasaLainnya dgn pagu > 200jt
+  # (pelanggaran threshold). Untuk Fase 1 disederhanakan ke ambang umum 200jt;
+  # diferensiasi per jenis bisa di-extend kemudian.
+  expression: 'count(WHERE data.metode == "Pengadaan Langsung" AND data.pagu > 200000000)'
+  satuan: "paket"
+  format_display: "{:.0f} paket"
+
+thresholds:
+  - status: HIJAU
+    condition: "==0"
+    catatan: "Tidak ada paket PL yang melampaui batas Rp200jt"
+  - status: KUNING
+    condition: ">=1 AND <=2"
+    catatan: "1-2 paket PL melampaui batas — perlu konfirmasi"
+  - status: MERAH
+    condition: ">=3"
+    catatan: "≥3 paket PL melampaui batas — indikasi pelanggaran sistematis"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.metode
+  - data.jenis
+
+promote:
+  skill: reviu-pengadaan
+  prefilled_obyek_tpl: "Reviu Kepatuhan Metode PL — {satker} TA {tahun}"
+  prefilled_dasar_permintaan: "Perpres 16/2018 Pasal 38 ayat (2)"

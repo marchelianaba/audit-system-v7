@@ -1,0 +1,45 @@
+# EWS-02 port — Penunjukan Langsung Bernilai Signifikan (Indikasi)
+id: PBJ-PJL-INDIKASI
+revisi: "2026-Q2"
+nama: "Penunjukan Langsung Bernilai Signifikan — Indikasi"
+catatan_revisi: "Port dari EWS-02 (ews-rules-verified.md). Penunjukan Langsung tidak punya batas nilai eksplisit di Perpres, tapi nilai sangat besar ⇒ wajib diinvestigasi."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 38 ayat (4) — kondisi Penunjukan Langsung"
+  - "Perpres 16/2018 Pasal 42 — kriteria PjL"
+  - "Perpres 16/2018 Pasal 7 huruf e/f — prinsip bersaing"
+
+metric:
+  # % total pagu PjL terhadap total pagu satker.
+  expression: |
+    sum(data.pagu WHERE data.metode == "Penunjukan Langsung")
+      / sum(data.pagu) * 100
+  satuan: persen
+  format_display: "{:.1f}%"
+
+thresholds:
+  - status: HIJAU
+    condition: "<10"
+    catatan: "PjL minoritas — wajar untuk kebutuhan khusus"
+  - status: KUNING
+    condition: ">=10 AND <30"
+    catatan: "PjL cukup tinggi; pastikan ada justifikasi kondisi PjL"
+  - status: MERAH
+    condition: ">=30"
+    catatan: "Dominasi PjL — indikasi penghindaran kompetisi"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.metode
+
+promote:
+  skill: reviu-pengadaan
+  prefilled_obyek_tpl: "Reviu Penunjukan Langsung Bernilai Signifikan — {satker} TA {tahun}"
+  prefilled_dasar_permintaan: "Perpres 16/2018 Pasal 38-42"

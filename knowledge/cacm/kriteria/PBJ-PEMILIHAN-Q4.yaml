@@ -1,0 +1,43 @@
+# EWS-04 port — Distribusi Pemilihan Menumpuk di Q4 / Nov-Des
+id: PBJ-PEMILIHAN-Q4
+revisi: "2026-Q2"
+nama: "Distribusi Rencana Pemilihan Menumpuk di Akhir Tahun (Nov-Des)"
+catatan_revisi: "Port dari EWS-04 (ews-rules-verified.md). Fokus ke rasio Nov-Des; subkomponen Q4 generic bisa ditambah."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+periode_relevansi:
+  mulai_bulan: 8       # paling relevan Agustus ke atas (pola sudah terlihat)
+  selesai_bulan: 12
+
+regulasi:
+  - "PMK 210/PMK.05/2022 — pembayaran atas prestasi kerja"
+  - "Perpres 16/2018 — efisiensi (bukan dipaksakan utk serapan)"
+
+metric:
+  # % pagu paket dgn bulan_pemilihan November/Desember
+  expression: |
+    (sum(data.pagu WHERE data.bulan_pemilihan == "November")
+     + sum(data.pagu WHERE data.bulan_pemilihan == "December"))
+    / sum(data.pagu) * 100
+  satuan: persen
+  format_display: "{:.1f}%"
+
+thresholds:
+  - status: HIJAU
+    condition: "<25"
+    catatan: "Distribusi pemilihan wajar"
+  - status: KUNING
+    condition: ">=25 AND <40"
+    catatan: "Konsentrasi akhir tahun meningkat — risiko pembayaran terburu"
+  - status: MERAH
+    condition: ">=40"
+    catatan: "Penumpukan akhir tahun — risiko pembayaran fiktif (PMK 210)"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.bulan_pemilihan

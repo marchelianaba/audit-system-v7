@@ -1,0 +1,47 @@
+# EWS-07 port — Konsentrasi Metode Pengadaan Non-Kompetitif Per Satker
+id: PBJ-NON-KOMPETITIF
+revisi: "2026-Q2"
+nama: "Konsentrasi Metode Pengadaan Non-Kompetitif Per Satker"
+catatan_revisi: "Port dari EWS-07 (ews-rules-verified.md, 25 Mei 2026)."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 7 (prinsip bersaing dan adil)"
+  - "Penjelasan umum Perpres 16/2018 (efisiensi via persaingan)"
+
+metric:
+  # Rasio total pagu non-kompetitif terhadap total pagu satker (persen).
+  # Non-kompetitif = Pengadaan Langsung + Penunjukan Langsung + Dikecualikan.
+  expression: |
+    (sum(data.pagu WHERE data.metode == "Pengadaan Langsung")
+     + sum(data.pagu WHERE data.metode == "Penunjukan Langsung")
+     + sum(data.pagu WHERE data.metode == "Dikecualikan"))
+    / sum(data.pagu) * 100
+  satuan: persen
+  format_display: "{:.1f}%"
+
+thresholds:
+  - status: HIJAU
+    condition: "<30"
+    catatan: "Mayoritas tender/seleksi — kompetisi terbuka"
+  - status: KUNING
+    condition: ">=30 AND <50"
+    catatan: "Non-kompetitif tinggi; konfirmasi alasan"
+  - status: MERAH
+    condition: ">=50"
+    catatan: "Dominasi non-kompetitif — pelanggaran prinsip bersaing"
+
+evidence_fields:
+  - data.satker
+  - data.metode
+  - data.pagu
+  - data.nama_paket
+
+promote:
+  skill: reviu-pengadaan
+  prefilled_obyek_tpl: "Reviu Kewajaran Metode Pengadaan — {satker} TA {tahun}"
+  prefilled_dasar_permintaan: "Perpres 16/2018 Pasal 7 — prinsip bersaing"

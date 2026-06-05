@@ -1,0 +1,38 @@
+# EWS-05 port — Rasio Pagu Usaha Kecil/Koperasi per Satker
+id: PBJ-UKM-RASIO
+revisi: "2026-Q2"
+nama: "Rasio Pagu Usaha Kecil/Koperasi per Satker"
+catatan_revisi: "Port dari EWS-05 (ews-rules-verified.md). Informational + flag rendah."
+
+tipe: numeric_threshold
+dimensi: PENGADAAN_RENCANA
+sumber_data: sirup
+satker_terapkan: [itjen, ekosdig, wasdig]
+
+regulasi:
+  - "Perpres 16/2018 Pasal 65-66 — paket ≤Rp15M diperuntukkan bagi Usaha Kecil/Koperasi"
+
+metric:
+  # % pagu yg diperuntukkan UKM dari total pagu satker
+  expression: |
+    sum(data.pagu WHERE data.ukm == "Usaha Kecil/Koperasi")
+      / sum(data.pagu) * 100
+  satuan: persen
+  format_display: "{:.1f}%"
+
+thresholds:
+  - status: HIJAU
+    condition: ">=40"
+    catatan: "Keberpihakan UKM/Koperasi memadai"
+  - status: KUNING
+    condition: ">=20 AND <40"
+    catatan: "Bisa ditingkatkan — cek paket ≤Rp15M yg tidak di-flag UKM"
+  - status: MERAH
+    condition: "<20"
+    catatan: "Keberpihakan UKM rendah — risiko tidak sesuai Pasal 65-66"
+
+evidence_fields:
+  - data.satker
+  - data.nama_paket
+  - data.pagu
+  - data.ukm
