@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rencana Deploy AWS untuk Uji Coba | Audit AI v7</title>
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --primary-light: #2c5282;
+    --accent: #d69e2e;
+    --aws: #ff9900;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a202c;
+    --muted: #718096;
+    --green: #2f855a;
+    --amber: #b7791f;
+    --red: #c53030;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: white; padding: 32px 24px;
+  }
+  header .container { max-width: 1100px; margin: 0 auto; }
+  header h1 { font-size: 26px; margin: 0 0 6px; }
+  header p { margin: 0; opacity: 0.85; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 22px 26px; margin-bottom: 18px; }
+  h2 { font-size: 19px; margin: 0 0 12px; color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 6px; }
+  h3 { font-size: 16px; margin: 18px 0 8px; color: var(--primary-light); }
+  h4 { font-size: 14px; margin: 14px 0 6px; color: var(--text); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 6px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  code { background: #edf2f7; padding: 1px 5px; border-radius: 3px; }
+  pre { background: #1a202c; color: #e2e8f0; padding: 14px; border-radius: 6px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: transparent; padding: 0; color: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #edf2f7; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge.aws { background: #fff7e0; color: var(--aws); border: 1px solid var(--aws); }
+  .badge.fly { background: #ffe4f1; color: #9333ea; }
+  .badge.rec { background: #c6f6d5; color: var(--green); }
+  .note { background: #fffbeb; border-left: 3px solid var(--amber); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  .ok { background: #f0fff4; border-left: 3px solid var(--green); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  .warn { background: #fff5f5; border-left: 3px solid var(--red); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  .option-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; }
+  .option-card.recommended { border-color: var(--aws); background: #fffaf0; }
+  .cost { font-size: 14px; color: var(--primary); font-weight: 600; }
+  footer { padding: 22px; text-align: center; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>Deploy Audit AI v7 ke AWS untuk Uji Coba</h1>
+    <p>Migration guide dari Fly.io + Vercel ke AWS. Sistem sudah Docker-ready — tidak butuh refactor mayor.</p>
+    <p style="margin-top:8px; font-size:13px; opacity:0.8;">Disusun: 7 Juni 2026 · target audience: tim ops Inspektorat II · pre-implementation review</p>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- 1. Konteks -->
+<section>
+  <h2>1 · Konteks &amp; Mengapa AWS</h2>
+  <p><strong>Setup existing:</strong></p>
+  <ul>
+    <li><span class="badge fly">Fly.io</span> backend FastAPI (Singapore region, Docker, volume 3 GB <code>/data</code>)</li>
+    <li><span class="badge fly">Fly Postgres</span> shared-cpu-1x</li>
+    <li><span class="badge fly">Vercel</span> frontend Next.js (auto-deploy dari Git)</li>
+  </ul>
+
+  <p><strong>Pertimbangan pindah ke AWS:</strong></p>
+  <ul>
+    <li><strong>Compliance internal Komdigi</strong> — AWS Indonesia region (ap-southeast-3 Jakarta) tersedia; kebijakan data dapat tertib di 1 region nasional.</li>
+    <li><strong>Konsolidasi infra Inspektorat</strong> — kalau Itjen sudah punya AWS account lain, konsolidasi memudahkan audit & billing.</li>
+    <li><strong>Latensi</strong> — Jakarta region lebih dekat ke auditor (Fly.io Singapore juga oke, tapi Jakarta lebih cepat).</li>
+    <li><strong>Service catalog lebih luas</strong> — RDS, Aurora, EFS, ECS, App Runner, Amplify, CloudWatch, Secrets Manager.</li>
+  </ul>
+
+  <div class="note"><strong>Catatan penting sebelum deploy:</strong>
+    <ul>
+      <li><strong>Egress LLM</strong> — <code>backend</code> spawn <code>claude</code> CLI subprocess yg connect ke <code>api.anthropic.com</code>. Pastikan VPC Security Group / NACL izinkan outbound HTTPS ke endpoint Anthropic. <strong>Tidak ada VPC endpoint resmi Anthropic</strong> — egress lewat NAT Gateway.</li>
+      <li><strong>Data sensitif audit</strong> — temuan/KKP/LHR menyimpan informasi Satker. Pastikan kebijakan internal mengizinkan pemrosesan via AWS (region Jakarta) + egress ke Anthropic.</li>
+      <li><strong>Setup Fly.io existing tetap jalan</strong> — migrasi bisa paralel (blue/green): AWS jadi sandbox, Fly.io tetap utk produksi sementara. Cut-over setelah uji coba sukses.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 2. Pemetaan Fly → AWS -->
+<section>
+  <h2>2 · Pemetaan Komponen Fly.io → AWS</h2>
+  <table>
+    <tr><th>Komponen Fly.io</th><th>Padanan AWS</th><th>Catatan</th></tr>
+    <tr>
+      <td>Fly Machine + Dockerfile</td>
+      <td>App Runner / ECS Fargate / EC2</td>
+      <td>Dockerfile existing tetap dipakai (Python 3.12 + Node.js + claude CLI sudah ter-embed).</td>
+    </tr>
+    <tr>
+      <td>Fly Volume <code>audit_data</code> → <code>/data</code> (3 GB)</td>
+      <td>EFS (ECS) · EBS (EC2) · S3 (refactor)</td>
+      <td><strong>Critical</strong>: <code>APP_DATA_DIR</code> berisi folder penugasan dgn dokumen upload + hasil pipeline V6. Tidak boleh hilang antar restart.</td>
+    </tr>
+    <tr>
+      <td>Fly Postgres</td>
+      <td>RDS Postgres / Aurora Serverless v2</td>
+      <td>Aurora Serverless v2 bisa scale-to-zero saat idle (cocok uji coba).</td>
+    </tr>
+    <tr>
+      <td>Fly Secrets (ANTHROPIC_API_KEY, dll)</td>
+      <td>Secrets Manager / Parameter Store</td>
+      <td>Container env populated dari Secrets Manager via ECS task definition / App Runner config.</td>
+    </tr>
+    <tr>
+      <td>Fly auto-stop / auto-start machines</td>
+      <td>App Runner auto-scale 0-1 · ECS desired-count 1 · EC2 manual</td>
+      <td>App Runner paling mirip Fly.io behavior. ECS minimal scale 1 saat uji coba.</td>
+    </tr>
+    <tr>
+      <td>Fly <code>force_https</code></td>
+      <td>ACM cert + ALB (listener 443) / CloudFront</td>
+      <td>App Runner punya HTTPS bawaan; ECS perlu ALB dgn ACM cert.</td>
+    </tr>
+    <tr>
+      <td>Fly Postgres → app via internal DNS</td>
+      <td>RDS endpoint via VPC Security Group</td>
+      <td>App di VPC sama dgn RDS; SG izinkan port 5432 dari app SG saja.</td>
+    </tr>
+    <tr>
+      <td><span class="badge fly">Vercel</span> Frontend</td>
+      <td>Amplify Hosting · S3+CloudFront</td>
+      <td>Amplify mirip Vercel (auto-deploy dari Git). S3+CloudFront kalau cukup static export.</td>
+    </tr>
+    <tr>
+      <td>Fly logs / metrics</td>
+      <td>CloudWatch Logs / Metrics</td>
+      <td>Sudah include di ECS/App Runner tanpa setup tambahan.</td>
+    </tr>
+    <tr>
+      <td>Fly domain custom</td>
+      <td>Route 53 + ACM</td>
+      <td>Kalau pakai domain Komdigi (mis. audit-ai.komdigi.go.id), butuh delegasi DNS.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- 3. 3 Arsitektur Opsi -->
+<section>
+  <h2>3 · Tiga Arsitektur Opsi</h2>
+
+  <!-- OPSI A -->
+  <div class="option-card">
+    <h3>Opsi A — App Runner + Amplify + RDS + S3 <span class="badge aws">Auto-scale</span></h3>
+    <p class="cost">Cost: ~$30-60/bulan trial · Effort: <strong>Sedang</strong> (perlu refactor data ke S3)</p>
+    <p><strong>Komponen:</strong></p>
+    <ul>
+      <li><strong>Backend</strong> — App Runner deploy dari ECR image. Auto-scale 0-N instance, mirip Fly.io behavior.</li>
+      <li><strong>Frontend</strong> — Amplify Hosting (auto-deploy dari Git, sertifikat HTTPS otomatis).</li>
+      <li><strong>DB</strong> — RDS Postgres db.t4g.micro atau Aurora Serverless v2 (0.5 ACU min).</li>
+      <li><strong>File storage</strong> — <strong>S3</strong> (App Runner tidak support EFS mount). Perlu refactor: <code>APP_DATA_DIR</code> jadi prefix S3 (mis. <code>s3://audit-ai-v7/data/penugasan/&lt;kode&gt;/</code>).</li>
+      <li><strong>Secrets</strong> — Secrets Manager, di-inject ke App Runner via runtime env.</li>
+    </ul>
+    <p><strong>Pros:</strong> auto-scale ke 0 saat idle (hemat); managed sepenuhnya.</p>
+    <p><strong>Cons:</strong> refactor data layer butuh kerja (semua read/write file → S3 SDK). V6 scripts perlu cara akses S3 (atau tmpfs local + sync to S3 setelah batch selesai).</p>
+  </div>
+
+  <!-- OPSI B -->
+  <div class="option-card">
+    <h3>Opsi B — ECS Fargate + Amplify + RDS + EFS <span class="badge aws">Code as-is</span></h3>
+    <p class="cost">Cost: ~$80-150/bulan trial · Effort: <strong>Rendah</strong> (code existing langsung jalan)</p>
+    <p><strong>Komponen:</strong></p>
+    <ul>
+      <li><strong>Backend</strong> — ECS Fargate task dgn EFS volume mount → <code>APP_DATA_DIR=/data</code>. Behind ALB dgn ACM cert.</li>
+      <li><strong>Frontend</strong> — Amplify Hosting.</li>
+      <li><strong>DB</strong> — RDS Postgres db.t4g.micro.</li>
+      <li><strong>File storage</strong> — <strong>EFS</strong> (POSIX-compatible). Code v7 + V6 tidak perlu diubah — sama dgn Fly Volume behavior.</li>
+      <li><strong>Secrets</strong> — Secrets Manager, di-inject ke task definition.</li>
+    </ul>
+    <p><strong>Pros:</strong> drop-in replacement Fly.io. Tidak refactor. Production-grade (ALB + auto-recovery).</p>
+    <p><strong>Cons:</strong> EFS &amp; NAT Gateway = baseline cost lebih tinggi ($30/bulan NAT). Setup ALB + Target Group + SG sedikit lebih ribet dari App Runner.</p>
+  </div>
+
+  <!-- OPSI C — RECOMMENDED -->
+  <div class="option-card recommended">
+    <h3>Opsi C — EC2 single-server + docker-compose <span class="badge rec">REKOMENDASI UJI COBA</span></h3>
+    <p class="cost">Cost: ~$30-40/bulan trial · Effort: <strong>Paling rendah</strong> (~30-60 menit)</p>
+    <p><strong>Komponen:</strong></p>
+    <ul>
+      <li><strong>1 EC2</strong> t3.medium (2 vCPU + 4 GB RAM) di Jakarta region — jalankan <code>docker-compose.yml</code> existing langsung.</li>
+      <li><strong>DB</strong> — Postgres di container (sederhana) atau RDS (production-grade). Trial bisa Postgres container; nanti migrate ke RDS.</li>
+      <li><strong>File</strong> — EBS volume terlampir EC2 (gp3, 20 GB). Backup via snapshot harian.</li>
+      <li><strong>Frontend</strong> — bisa di EC2 sama (port 3000 di-proxy nginx) atau Amplify Hosting terpisah.</li>
+      <li><strong>HTTPS</strong> — nginx + ACM cert via Certbot/Let's Encrypt, atau pasang di belakang ALB dgn ACM cert.</li>
+      <li><strong>Secrets</strong> — file <code>.env</code> di EC2 (dgn IAM role kalau ingin baca dari Secrets Manager).</li>
+    </ul>
+    <p><strong>Pros:</strong></p>
+    <ul>
+      <li>Paling cepat hidup. Setup sama dgn dev lokal (docker compose up -d).</li>
+      <li>Cost paling rendah. EC2 t3.medium on-demand ~$30/bulan; Reserved 1-year ~$18/bulan.</li>
+      <li>Mudah di-rebuild kalau salah konfigurasi — tinggal hapus EC2 + buat baru.</li>
+      <li>Cocok untuk <strong>1-5 user concurrent uji coba 1-2 minggu</strong>.</li>
+    </ul>
+    <p><strong>Cons:</strong></p>
+    <ul>
+      <li>Single point of failure — kalau EC2 down, sistem mati. OK utk trial.</li>
+      <li>Scale terbatas — &gt; 10 user concurrent perlu naik tier atau pindah ke B.</li>
+      <li>Update/maintenance manual (vs managed services di A/B).</li>
+    </ul>
+    <p><strong>Cocok kalau:</strong> uji coba terbatas 1-5 user · timeline pendek 1-4 minggu · belum yakin AWS jadi platform produksi.</p>
+  </div>
+
+  <div class="note"><strong>Rekomendasi alur upgrade:</strong> mulai dgn <strong>Opsi C</strong> untuk uji coba awal. Setelah validasi konsep + auditor adopt, naikkan ke <strong>Opsi B</strong> (ECS+EFS+RDS) untuk produksi. Lewati Opsi A kecuali memang ingin investasi refactor data layer.</div>
+</section>
+
+<!-- 4. Step-by-step Opsi C -->
+<section>
+  <h2>4 · Step-by-Step Opsi C (Rekomendasi Uji Coba)</h2>
+
+  <h3>4.1 Prasyarat</h3>
+  <ul>
+    <li>AWS account dgn permission EC2, RDS (opsional), Route 53 (opsional), ACM (opsional).</li>
+    <li>Domain (opsional, mis. <code>audit-trial.komdigi.go.id</code>) — bisa pakai IP publik EC2 utk awal.</li>
+    <li>ANTHROPIC_API_KEY ready.</li>
+    <li>SSH key pair AWS region Jakarta (ap-southeast-3).</li>
+  </ul>
+
+  <h3>4.2 Provision (lewat AWS Console atau CLI)</h3>
+  <ol>
+    <li><strong>VPC default</strong> — pakai yang sudah ada.</li>
+    <li><strong>Security Group</strong> baru <code>audit-trial-sg</code>:
+      <ul>
+        <li>Inbound: 22 (SSH dari IP kamu), 80 (HTTP), 443 (HTTPS), 3000 (frontend opsional), 8000 (backend opsional).</li>
+        <li>Outbound: all (default).</li>
+      </ul>
+    </li>
+    <li><strong>EBS volume</strong> gp3 20 GB di-attach ke EC2 sebagai <code>/dev/xvdf</code>. Format ext4, mount <code>/data</code>.</li>
+    <li><strong>EC2 instance</strong>: AMI Ubuntu 22.04 LTS atau Amazon Linux 2023, type t3.medium, root 30 GB, SG = audit-trial-sg, key pair siap.</li>
+    <li><strong>Elastic IP</strong> (opsional, agar IP tidak berubah saat restart).</li>
+    <li><strong>Route 53 record</strong> A → Elastic IP (kalau pakai domain).</li>
+    <li><strong>ACM cert</strong> utk domain (opsional, untuk HTTPS via nginx).</li>
+  </ol>
+
+  <h3>4.3 Bootstrap server</h3>
+  <p>SSH ke EC2 lalu:</p>
+  <pre><code># 1. Install Docker + git
+sudo apt update &amp;&amp; sudo apt install -y docker.io docker-compose-plugin git nginx certbot python3-certbot-nginx
+sudo systemctl enable docker &amp;&amp; sudo usermod -aG docker $USER
+# logout/login agar group berlaku
+
+# 2. Clone repo
+cd /opt
+sudo git clone https://github.com/irfansihab/audit-system-v7.git audit
+sudo chown -R $USER:$USER audit
+cd audit
+
+# 3. Setup .env
+cp .env.example .env
+# edit .env:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   APP_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+#   APP_DATA_DIR=/data
+#   APP_WIKI_PATH=/opt/audit/knowledge/wiki
+#   ... (lihat .env.example)
+
+# 4. Bind /data ke EBS volume (sudah di-mount di /data via /etc/fstab)
+sudo mkdir -p /data &amp;&amp; sudo chown $USER:$USER /data
+
+# 5. Start docker compose
+docker compose up -d db
+sleep 5
+cd backend &amp;&amp; PYTHONPATH=. python3 -m app.init_db
+cd ..
+docker compose up -d backend frontend
+
+# 6. nginx reverse proxy + HTTPS (kalau domain)
+sudo tee /etc/nginx/sites-available/audit &lt;&lt;EOF
+server {
+  listen 80;
+  server_name audit-trial.komdigi.go.id;
+  location / { proxy_pass http://localhost:3000; }
+  location /api/ { proxy_pass http://localhost:8000/; }
+}
+EOF
+sudo ln -s /etc/nginx/sites-available/audit /etc/nginx/sites-enabled/
+sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+sudo certbot --nginx -d audit-trial.komdigi.go.id
+
+# 7. Verifikasi
+curl http://localhost:8000/health
+curl http://localhost:3000/</code></pre>
+
+  <h3>4.4 Backup &amp; recovery</h3>
+  <ul>
+    <li><strong>EBS snapshot</strong> harian (Data Lifecycle Manager) — restore = bikin EC2 baru + attach snapshot.</li>
+    <li><strong>Postgres dump</strong> mingguan ke S3: <code>docker exec audit-db-1 pg_dump -U audit audit_v7 | gzip &gt; /data/backup/audit_$(date +%F).sql.gz</code> + <code>aws s3 cp ... s3://audit-backups/</code>.</li>
+  </ul>
+
+  <h3>4.5 Update / redeploy</h3>
+  <pre><code>cd /opt/audit
+git pull
+docker compose up -d --build
+# Migrate DB schema kalau ada perubahan model
+cd backend &amp;&amp; PYTHONPATH=. python3 -m app.init_db</code></pre>
+</section>
+
+<!-- 5. Step-by-step Opsi B -->
+<section>
+  <h2>5 · Step-by-Step Opsi B (Production-Grade)</h2>
+  <p>High-level — detail Terraform/CloudFormation di commit terpisah saat siap.</p>
+
+  <h3>5.1 Infrastruktur</h3>
+  <ol>
+    <li><strong>VPC</strong> custom 2 public subnet + 2 private subnet (untuk RDS + EFS).</li>
+    <li><strong>NAT Gateway</strong> 1 buah (utk outbound egress ke api.anthropic.com).</li>
+    <li><strong>ECR</strong> repository <code>audit-ai-v7</code> — push image dari laptop atau CI.</li>
+    <li><strong>EFS</strong> file system + access point (POSIX UID 1000), mount target di setiap AZ.</li>
+    <li><strong>RDS Postgres</strong> db.t4g.micro di private subnet, SG izinkan dari app SG.</li>
+    <li><strong>Secrets Manager</strong>: <code>audit/anthropic_api_key</code>, <code>audit/app_secret_key</code>, <code>audit/db_password</code>.</li>
+    <li><strong>ECS cluster</strong> Fargate, task definition baca secret + mount EFS, port 8000.</li>
+    <li><strong>ALB</strong> listener 443 (ACM cert) → target group ECS, health check <code>/health</code>.</li>
+    <li><strong>Amplify Hosting</strong> connect ke GitHub → auto-deploy frontend (env <code>NEXT_PUBLIC_API_BASE</code> = https://audit-trial.komdigi.go.id).</li>
+    <li><strong>Route 53</strong> A record → ALB.</li>
+  </ol>
+
+  <h3>5.2 Initial deploy</h3>
+  <ol>
+    <li>Build &amp; push image:
+      <pre><code>aws ecr get-login-password | docker login --username AWS --password-stdin &lt;account&gt;.dkr.ecr.ap-southeast-3.amazonaws.com
+cd backend
+docker build -t audit-ai-v7 .
+docker tag audit-ai-v7:latest &lt;account&gt;.dkr.ecr.ap-southeast-3.amazonaws.com/audit-ai-v7:latest
+docker push &lt;account&gt;.dkr.ecr.ap-southeast-3.amazonaws.com/audit-ai-v7:latest</code></pre>
+    </li>
+    <li>ECS task definition: container image dari ECR, env dari Secrets Manager, mount EFS ke <code>/data</code>, command default (uvicorn).</li>
+    <li>Run one-off task <code>python -m app.init_db</code> untuk migrate schema awal.</li>
+    <li>Service desired-count 1, health check <code>/health</code>.</li>
+    <li>Amplify Hosting: connect Git → set env → trigger build.</li>
+  </ol>
+</section>
+
+<!-- 6. Env Var Mapping -->
+<section>
+  <h2>6 · Env Var Mapping Fly.io → AWS</h2>
+
+  <table>
+    <tr><th>Variable</th><th>Fly.io value</th><th>AWS value</th><th>Source</th></tr>
+    <tr><td><code>DATABASE_URL</code></td><td><code>postgresql+asyncpg://...flycast/...</code></td><td><code>postgresql+asyncpg://audit:&lt;pwd&gt;@&lt;rds-endpoint&gt;:5432/audit_v7</code></td><td>RDS + Secrets Manager</td></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Fly Secret</td><td>Secrets Manager <code>audit/anthropic_api_key</code></td><td>Secrets Manager</td></tr>
+    <tr><td><code>APP_SECRET_KEY</code></td><td>Fly Secret</td><td>Secrets Manager <code>audit/app_secret_key</code></td><td>Secrets Manager</td></tr>
+    <tr><td><code>APP_DATA_DIR</code></td><td><code>/data</code> (Fly Volume)</td><td>Opsi B: <code>/data</code> (EFS mount). Opsi A: <code>s3://&lt;bucket&gt;/data/</code> (refactor)</td><td>Container env</td></tr>
+    <tr><td><code>APP_V6_PATH</code></td><td><code>/v6</code> (di-COPY di image)</td><td><code>/v6</code> (sama)</td><td>Image build</td></tr>
+    <tr><td><code>APP_WIKI_PATH</code></td><td><code>/wiki</code></td><td><code>/wiki</code> (sama; sync wiki/ ke backend/wiki/ saat build)</td><td>Image build</td></tr>
+    <tr><td><code>APP_CORS_ORIGINS</code></td><td><code>https://audit-ai-v7.vercel.app</code></td><td><code>https://&lt;amplify-domain&gt;</code> atau custom domain</td><td>Container env</td></tr>
+    <tr><td><code>NEXT_PUBLIC_API_BASE</code> (frontend)</td><td><code>https://audit-ai-v7.fly.dev</code></td><td><code>https://&lt;backend-domain&gt;</code> (ALB / App Runner)</td><td>Amplify env</td></tr>
+    <tr><td><code>DIGEST_LLM_FALLBACK</code></td><td><code>true</code></td><td><code>true</code></td><td>Container env</td></tr>
+  </table>
+
+  <div class="note">
+    <strong>Catatan:</strong> <code>APP_VAULT_PATH</code> (lokasi llm-wiki vault) tidak diset di Fly production — vault Karpathy adalah repo eksternal di laptop auditor. Di AWS, dua opsi: (a) mount sebagai sub-volume / S3 sync, atau (b) tetap kosong utk Fase 1 production (vault search nonaktif sampai integrasi siap).
+  </div>
+</section>
+
+<!-- 7. Cost Estimation -->
+<section>
+  <h2>7 · Estimasi Cost (uji coba 1 bulan, region Jakarta)</h2>
+
+  <h3>Opsi C (EC2 + docker-compose)</h3>
+  <table>
+    <tr><th>Item</th><th>Spec</th><th>Cost/bulan (USD)</th></tr>
+    <tr><td>EC2 t3.medium on-demand</td><td>2 vCPU / 4 GB / 720h</td><td>~$30</td></tr>
+    <tr><td>EBS gp3 30 GB root + 20 GB data</td><td>50 GB total</td><td>~$5</td></tr>
+    <tr><td>Elastic IP (saat tidak attach)</td><td>$0.005/h kalau lepas</td><td>$0 (saat attach)</td></tr>
+    <tr><td>Data transfer outbound</td><td>~10 GB/bulan estimasi</td><td>~$1</td></tr>
+    <tr><td>Route 53 hosted zone (opsional)</td><td>$0.50/zone</td><td>~$0.50</td></tr>
+    <tr><td><strong>TOTAL</strong></td><td></td><td><strong>~$36-40</strong></td></tr>
+  </table>
+
+  <h3>Opsi B (ECS Fargate + EFS + RDS)</h3>
+  <table>
+    <tr><th>Item</th><th>Spec</th><th>Cost/bulan (USD)</th></tr>
+    <tr><td>ECS Fargate 1 task</td><td>0.5 vCPU / 1 GB / 720h</td><td>~$15</td></tr>
+    <tr><td>EFS (provisioned 1 GB-month)</td><td>storage + throughput</td><td>~$5</td></tr>
+    <tr><td>RDS Postgres db.t4g.micro</td><td>2 vCPU / 1 GB / 20 GB gp3</td><td>~$15</td></tr>
+    <tr><td>ALB</td><td>1 LCU baseline</td><td>~$20</td></tr>
+    <tr><td>NAT Gateway</td><td>1 NAT + 5 GB/bulan</td><td>~$32</td></tr>
+    <tr><td>Secrets Manager</td><td>3 secrets</td><td>~$1.20</td></tr>
+    <tr><td>CloudWatch logs</td><td>~1 GB/bulan</td><td>~$0.50</td></tr>
+    <tr><td>Amplify Hosting</td><td>Hobby tier</td><td>$0 (gratis)</td></tr>
+    <tr><td><strong>TOTAL</strong></td><td></td><td><strong>~$88-100</strong></td></tr>
+  </table>
+
+  <h3>Anthropic API (estimasi 1 reviu pengadaan)</h3>
+  <table>
+    <tr><th>Komponen</th><th>Estimasi tokens</th><th>Cost (USD)</th></tr>
+    <tr><td>Digest LLM fallback (Haiku, ~10 dok)</td><td>~50K input + ~10K output</td><td>~$0.08</td></tr>
+    <tr><td>Agen AT (Sonnet, susun KKP)</td><td>~80K input + ~10K output</td><td>~$0.30</td></tr>
+    <tr><td>Agen KT (Sonnet, susun LHR)</td><td>~50K input + ~8K output</td><td>~$0.20</td></tr>
+    <tr><td><strong>TOTAL per penugasan</strong></td><td></td><td><strong>~$0.58</strong></td></tr>
+  </table>
+
+  <div class="ok">
+    <strong>Anggaran trial 1 bulan</strong> (dengan 30 penugasan uji + Opsi C infra): infra ~$40 + LLM ~$18 = <strong>~$58/bulan</strong>. Diskonto reserved instance bisa turunkan ~30%.
+  </div>
+</section>
+
+<!-- 8. Risiko & Mitigasi -->
+<section>
+  <h2>8 · Risiko &amp; Mitigasi</h2>
+  <table>
+    <tr><th>Risiko</th><th>Likelihood</th><th>Dampak</th><th>Mitigasi</th></tr>
+    <tr>
+      <td>Egress ke api.anthropic.com diblokir compliance</td><td>Sedang</td><td>Tinggi</td>
+      <td>Konfirmasi kebijakan tim infosec Komdigi sebelum deploy. Alternatif: pakai Bedrock (Claude di AWS), tapi v7 saat ini pakai claude-agent-sdk yang call api.anthropic.com langsung — perlu refactor.</td>
+    </tr>
+    <tr>
+      <td>Data audit sensitif di-store di luar PDN</td><td>Tinggi (tergantung interpretasi)</td><td>Tinggi</td>
+      <td>Region Jakarta (ap-southeast-3) berlokasi di Indonesia. Verifikasi dgn auditor PDN Komdigi apakah cukup atau perlu PDN khusus.</td>
+    </tr>
+    <tr>
+      <td>EC2 single point of failure (Opsi C)</td><td>Sedang</td><td>Sedang</td>
+      <td>OK utk trial. EBS snapshot harian. Pindah ke Opsi B saat masuk produksi.</td>
+    </tr>
+    <tr>
+      <td>EFS cost lebih tinggi dari ekspektasi (Opsi B)</td><td>Rendah</td><td>Rendah</td>
+      <td>Trial size 1-5 GB. Pakai EFS Standard, bukan IA. Monitor di CloudWatch.</td>
+    </tr>
+    <tr>
+      <td>NAT Gateway $30/bulan ditolak (Opsi B)</td><td>Rendah</td><td>Sedang</td>
+      <td>Bisa pakai VPC endpoint utk ECR + S3 saja (gratis); tetap butuh NAT utk Anthropic egress.</td>
+    </tr>
+    <tr>
+      <td>claude CLI version mismatch saat update image</td><td>Rendah</td><td>Sedang</td>
+      <td>Pin version di Dockerfile (sudah dilakukan). Build di CI bukan local.</td>
+    </tr>
+    <tr>
+      <td>Cost di luar budget akibat trial dipakai banyak orang</td><td>Sedang</td><td>Sedang</td>
+      <td>AWS Budget alert $100/bulan. Stop EC2 saat tidak dipakai (Opsi C). Gunakan Aurora Serverless v2 yg bisa scale-to-zero.</td>
+    </tr>
+  </table>
+</section>
+
+<!-- 9. Keputusan Terbuka -->
+<section>
+  <h2>9 · Keputusan Terbuka Sebelum Deploy</h2>
+  <ol>
+    <li><strong>AWS Account</strong> — pakai account Itjen yg sudah ada, atau buat baru utk audit-ai trial?</li>
+    <li><strong>Compliance</strong> — apakah egress ke api.anthropic.com (di luar AWS) sudah dapat klarifikasi dari infosec? Apakah data audit boleh di region Jakarta?</li>
+    <li><strong>Domain</strong> — pakai domain Komdigi (mis. <code>audit-trial.komdigi.go.id</code>) atau cukup IP publik EC2 / subdomain default Amplify?</li>
+    <li><strong>Dimensi uji coba</strong> — berapa user concurrent? Berapa lama? (Opsi C cukup 1-5 user/1-2 minggu; Opsi B untuk &gt;5 user/&gt;1 bulan.)</li>
+    <li><strong>Fly.io paralel</strong> — Fly.io tetap jalan sebagai produksi sementara, atau langsung cut-over ke AWS?</li>
+    <li><strong>Vercel migration</strong> — frontend tetap di Vercel, atau pindah Amplify Hosting bareng?</li>
+    <li><strong>Backup &amp; DR</strong> — apakah cukup EBS snapshot harian, atau perlu DR cross-region (Surabaya = belum ada region, fallback Singapore)?</li>
+  </ol>
+</section>
+
+<!-- 10. Next Steps -->
+<section>
+  <h2>10 · Next Steps</h2>
+  <ol>
+    <li><strong>Jawab keputusan terbuka di §9</strong> — terutama compliance + AWS account.</li>
+    <li><strong>Pilih opsi A / B / C</strong> — rekomendasi mulai dari C utk uji coba awal.</li>
+    <li><strong>Provisioning AWS</strong> — Console manual (cepat) atau Terraform (reproducible).</li>
+    <li><strong>Smoke test</strong> end-to-end: login PT → upload dokumen → run pipeline → verify KKP/LHR ter-render.</li>
+    <li><strong>User onboarding</strong> — dokumentasi singkat utk auditor: URL, credential, alur reviu pertama.</li>
+    <li><strong>Monitoring</strong> — CloudWatch dashboard: CPU, memori, error rate, Anthropic spend per hari.</li>
+    <li><strong>Retrospective</strong> setelah 2 minggu uji coba — keputusan: lanjut produksi di AWS, kembali ke Fly.io, atau pindah platform lain.</li>
+  </ol>
+</section>
+
+</div>
+
+<footer>
+  Dokumen ini draft 7 Juni 2026 · Audit AI v7 · Inspektorat II Komdigi · pre-implementation review untuk tim ops
+</footer>
+
+</body>
+</html>

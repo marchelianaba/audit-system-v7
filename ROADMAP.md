@@ -965,6 +965,7 @@ nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 - [docs/rencana-format-laporan.html](docs/rencana-format-laporan.html) — rencana format laporan non-KKSA (Memo Konsultansi + Eval RB 4-dimensi)
 - [docs/rencana-graduasi-skill.html](docs/rencana-graduasi-skill.html) — rencana meta-skill graduasi (auto-generate skill spesifik dari penugasan)
 - [docs/rencana-cacm-kriteria.html](docs/rencana-cacm-kriteria.html) — rencana Mesin Kriteria CACM multi-sumber (3 Jun 2026, draft pre-implementasi)
+- [docs/rencana-deploy-aws.html](docs/rencana-deploy-aws.html) — rencana deploy ke AWS untuk uji coba (7 Jun 2026, 3 opsi arsitektur + migration guide Fly.io→AWS)
 - [README.md](README.md) — setup dev lokal + arsitektur teknis
 - [DEPLOY.md](DEPLOY.md) — panduan deploy Fly.io + Vercel
 - [wiki/README.md](wiki/README.md) — panduan menulis pattern temuan
