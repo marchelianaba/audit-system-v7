@@ -2186,6 +2186,7 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
   const canApprove = ['AT', 'KT', 'PT', 'PM'].includes(session?.role_aktif || '');
   const canReject = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
   const canBulk = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
+  const canEdit = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
 
   const [items, setItems] = useState<TemuanReviewItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -2193,6 +2194,13 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Edit-mode per temuan: tid → form values
+  const [editing, setEditing] = useState<Record<string, {
+    judul_temuan: string;
+    kondisi: string;
+    kriteria: string;
+    akibat: string;
+  } | undefined>>({});
 
   const refresh = async () => {
     setLoading(true);
@@ -2217,6 +2225,64 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
     try { await api.rejectTemuan(penugasanId, tid); refresh(); }
     catch (e: any) { setMsg(`Gagal reject ${tid}: ${e.message}`); }
     finally { setBusy(null); }
+  };
+  const startEdit = (t: TemuanReviewItem) => {
+    // Pre-fill dengan edit overlay yg sudah ada, atau pakai versi agen.
+    const ef = t.edited_fields || {};
+    setEditing((p) => ({
+      ...p,
+      [t.id_temuan]: {
+        judul_temuan: ef.judul_temuan ?? t.judul ?? '',
+        kondisi: ef.kondisi ?? t.kondisi ?? '',
+        kriteria: ef.kriteria ?? t.kriteria ?? '',
+        akibat: ef.akibat ?? t.akibat ?? '',
+      },
+    }));
+    setExpanded((p) => ({ ...p, [t.id_temuan]: true })); // auto-expand
+  };
+  const cancelEdit = (tid: string) => {
+    setEditing((p) => { const c = { ...p }; delete c[tid]; return c; });
+  };
+  const saveEdit = async (t: TemuanReviewItem) => {
+    const form = editing[t.id_temuan];
+    if (!form) return;
+    // Hanya kirim field yang BERUBAH dari versi asli agen (atau dari overlay sebelumnya)
+    // Strategi sederhana: kirim semua 4 field; bila sama dengan versi agen
+    // dan tidak ada overlay sebelumnya, backend tetap simpan (idempoten).
+    setBusy(t.id_temuan); setMsg(null);
+    try {
+      await api.editTemuan(penugasanId, t.id_temuan, {
+        judul_temuan: form.judul_temuan,
+        kondisi: form.kondisi,
+        kriteria: form.kriteria,
+        akibat: form.akibat,
+      });
+      setMsg(`Edit tersimpan untuk ${t.id_temuan}.`);
+      cancelEdit(t.id_temuan);
+      refresh();
+    } catch (e: any) {
+      setMsg(`Gagal edit ${t.id_temuan}: ${e.message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const clearOverlay = async (t: TemuanReviewItem) => {
+    if (!confirm(`Hapus semua edit overlay untuk ${t.id_temuan}? Kembali ke versi asli agen.`)) return;
+    setBusy(t.id_temuan); setMsg(null);
+    try {
+      await api.editTemuan(penugasanId, t.id_temuan, {
+        judul_temuan: '',
+        kondisi: '',
+        kriteria: '',
+        akibat: '',
+      });
+      setMsg(`Overlay edit ${t.id_temuan} dihapus.`);
+      refresh();
+    } catch (e: any) {
+      setMsg(`Gagal hapus edit ${t.id_temuan}: ${e.message}`);
+    } finally {
+      setBusy(null);
+    }
   };
   const doBulkApprove = async () => {
     const pending = counts['PENDING'] || 0;
@@ -2286,12 +2352,105 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
                   {t.anggota && <span className="text-[10px] text-gray-400">· {t.anggota}</span>}
                   <span className="text-[10px] text-gray-400">· {t.dokumen_sumber_count} sumber</span>
                 </div>
-                <div className="text-xs text-gray-800 mt-0.5">{t.judul}</div>
-                {expanded[t.id_temuan] && (
+                <div className="text-xs text-gray-800 mt-0.5">
+                  {t.judul}
+                  {t.has_edits && (
+                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                      ✎ diedit
+                    </span>
+                  )}
+                </div>
+                {expanded[t.id_temuan] && !editing[t.id_temuan] && (
                   <div className="text-[11px] text-gray-600 mt-2 space-y-1 pl-3 border-l-2 border-gray-200">
                     {t.kondisi && <div><b>Kondisi:</b> {t.kondisi}</div>}
                     {t.kriteria && <div><b>Kriteria:</b> {t.kriteria}</div>}
                     {t.akibat && <div><b>Akibat:</b> {t.akibat}</div>}
+                  </div>
+                )}
+                {editing[t.id_temuan] && (
+                  <div className="text-[11px] mt-2 space-y-2 pl-3 border-l-2 border-amber-300">
+                    <div>
+                      <label className="block text-gray-500 mb-0.5">Judul</label>
+                      <input
+                        type="text"
+                        value={editing[t.id_temuan]!.judul_temuan}
+                        onChange={(e) =>
+                          setEditing((p) => ({
+                            ...p,
+                            [t.id_temuan]: { ...p[t.id_temuan]!, judul_temuan: e.target.value },
+                          }))
+                        }
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-[11px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 mb-0.5">Kondisi</label>
+                      <textarea
+                        value={editing[t.id_temuan]!.kondisi}
+                        onChange={(e) =>
+                          setEditing((p) => ({
+                            ...p,
+                            [t.id_temuan]: { ...p[t.id_temuan]!, kondisi: e.target.value },
+                          }))
+                        }
+                        rows={3}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-[11px] font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 mb-0.5">Kriteria</label>
+                      <textarea
+                        value={editing[t.id_temuan]!.kriteria}
+                        onChange={(e) =>
+                          setEditing((p) => ({
+                            ...p,
+                            [t.id_temuan]: { ...p[t.id_temuan]!, kriteria: e.target.value },
+                          }))
+                        }
+                        rows={3}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-[11px] font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 mb-0.5">Akibat</label>
+                      <textarea
+                        value={editing[t.id_temuan]!.akibat}
+                        onChange={(e) =>
+                          setEditing((p) => ({
+                            ...p,
+                            [t.id_temuan]: { ...p[t.id_temuan]!, akibat: e.target.value },
+                          }))
+                        }
+                        rows={2}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-[11px] font-mono"
+                      />
+                    </div>
+                    <div className="flex gap-1 pt-1">
+                      <button
+                        onClick={() => saveEdit(t)}
+                        disabled={busy !== null}
+                        className="text-[11px] px-2.5 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {busy === t.id_temuan ? '…' : '💾 Simpan edit'}
+                      </button>
+                      <button
+                        onClick={() => cancelEdit(t.id_temuan)}
+                        disabled={busy !== null}
+                        className="text-[11px] px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                      >
+                        Batal
+                      </button>
+                      {t.has_edits && (
+                        <button
+                          onClick={() => clearOverlay(t)}
+                          disabled={busy !== null}
+                          className="text-[11px] px-2 py-0.5 rounded border border-red-300 text-red-600 hover:bg-red-50 ml-auto"
+                          title="Hapus semua overlay edit, kembali ke versi agen"
+                        >
+                          ↶ Hapus edit
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2302,6 +2461,15 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
                 >
                   {expanded[t.id_temuan] ? 'tutup' : 'detail'}
                 </button>
+                {canEdit && !editing[t.id_temuan] && (
+                  <button
+                    onClick={() => startEdit(t)}
+                    disabled={busy !== null}
+                    className="text-[11px] px-2 py-0.5 rounded border border-amber-400 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    ✎ Edit
+                  </button>
+                )}
                 {canApprove && t.status !== 'APPROVED' && (
                   <button
                     onClick={() => doApprove(t.id_temuan)}

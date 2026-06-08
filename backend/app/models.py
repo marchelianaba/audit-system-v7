@@ -213,6 +213,13 @@ class TemuanReview(Base):
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
     # PENDING | APPROVED | REJECTED | EDITED
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Edit-overlay: bila auditor edit field temuan via UI, simpan delta di sini.
+    # Saat render KKP, V6 baca temuan.json hasil overlay (kode v7 menerapkan
+    # edited_fields ke temuan asli sebelum panggil V6). Schema:
+    #   { "judul_temuan": "...", "kondisi": "...", "kriteria": "...", "akibat": "..." }
+    # Field yang tidak ada di edited_fields tetap pakai versi agen. Status biasanya
+    # auto jadi "EDITED" saat edit pertama; auditor bisa approve/reject setelah edit.
+    edited_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

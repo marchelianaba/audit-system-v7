@@ -98,10 +98,25 @@ FIELD_HINTS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 def extract_pdf_pages(path: str | Path) -> list[str]:
-    """Teks per-halaman lewat pdfplumber. Return [] bila gagal/tidak ada teks.
+    """Teks per-halaman PDF. Return [] bila gagal/tidak ada teks.
+
+    URUTAN:
+      1. LiteParse (cepat, layout-aware, ~1-3 ms/halaman) — default.
+      2. Bila LiteParse tak ada / gagal / hasil kosong → fallback pdfplumber.
 
     Sengaja TIDAK pakai pdftotext supaya independen dari poppler & V6.
     """
+    # 1) Coba LiteParse dulu (deterministik, jauh lebih cepat & rapi)
+    try:
+        from app.liteparse_extract import extract_pages as _lp_pages, available as _lp_avail
+        if _lp_avail():
+            pages = _lp_pages(path)
+            if any(p.strip() for p in pages):
+                return pages
+    except Exception:  # noqa: BLE001 — LiteParse opsional; jangan crash konsumer
+        pass
+
+    # 2) Fallback pdfplumber
     try:
         import pdfplumber
     except ImportError:
@@ -210,6 +225,61 @@ def _parse_json_block(text: str) -> dict:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def extract_fields_hybrid(
+    pages_text: list[str],
+    jenis_label: str,
+    fields: list[str],
+    *,
+    model: str = DEFAULT_LLM_MODEL,
+    api_key: str | None = None,
+    max_chars: int = 14000,
+    max_tokens: int = 700,
+) -> dict:
+    """Hybrid extractor: REGEX deterministik dulu, LLM Haiku hanya untuk sisa.
+
+    Urutan:
+      1. `liteparse_extract.extract_fields_deterministic(pages, jenis)` — tarik
+         field yang labelnya eksplisit (kementerian, total_biaya, dasar_hukum, …)
+         via regex. Hampir gratis, ~µs.
+      2. Hitung field yang DIMINTA tapi belum dapat (sub-set `fields`).
+      3. Bila masih ada residual, panggil `llm_extract_fields` Haiku untuk
+         residual saja. Bila semua sudah tertangani regex → SKIP LLM.
+
+    Return:
+      - {field: value, ...} hasil gabungan
+      - `_source` per field bila konsumer butuh trace (opsional, default off)
+    """
+    # Step 1: regex deterministik
+    try:
+        from app.liteparse_extract import extract_fields_deterministic
+        det = extract_fields_deterministic(pages_text, jenis_label)
+    except Exception:  # noqa: BLE001
+        det = {}
+
+    # Filter ke field yang DIMINTA saja
+    out: dict = {f: det[f] for f in fields if f in det and det[f] not in (None, "", [], {})}
+
+    # Step 2: hitung residual
+    residual = [f for f in fields if f not in out]
+    if not residual:
+        return out
+
+    # Step 3: panggil Haiku untuk residual saja (hemat token + lebih fokus)
+    llm_res = llm_extract_fields(
+        pages_text, jenis_label, residual,
+        model=model, api_key=api_key,
+        max_chars=max_chars, max_tokens=max_tokens,
+    )
+    if llm_res.get("_error"):
+        # Tetap return hasil regex saja; serahkan error ke caller via _error
+        return {**out, "_error": llm_res["_error"]}
+    for f in residual:
+        v = llm_res.get(f)
+        if v not in (None, "", [], 0):
+            out[f] = v
+    return out
 
 
 def llm_extract_fields(

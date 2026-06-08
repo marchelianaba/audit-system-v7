@@ -7,6 +7,7 @@ script V6 tidak perlu diubah sama sekali.
 import asyncio
 import json
 import logging
+import sys
 from pathlib import Path
 
 from app.config import get_settings
@@ -22,6 +23,13 @@ async def run_v6_script(
 ) -> tuple[int, str, str]:
     """Jalankan script V6 sebagai subprocess Python async.
 
+    PENTING: pakai `sys.executable` (interpreter yang menjalankan uvicorn,
+    biasanya `.venv/bin/python`) supaya subprocess MEWARISI semua package
+    dari venv backend (pdfplumber, python-docx, openpyxl, dll). Pakai
+    "python3" string literal akan resolve ke `/usr/bin/python3` (Python
+    sistem) yang TIDAK punya paket-paket ini → V6 gagal dgn "pdfplumber
+    tidak terinstall" meskipun venv sudah lengkap.
+
     Args:
         script_relative_path: relatif terhadap `/v6`, mis. "scripts/reviu-rka-kl/run_batch.py"
         args: argumen tambahan ke script
@@ -34,7 +42,7 @@ async def run_v6_script(
     if not script_path.exists():
         return (127, "", f"Script V6 tidak ditemukan: {script_path}")
 
-    cmd = ["python3", str(script_path), *args]
+    cmd = [sys.executable, str(script_path), *args]
     log.info("Run V6: %s", " ".join(cmd))
 
     proc = await asyncio.create_subprocess_exec(

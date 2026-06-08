@@ -41,6 +41,7 @@ from pathlib import Path
 from app.llm_extract import (
     DEFAULT_LLM_MODEL,
     analyze_images,
+    extract_fields_hybrid,
     extract_pdf_pages,
     llm_extract_fields,
     resolve_anthropic_key,
@@ -180,14 +181,14 @@ async def main() -> int:
             pages_text: list[str] = []
             for f in files:
                 pages_text += extract_pdf_pages(f)
-            res = llm_extract_fields(pages_text, js, missing, model=args.llm_model)
+            # Hybrid: regex deterministik dulu, Haiku hanya untuk residual.
+            res = extract_fields_hybrid(pages_text, js, missing, model=args.llm_model)
             if res.get("_error"):
                 llm_error = res["_error"]
-            else:
-                for k in missing:
-                    v = res.get(k)
-                    if v not in (None, "", [], 0):
-                        llm_recovered.append(k); llm_filled[k] = v
+            for k in missing:
+                v = res.get(k)
+                if v not in (None, "", [], 0):
+                    llm_recovered.append(k); llm_filled[k] = v
         missing_after = [k for k in missing if k not in llm_recovered]
 
         gh = gt = None; gmiss = []

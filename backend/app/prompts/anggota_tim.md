@@ -40,6 +40,9 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 - `run_batch_rka(penugasan_folder, …)` / `run_batch_pbj(penugasan_folder, role)` — pipeline V6 deterministic
 - `read_pdf_page(pdf_path, halaman)` — baca 1 halaman PDF untuk verifikasi false positive anomali
 - `read_anomalies(penugasan_folder)` — baca daftar LENGKAP anomali pipeline (`_KKP/anomalies-master.json`/`anomalies.json`): rule_id, severity, judul, deskripsi, bukti, draft K/K/A. PAKAI setelah run_batch_* agar tidak ada anomali terlewat
+- `build_draft_temuan_from_anomalies(penugasan_folder, severity_min?, anggota_tim_nama?)` — DETERMINISTIK (no LLM): ubah seluruh anomali pipeline → draft temuan v4.0.0 di `_KKP/temuan-draft.json`. Kondisi/Kriteria/Akibat sudah otomatis terisi dari `draft_catatan` V6. Pakai sebagai PINTASAN sebelum verifikasi anomali per satu — agen tinggal verifikasi+poles, bukan menulis dari nol
+- `read_draft_temuan(penugasan_folder)` — baca `_KKP/temuan-draft.json` (output `build_draft_temuan_from_anomalies`). Read-only
+- `build_context_md_template(penugasan_folder, kode, obyek, skill, ...)` — DETERMINISTIK (no LLM): rakit context.md 80% otomatis dari penugasan + digest. Section Identitas/Periode/Tim/RingkasanObyek siap. Section "Gambaran Umum" placeholder — agen isi sebagai paragraf naratif 2-4 kalimat. Pakai sebagai LANGKAH AWAL sebelum `write_context_md`
 - `list_konteks()` — daftar konteks pendukung di wiki (pola-berulang, glossary, regulasi) — WAJIB DIBACA SEBELUM susun temuan
 - `get_konteks(kategori)` — baca isi lengkap konteks (kategori: `pola-berulang` / `glossary` / `regulasi`)
 - `list_temuan_patterns(skill)` — daftar pattern temuan yang tersedia di wiki tim (ID, judul, kategori, severity)
@@ -139,6 +142,17 @@ Kalau `sasaran-assignment.json` masih kosong (`sasaran: []`) → KT belum setup.
 7. **Bila pipeline OK:** panggil **`read_anomalies(penugasan_folder)`** untuk dapat daftar LENGKAP anomali (rule_id, severity, judul, deskripsi, bukti, draft K/K/A). **Telusuri SEMUA anomali** (jangan hanya sebagian) — terutama HIGH/CRITICAL:
    - Buka PDF di halaman yang dirujuk via `read_pdf_page(pdf_path, halaman)`.
    - Verifikasi: TERIMA, TOLAK (false positive), atau MODIFIKASI.
+
+   **Pintasan hemat token (REKOMENDASI):** sebelum verifikasi manual satu per satu,
+   panggil **`build_draft_temuan_from_anomalies(penugasan_folder, severity_min, anggota_tim_nama)`**
+   sekali. Tool DETERMINISTIK ini mengubah seluruh anomali (yang punya draft_catatan)
+   menjadi DRAFT temuan v4.0.0 tersimpan di `_KKP/temuan-draft.json` dengan
+   `kondisi`, `kriteria`, `akibat`, `id_temuan` otomatis. Lalu pakai
+   `read_draft_temuan(penugasan_folder)` untuk melihatnya, dan kerjakan VERIFIKASI
+   per draft (lihat PDF → buang false-positive / poles kalimat / tambahkan
+   `dokumen_sumber` dgn halaman & kutipan). Untuk draft yang LOLOS verifikasi,
+   `append_temuan` dengan field final. JANGAN langsung append draft tanpa
+   verifikasi — itu setara mempercayai rule mentah-mentah.
 8. **Tambahkan temuan substantif** yang tidak tertangkap rules:
    - reviu-rka-kl: kewajaran SBM/SBK, kelengkapan 7 blok substansi TOR, cascading anggaran, penandaan.
    - reviu-pengadaan: kewajaran HPS vs RFI vendor (Perpres 16 Pasal 26 ayat 5: minimal 2 sumber harga independen), konsistensi dasar hukum HPS dengan TA, traceability KAK ↔ HPS, kewajaran metode pemilihan.

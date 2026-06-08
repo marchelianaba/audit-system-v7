@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     # C2 — otomasi: dari sinyal LIVE (webhook/pull), otomatis buat usulan penugasan.
     # "off" | "merah" (default) | "merah_kuning". Anti-duplikat per satker+kode.
     cacm_auto_promote: str = "merah"
+    # Auto-promote OPT-IN untuk CacmFinding v7-native (Fase 1 CACM commit-3, 8 Juni 2026).
+    # Default OFF supaya cut-over aman bertahap. Saat dinyalakan, anti-duplikat
+    # via _open_usulan_exists yang sudah dual-jalur (cek EWS + v7 untuk satker+kriteria
+    # yg setara). Set "merah" atau "merah_kuning" setelah validasi diff EWS vs v7
+    # menunjukkan konsistensi (≥90% match status).
+    cacm_v7_auto_promote: str = "off"
 
     # Token quota per user per jam (safety)
     rate_limit_runs_per_hour: int = 5

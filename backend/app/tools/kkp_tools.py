@@ -195,28 +195,180 @@ async def append_temuan(args: dict) -> dict:
     }
 
 
+async def _filter_temuan_by_review(folder: Path) -> tuple[Path | None, dict | None]:
+    """Filter `_KKP/temuan.json` agar hanya berisi temuan APPROVED/EDITED dari
+    `TemuanReview` (HITL). Return (backup_path, stats).
+
+    Aturan:
+      - Bila tabel TemuanReview KOSONG utk penugasan ini → JANGAN filter
+        (backward compat untuk penugasan lama / penugasan yg belum direview).
+      - Bila ada ≥1 review record → strict: hanya status APPROVED atau EDITED
+        yang lolos. PENDING & REJECTED di-exclude.
+      - Bila gagal query DB (mis. session tidak tersedia) → JANGAN filter
+        (best-effort; render kembali ke perilaku lama).
+
+    Saat filter aktif, file asli dibackup ke `_KKP/temuan-full-backup.json`
+    dan `temuan.json` ditulis ulang dengan subset. Caller WAJIB panggil
+    `_restore_temuan_from_backup` setelah render selesai (sukses/gagal).
+    """
+    from app.database import SessionLocal
+    from app.models import Penugasan, TemuanReview
+
+    temuan_path = folder / "_KKP" / "temuan.json"
+    if not temuan_path.is_file():
+        return None, None
+
+    # Resolve penugasan_id dari folder_path
+    folder_abs = str(folder.resolve())
+    penugasan_id: int | None = None
+    try:
+        async with SessionLocal() as db:
+            row = (await db.execute(
+                select(Penugasan.id).where(Penugasan.folder_path == folder_abs)
+            )).first()
+            if row is None:
+                # Fallback: cari yang ber-suffix nama folder (kode)
+                kode = folder.name
+                row = (await db.execute(
+                    select(Penugasan.id).where(Penugasan.kode == kode)
+                )).first()
+            if row is None:
+                return None, None
+            penugasan_id = row[0]
+
+            reviews = (await db.execute(
+                select(TemuanReview.temuan_id, TemuanReview.status)
+                .where(TemuanReview.penugasan_id == penugasan_id)
+            )).all()
+    except Exception:  # noqa: BLE001 — best-effort filter
+        return None, None
+
+    if not reviews:
+        return None, None  # belum ada workflow review → bypass
+
+    # Re-query untuk dapatkan edited_fields (TemuanReview row utuh).
+    try:
+        async with SessionLocal() as db2:
+            full_reviews = (await db2.execute(
+                select(TemuanReview).where(TemuanReview.penugasan_id == penugasan_id)
+            )).scalars().all()
+    except Exception:  # noqa: BLE001
+        full_reviews = []
+
+    review_by_id: dict[str, TemuanReview] = {r.temuan_id: r for r in full_reviews}
+
+    approved = {tid for tid, status in reviews if status in ("APPROVED", "EDITED")}
+    pending = {tid for tid, status in reviews if status == "PENDING"}
+    rejected = {tid for tid, status in reviews if status == "REJECTED"}
+
+    # Load + filter
+    try:
+        data = json.loads(temuan_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None
+
+    full = data.get("temuan", [])
+    if not isinstance(full, list):
+        return None, None
+
+    # Filter + overlay edited_fields ke temuan yang masuk
+    n_edits_applied = 0
+    filtered: list[dict] = []
+    for t in full:
+        tid = t.get("id_temuan")
+        if tid not in approved:
+            continue
+        rev = review_by_id.get(tid)
+        edits = rev.edited_fields if rev and rev.edited_fields else None
+        if edits:
+            # Shallow overlay — hanya field yg di-edit yg ditimpa
+            t_overlay = {**t, **edits}
+            filtered.append(t_overlay)
+            n_edits_applied += 1
+        else:
+            filtered.append(t)
+    stats = {
+        "n_total": len(full),
+        "n_approved": len(filtered),
+        "n_pending": len(pending),
+        "n_rejected": len(rejected),
+        "n_edits_applied": n_edits_applied,
+        "penugasan_id": penugasan_id,
+    }
+
+    # Backup + tulis filtered
+    backup = folder / "_KKP" / "temuan-full-backup.json"
+    try:
+        backup.write_bytes(temuan_path.read_bytes())
+    except OSError:
+        return None, None
+    data["temuan"] = filtered
+    try:
+        temuan_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        # gagal tulis → restore backup
+        try:
+            temuan_path.write_bytes(backup.read_bytes())
+        except OSError:
+            pass
+        backup.unlink(missing_ok=True)
+        return None, None
+
+    return backup, stats
+
+
+def _restore_temuan_from_backup(folder: Path, backup: Path | None) -> None:
+    """Restore `_KKP/temuan.json` dari backup. Always call di finally."""
+    if backup is None or not backup.is_file():
+        return
+    temuan_path = folder / "_KKP" / "temuan.json"
+    try:
+        temuan_path.write_bytes(backup.read_bytes())
+    finally:
+        backup.unlink(missing_ok=True)
+
+
 @tool(
     "render_kkp_docx",
-    "Render KKP-{nama-anggota}.docx menggunakan scripts/render_kkp.py V6.",
+    "Render KKP-{nama-anggota}.docx menggunakan scripts/render_kkp.py V6. "
+    "Otomatis FILTER temuan: hanya yang status review APPROVED/EDITED yang "
+    "masuk ke DOCX (HITL gating). Bila belum ada review record sama sekali "
+    "untuk penugasan ini, perilaku LEGACY: render semua temuan apa adanya.",
     {"penugasan_folder": str, "nama_anggota": str},
 )
 async def render_kkp_docx(args: dict) -> dict:
-    code, out, err = await run_v6_script(
-        "scripts/render_kkp.py",
-        [
-            "--penugasan",
-            args["penugasan_folder"],
-            "--anggota",
-            args["nama_anggota"],
-        ],
-        timeout=120,
-    )
+    folder = Path(args["penugasan_folder"])
+    backup, stats = await _filter_temuan_by_review(folder)
+    filter_note = ""
+    if stats is not None:
+        edit_str = f", edits_applied={stats.get('n_edits_applied', 0)}" if stats.get('n_edits_applied') else ""
+        filter_note = (
+            f" | FILTER:APPROVED-only "
+            f"({stats['n_approved']}/{stats['n_total']} masuk, "
+            f"pending={stats['n_pending']}, rejected={stats['n_rejected']}{edit_str})"
+        )
+    try:
+        code, out, err = await run_v6_script(
+            "scripts/render_kkp.py",
+            [
+                "--penugasan",
+                args["penugasan_folder"],
+                "--anggota",
+                args["nama_anggota"],
+            ],
+            timeout=120,
+        )
+    finally:
+        _restore_temuan_from_backup(folder, backup)
     if code != 0:
         return {
-            "content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}"}],
+            "content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}{filter_note}"}],
             "is_error": True,
         }
-    return {"content": [{"type": "text", "text": f"OK|stdout={out[:200]}"}]}
+    return {"content": [{"type": "text", "text": f"OK|stdout={out[:200]}{filter_note}"}]}
 
 
 @tool(
@@ -511,8 +663,130 @@ async def write_context_md(args: dict) -> dict:
 # tanpa ini agen AT selalu mulai dari nol saat auditor minta koreksi.
 from app.tools.lhr_tools import read_temuan_json  # noqa: E402
 
+
+@tool(
+    "build_draft_temuan_from_anomalies",
+    "Konversi DETERMINISTIK anomalies-master.json (output pipeline V6) → draft "
+    "temuan v4.0.0. Hasil disimpan ke `_KKP/temuan-draft.json` (BUKAN temuan.json). "
+    "Setiap anomali yang punya `draft_catatan` jadi satu draft temuan dengan field "
+    "kondisi/kriteria/akibat sudah terisi otomatis. TIDAK panggil LLM. Agen AT "
+    "kemudian baca file ini, verifikasi tiap draft (buang false-positive, poles "
+    "narasi, tambah dokumen_sumber dgn halaman/kutipan dari PDF), baru append ke "
+    "temuan.json via `append_temuan`. Param severity_min: INFO (default, semua) | "
+    "PERINGATAN | KRITIS.",
+    {"penugasan_folder": str, "severity_min": str, "anggota_tim_nama": str, "overwrite": bool},
+)
+async def build_draft_temuan_from_anomalies(args: dict) -> dict:
+    from app.prefill_temuan import write_draft_temuan
+    folder = Path(args["penugasan_folder"])
+    severity_min = args.get("severity_min", "INFO")
+    anggota_tim_nama = args.get("anggota_tim_nama") or None
+    overwrite = bool(args.get("overwrite", False))
+    try:
+        path, data = write_draft_temuan(
+            folder,
+            overwrite=overwrite,
+            severity_min=severity_min,
+            anggota_tim_nama=anggota_tim_nama,
+        )
+    except Exception as e:  # noqa: BLE001 — surface error ke agen
+        return {
+            "content": [{"type": "text", "text": f"FAILED|{e}"}],
+            "is_error": True,
+        }
+    meta = data.get("_meta") or {}
+    n_drafts = len(data.get("temuan") or [])
+    skip_count = len(meta.get("anomali_skip") or [])
+    msg = (
+        f"OK|temuan-draft.json @ {path} — {n_drafts} draft dari "
+        f"{meta.get('anomali_total', 0)} anomali "
+        f"(skip {skip_count}, severity_min={meta.get('severity_min')})"
+    )
+    return {"content": [{"type": "text", "text": msg}]}
+
+
+@tool(
+    "read_draft_temuan",
+    "Baca `_KKP/temuan-draft.json` hasil `build_draft_temuan_from_anomalies`. "
+    "Return JSON {meta, temuan:[...]}. Pakai untuk verifikasi draft sebelum "
+    "append_temuan.",
+    {"penugasan_folder": str},
+)
+async def read_draft_temuan(args: dict) -> dict:
+    folder = Path(args["penugasan_folder"])
+    path = folder / "_KKP" / "temuan-draft.json"
+    if not path.exists():
+        return {
+            "content": [{
+                "type": "text",
+                "text": "FAILED|temuan-draft.json tidak ada — panggil build_draft_temuan_from_anomalies dulu",
+            }],
+            "is_error": True,
+        }
+    data = safe_read_json(path)
+    return {
+        "content": [{
+            "type": "text",
+            "text": json.dumps(data, ensure_ascii=False, indent=2)[:24000],
+        }]
+    }
+
+
+@tool(
+    "build_context_md_template",
+    "Susun context.md DETERMINISTIK dari field penugasan + digest hasil ingestion. "
+    "Mengisi 80% bagian context (Identitas, Periode, Tujuan/Ruang Lingkup per skill, "
+    "Tim, Ringkasan Obyek dari digest). Bagian 'Gambaran Umum' di-placeholder "
+    "`<!-- AI_PARAGRAPH:gambaran_umum -->` untuk diisi LLM/auditor. TIDAK panggil "
+    "LLM. Pakai ini sebagai LANGKAH AWAL sebelum write_context_md.",
+    {"penugasan_folder": str, "kode": str, "obyek": str, "skill": str,
+     "nomor_st": str, "tanggal_st": str, "gambaran_umum": str, "overwrite": bool},
+)
+async def build_context_md_template(args: dict) -> dict:
+    from app.context_template import build_context_md
+    folder = Path(args["penugasan_folder"])
+    try:
+        md = build_context_md(
+            kode=args["kode"],
+            obyek=args["obyek"],
+            skill=args["skill"],
+            nomor_st=args.get("nomor_st") or None,
+            tanggal_st=args.get("tanggal_st") or None,
+            penugasan_folder=folder,
+            gambaran_umum=args.get("gambaran_umum") or None,
+        )
+    except Exception as e:  # noqa: BLE001
+        return {
+            "content": [{"type": "text", "text": f"FAILED|{e}"}],
+            "is_error": True,
+        }
+    overwrite = bool(args.get("overwrite", False))
+    path = folder / "context.md"
+    if path.exists() and not overwrite:
+        return {
+            "content": [{
+                "type": "text",
+                "text": (
+                    f"OK|template siap ({len(md)} char). context.md SUDAH ada — "
+                    f"set overwrite=true untuk timpa, atau pakai output ini "
+                    f"sebagai bahan write_context_md:\n\n{md}"
+                ),
+            }]
+        }
+    folder.mkdir(parents=True, exist_ok=True)
+    path.write_text(md, encoding="utf-8")
+    return {
+        "content": [{
+            "type": "text",
+            "text": f"OK|context.md ditulis dari template ({len(md)} char) @ {path}",
+        }]
+    }
+
+
 KKP_TOOLS = [
     read_context, list_ingested, read_ingested_digest, get_team_members,
-    write_context_md, append_temuan, render_kkp_docx, run_qc_kkp,
+    write_context_md, build_context_md_template,
+    append_temuan, build_draft_temuan_from_anomalies, read_draft_temuan,
+    render_kkp_docx, run_qc_kkp,
     read_temuan_json,
 ]

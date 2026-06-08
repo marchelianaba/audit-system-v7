@@ -1029,6 +1029,86 @@ Parser tetap primary (`Tier-1`), Haiku tetap secondary (`Tier-2 selektif`) —
 nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 `_summarize_digest` overlay ke summary dgn flag `_llm_recovered`. V6 read-only.
 
+### LiteParse + 3 hardcode deterministik (8 Juni 2026) — IMPLEMENTED
+
+Atas pertanyaan tim "bagian mana yang bisa dihardcode dan mana yang harus AI?",
+inventaris sistem dilakukan + 3 area dipindah ke kode deterministik + parser PDF
+diupgrade ke LiteParse (`run-llama/liteparse`, Apache 2.0/MIT, fully offline,
+no API key, Tesseract bundled).
+
+**Bagian 1 — LiteParse menggantikan/melengkapi pdfplumber:**
+- Dependency baru `liteparse==2.0.6` di `requirements.txt` — wheel native ARM64,
+  ~7.7 MB, no external binary (gak butuh poppler).
+- `backend/app/liteparse_extract.py` (modul baru):
+  * `extract_pages()` / `extract_full_text()` — drop-in pengganti pdfplumber
+  * `extract_fields_deterministic()` — regex identitas dokumen (kementerian,
+    program, RO), nilai uang (total_biaya/pagu/HPS), dasar hukum, vendor
+    PT/CV, tanggal Indonesia → ISO
+- `llm_extract.extract_pdf_pages` di-patch: **LiteParse-first**, pdfplumber
+  fallback bila gagal.
+- **Benchmark 30 PDF Kominfo**: median **9.8× lebih cepat** (33 ms vs 419 ms
+  total). Akurasi regex field imbang di PDF rapi (80/80). Keuntungan strategis:
+  multi-format (DOCX/XLSX/PPTX/image) + OCR bundled untuk dokumen scan.
+
+**Bagian 2 — Hybrid field extraction (regex → LLM hanya untuk residual):**
+- `extract_fields_hybrid()` di `llm_extract.py`: regex deterministik dulu via
+  `extract_fields_deterministic`, lalu Haiku **hanya** untuk field yang regex
+  gagal isi. Saving signifikan: untuk RAB sederhana, semua 4 field hilang
+  ke-isi tanpa LLM sama sekali.
+- `routes/agen.py:_llm_fallback_sync` + `scripts/digestion_harness.py` migrasi
+  ke jalur hybrid. Trace sumber per field di `_llm_fallback._meta.sources`
+  (`deterministic` vs `llm`) supaya bisa diaudit.
+
+**Bagian 3 — Template context.md deterministik:**
+- `backend/app/context_template.py` (modul baru) — generate 80% context.md
+  dari penugasan + digest existing (Identitas, Periode, Tujuan/Ruang Lingkup
+  per skill, Tim dari `_PKP/sasaran-assignment.json`, Ringkasan Obyek dari
+  digest TOR/RAB/KAK/HPS).
+- Tool baru `build_context_md_template` di KKP_TOOLS. Section "Gambaran Umum"
+  ditandai placeholder `<!-- AI_PARAGRAPH:gambaran_umum -->` — bagian
+  naratif 2-4 kalimat saja yang tetap LLM-opsional.
+- Template per skill (reviu-rka-kl: PMK 107/2024; reviu-pengadaan: Perpres
+  16/2018 jo. 12/2021 + minimal 2 sumber harga independen Pasal 26 ayat 5).
+
+**Bagian 4 — Pre-fill draft temuan dari anomalies V6:**
+- `backend/app/prefill_temuan.py` (modul baru) — konversi DETERMINISTIK
+  `_KKP/anomalies-master.json` → `_KKP/temuan-draft.json` v4.0.0. Setiap
+  anomali yg punya `draft_catatan` (sudah ada sejak dulu di V6) jadi satu
+  draft temuan dgn `kondisi`/`kriteria`/`akibat` otomatis terisi.
+- 2 tool baru: `build_draft_temuan_from_anomalies(penugasan_folder,
+  severity_min?, anggota_tim_nama?)` + `read_draft_temuan(penugasan_folder)`.
+- Status default `DRAFT` + metadata `pre_filled.source="anomali_v6"` — agen
+  AT **wajib** verifikasi (lihat PDF) + poles + tambah dokumen_sumber dgn
+  halaman/kutipan sebelum `append_temuan`. **JANGAN** langsung append draft
+  mentah-mentah.
+- Prompt `anggota_tim.md` Langkah 7 diperbarui: pintasan ini direkomendasikan
+  sebelum verifikasi anomali per satu — agen tinggal verifikasi+poles, bukan
+  menulis K/K/A dari nol.
+
+**Dampak biaya estimasi (per penugasan):**
+- ~Rp 30-50rb hemat (Haiku jarang ke-trigger untuk field yang labelnya jelas)
+- ~$0.05 hemat (context.md tidak ditulis LLM dari nol)
+- ~30% token AT hemat (verifikasi+poles draft, bukan menulis K/K/A baru)
+
+**Verifikasi:**
+- ✅ Benchmark 30 PDF: 9.8× lebih cepat, akurasi field imbang
+- ✅ RAB-App-PDP-2026.pdf: regex extract 4 field tanpa LLM call
+- ✅ KAK-Data-Center-DRC-2026.pdf: 4 field deterministik (total_biaya,
+  dasar_hukum, jangka_waktu, metode_pemilihan)
+- ✅ Real penugasan reviurkakl-20260522: 6 anomali V6 → 6 draft temuan
+  T-001…T-006, format match temuan.json existing
+- ✅ Real penugasan reviurkakl-20260522: context.md template generate dgn
+  kementerian/program/kegiatan/RO/total_biaya/dasar_hukum auto dari digest
+- ✅ KKP_TOOLS = 12 (3 tool baru: build_context_md_template,
+  build_draft_temuan_from_anomalies, read_draft_temuan)
+- ✅ Backend HTTP 200, import bersih
+- ✅ V6 read-only — semua perubahan di v7
+
+**Catatan:** parser tetap **Tier-1** (deterministik); LLM (Haiku/Sonnet) tetap
+**Tier-2** untuk judgment & narasi yang tidak bisa diaturan. Lihat PR #1 untuk
+detail diff. Hybrid agresif pengadaan (3 Jun 2026) tetap berlaku — sekarang
+dengan LiteParse jadi parser primary jauh lebih cepat & rapi.
+
 ---
 
 ## 14. Lihat Juga
@@ -1046,4 +1126,4 @@ nilai pulihan disimpan terpisah di blok `_llm_fallback` (provenans terjaga),
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet; Fase 1 CACM backend core implemented: schema+DSL parser+evaluator+9 YAML kriteria port+model DB CacmObservasi/Finding).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet; Fase 1 CACM backend core implemented: schema+DSL parser+evaluator+9 YAML kriteria port+model DB CacmObservasi/Finding); 8 Juni 2026 (LiteParse menggantikan/melengkapi pdfplumber: 9.8× lebih cepat + multi-format DOCX/XLSX/image + OCR bundled; 3 hardcode deterministik: extract_fields_hybrid regex→LLM-residual + context_template deterministik per skill + prefill_temuan dari anomalies V6 → temuan-draft v4.0.0; PR #1).*

@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,15 +116,44 @@ periode pelaksanaan, instansi auditi, dll.]
         temuan_path.write_text(json.dumps(stub_temuan, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _build_preload_background(kode: str, obyek: str, skill: str, folder: Path) -> None:
+    """Background task: bangun bundle preload-context begitu penugasan dibuat.
+
+    Idempoten — bila file `_PRELOAD/context-bundle.md` sudah ada, skip
+    (auditor mungkin sudah rebuild manual). Best-effort: error log saja,
+    tidak rethrow supaya tidak menggagalkan create_penugasan.
+    """
+    try:
+        from app import preload_context  # late import (hindari circular)
+        target = folder / "_PRELOAD" / "context-bundle.md"
+        if target.is_file() and target.stat().st_size > 100:
+            return  # sudah ada → skip
+        result = preload_context.build_preload_bundle(
+            penugasan_kode=kode, obyek=obyek, skill=skill,
+        )
+        preload_context.save_preload_bundle(folder, result["markdown"])
+    except Exception as e:  # noqa: BLE001 — log saja, jangan crash background task
+        import logging
+        logging.getLogger(__name__).warning(
+            "auto-preload gagal untuk %s: %s", kode, e
+        )
+
+
 @router.post("", response_model=PenugasanOut, status_code=status.HTTP_201_CREATED)
 async def create_penugasan(
     payload: PenugasanCreate,
+    background_tasks: BackgroundTasks,
     current: tuple[User, Role] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PenugasanOut:
     """Hanya Pengendali Teknis (PT) yang boleh buat penugasan baru.
 
     Workflow: PT create → KT setup → AT upload+analisis → KT approve + LHR.
+
+    Side-effect: auto-build `_PRELOAD/context-bundle.md` di background supaya
+    saat agen jalan, konteks (pattern wiki + vault + glossary + regulasi +
+    riwayat W3) sudah siap dibaca. Tidak blocking — penugasan tetap return
+    cepat. Idempoten — auditor bisa rebuild manual nanti via UI.
     """
     user, role = current
     if role != Role.PT:
@@ -158,6 +187,12 @@ async def create_penugasan(
     db.add(p)
     await db.flush()
     await db.refresh(p)
+
+    # Auto-build konteks bundle di background — tidak block response.
+    background_tasks.add_task(
+        _build_preload_background, kode, payload.obyek, str(payload.skill), folder,
+    )
+
     return PenugasanOut.model_validate(p)
 
 
@@ -922,19 +957,27 @@ async def list_temuan_review(
         if not tid:
             continue
         rev = by_temuan_id.get(tid)
+        # Apply overlay edit kalau ada — tampilkan versi terkini ke UI
+        edited = rev.edited_fields if rev and rev.edited_fields else {}
+        judul = edited.get("judul_temuan") or t.get("judul_temuan") or ""
+        kondisi = edited.get("kondisi") or t.get("kondisi") or ""
+        kriteria = edited.get("kriteria") or t.get("kriteria") or ""
+        akibat = edited.get("akibat") or t.get("akibat") or ""
         items.append({
             "id_temuan": tid,
-            "judul": t.get("judul_temuan") or "",
+            "judul": judul,
             "sasaran_id": t.get("sasaran_id") or "",
-            "kondisi": (t.get("kondisi") or "")[:400],
-            "kriteria": (t.get("kriteria") or "")[:400],
-            "akibat": (t.get("akibat") or "")[:400],
+            "kondisi": kondisi[:400],
+            "kriteria": kriteria[:400],
+            "akibat": akibat[:400],
             "anggota": ((t.get("anggota_tim") or {}).get("nama_lengkap") or "") if isinstance(t.get("anggota_tim"), dict) else "",
             "dokumen_sumber_count": len(t.get("dokumen_sumber") or []) if isinstance(t.get("dokumen_sumber"), list) else 0,
             "status": rev.status if rev else "PENDING",
             "note": rev.note if rev else None,
             "reviewed_at": rev.reviewed_at.isoformat() + "Z" if rev and rev.reviewed_at else None,
             "reviewed_by_user_id": rev.reviewed_by_user_id if rev else None,
+            "has_edits": bool(edited),
+            "edited_fields": edited or None,  # full edit overlay (UI bisa pakai untuk diff/preview)
         })
 
     counts = {"PENDING": 0, "APPROVED": 0, "REJECTED": 0, "EDITED": 0}
@@ -980,6 +1023,108 @@ async def reject_temuan(
         )
     await _get_penugasan_or_404(db, penugasan_id)
     return await _upsert_review(db, penugasan_id, temuan_id, "REJECTED", payload.note, user.id)
+
+
+class TemuanEditPayload(BaseModel):
+    """Field temuan yang bisa diedit auditor via UI.
+
+    Semua optional — hanya field yang dikirim yang di-overlay. Field lain
+    tetap pakai versi agen di temuan.json.
+    """
+    judul_temuan: str | None = None
+    kondisi: str | None = None
+    kriteria: str | None = None
+    akibat: str | None = None
+    note: str | None = None  # catatan kenapa diedit
+
+
+@router.put("/{penugasan_id}/temuan-review/{temuan_id}/edit")
+async def edit_temuan(
+    penugasan_id: int,
+    temuan_id: str,
+    payload: TemuanEditPayload,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Edit field temuan via overlay (judul/kondisi/kriteria/akibat). KT/PT/PM only.
+
+    Strategi: temuan.json (sumber kebenaran V6) TIDAK diubah. Edit disimpan di
+    `TemuanReview.edited_fields` (JSONB). Saat render KKP, v7 overlay edited_fields
+    ke temuan asli sebelum panggil V6.
+
+    Status auto-set ke "EDITED" (tetap masuk render bersama APPROVED). Auditor bisa
+    re-approve/reject kapan saja setelah edit.
+
+    Field yang KOSONG di payload → tidak ubah overlay (tidak hapus edit lama).
+    Untuk hapus edit field tertentu, kirim string kosong eksplisit "".
+    """
+    user, role = current
+    if role not in (Role.KT, Role.PT, Role.PM):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Edit temuan hanya untuk KT/PT/PM. Role: {role.value}.",
+        )
+    await _get_penugasan_or_404(db, penugasan_id)
+
+    # Verifikasi temuan ada di temuan.json
+    p = await _get_penugasan_or_404(db, penugasan_id)
+    folder = Path(p.folder_path)
+    temuan_list = _load_temuan_json(folder)
+    found = next(
+        (t for t in temuan_list if isinstance(t, dict) and str(t.get("id_temuan") or "").strip() == temuan_id),
+        None,
+    )
+    if found is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"Temuan {temuan_id} tidak ditemukan di temuan.json.",
+        )
+
+    # Upsert review row
+    existing = (
+        await db.execute(
+            select(TemuanReview).where(
+                TemuanReview.penugasan_id == penugasan_id,
+                TemuanReview.temuan_id == temuan_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        existing = TemuanReview(
+            penugasan_id=penugasan_id,
+            temuan_id=temuan_id,
+            status="EDITED",
+            edited_fields={},
+        )
+        db.add(existing)
+        await db.flush()
+
+    # Merge edits (existing edited_fields + new payload)
+    edits: dict = dict(existing.edited_fields or {})
+    payload_dict = payload.model_dump(exclude_none=True, exclude={"note"})
+    for k, v in payload_dict.items():
+        # String "" → hapus overlay key (revert ke versi agen)
+        if v == "":
+            edits.pop(k, None)
+        else:
+            edits[k] = v
+
+    existing.edited_fields = edits or None
+    existing.status = "EDITED" if edits else "PENDING"
+    if payload.note is not None:
+        existing.note = payload.note
+    existing.reviewed_by_user_id = user.id
+    existing.reviewed_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "ok": True,
+        "id_temuan": temuan_id,
+        "status": existing.status,
+        "edited_fields": existing.edited_fields,
+        "has_edits": bool(existing.edited_fields),
+        "reviewed_at": existing.reviewed_at.isoformat() + "Z" if existing.reviewed_at else None,
+    }
 
 
 @router.post("/{penugasan_id}/temuan-review/bulk-approve")

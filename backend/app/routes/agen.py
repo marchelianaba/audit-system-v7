@@ -28,7 +28,7 @@ from app.models import (
     User,
 )
 from app.config import get_settings
-from app.llm_extract import extract_pdf_pages, llm_extract_fields
+from app.llm_extract import extract_pdf_pages, extract_fields_hybrid, llm_extract_fields  # noqa: F401
 from app.storage import INPUT_JENIS, context_readiness, reset_downstream
 from app.tools.kkp_tools import COVERAGE_KEYS, _summarize_digest
 from app.tools.v6_bridge import run_v6_script, safe_read_json
@@ -118,13 +118,25 @@ def _llm_fallback_sync(out_path: Path, jenis_summary: str, pdf_paths: list[str],
     pages: list[str] = []
     for p in pdf_paths:
         pages += extract_pdf_pages(p)
-    res = llm_extract_fields(pages, jenis_summary, missing, model=model)
+    # Hybrid: regex deterministik (LiteParse) dulu, Haiku hanya untuk residual.
+    # Bila semua field hilang ternyata bisa diambil regex → LLM TIDAK dipanggil.
+    res = extract_fields_hybrid(pages, jenis_summary, missing, model=model)
     if res.get("_error"):
         log.warning("LLM fallback %s: %s", out_path.name, res["_error"])
-        return 0
+        # Tetap simpan apa-apa yang sempat di-ekstrak regex sebelum error LLM
     recovered = {k: res[k] for k in missing if res.get(k) not in (None, "", [], 0)}
     if not recovered:
         return 0
+
+    # Trace: tag sumber tiap field (deterministic vs llm) berdasarkan apa yang
+    # liteparse_extract mampu kasih. Simpel: kalau regex deterministic punya field
+    # itu, tag 'deterministic'; sisanya 'llm'.
+    try:
+        from app.liteparse_extract import extract_fields_deterministic
+        det = extract_fields_deterministic(pages, jenis_summary)
+    except Exception:  # noqa: BLE001
+        det = {}
+    sources = {k: ("deterministic" if k in det else "llm") for k in recovered.keys()}
 
     fb = data.get("_llm_fallback") if isinstance(data.get("_llm_fallback"), dict) else {}
     fb.update(recovered)
@@ -132,6 +144,7 @@ def _llm_fallback_sync(out_path: Path, jenis_summary: str, pdf_paths: list[str],
         "model": model,
         "at": datetime.utcnow().isoformat() + "Z",
         "fields": sorted(recovered.keys()),
+        "sources": sources,
     }
     data["_llm_fallback"] = fb
     try:
