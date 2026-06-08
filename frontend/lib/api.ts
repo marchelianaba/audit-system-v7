@@ -926,6 +926,70 @@ export const api = {
       note?: string;
     }>(`/cacm/runs/${runId}/re-evaluate`, { method: 'POST' }),
 
+  /** Diff CacmFinding v7-native vs EwsFinding legacy untuk satu run.
+   * Pair per (satker_nama, kode EWS / kriteria_id v7) via mapping di
+   * `app/cacm_mapping.py`. Dipakai untuk validasi cut-over sebelum
+   * auto-promote v7-native dinyalakan. */
+  getCacmDiff: (runId: number) =>
+    request<{
+      run_id: number;
+      summary: {
+        n_ews_total: number;
+        n_v7_total: number;
+        n_matched_pairs: number;
+        n_match_status: number;
+        n_mismatch: number;
+        n_v7_only: number;
+        n_ews_only: number;
+      };
+      matched: Array<{
+        satker_nama: string;
+        satker_kode: string | null;
+        ews_kode: string;
+        v7_kriteria_id: string;
+        ews_status: string;
+        v7_status: string;
+        is_match: boolean;
+        ews_finding_id: number;
+        v7_finding_id: number;
+        ews_nilai: string | null;
+        v7_metric_display: string | null;
+        ews_judul: string | null;
+        v7_narasi: string;
+      }>;
+      v7_only: Array<{
+        satker_nama: string;
+        satker_kode: string | null;
+        v7_kriteria_id: string;
+        v7_status: string;
+        v7_finding_id: number;
+        v7_metric_display: string | null;
+        v7_narasi: string;
+        reason: string;
+      }>;
+      ews_only: Array<{
+        satker_nama: string;
+        satker_kode: string | null;
+        ews_kode: string;
+        expected_v7_kriteria_id: string | null;
+        ews_status: string;
+        ews_finding_id: number;
+        ews_nilai: string | null;
+        ews_judul: string | null;
+        reason: string;
+      }>;
+    }>(`/cacm/runs/${runId}/findings/diff`),
+
+  /** Promote CacmFinding v7-native ke Penugasan USULAN_CACM (PT only).
+   * Paralel dengan promote EwsFinding existing. */
+  promoteCacmFinding: (findingId: number) =>
+    request<{
+      ok: boolean;
+      penugasan_id: number;
+      penugasan_kode: string;
+      status: string;
+    }>(`/cacm/cacm-findings/${findingId}/promote`, { method: 'POST' }),
+
   // ===== Feedback Aggregate Dashboard (Phase 2) =====
 
   /** Ringkasan agregat feedback agen cross-penugasan untuk N hari ke belakang. */

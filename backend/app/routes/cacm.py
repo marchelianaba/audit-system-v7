@@ -184,6 +184,12 @@ async def _ingest(db: AsyncSession, payload: Any, source: str) -> CacmRun:
     except Exception as exc:  # noqa: BLE001
         log.warning("v7-native eval gagal utk run %s: %s", run.run_id, exc)
     await _maybe_auto_promote(db, run, source)
+    # Auto-promote v7-native (opt-in, env CACM_V7_AUTO_PROMOTE).
+    # Best-effort — gagal di sini tidak menggagalkan ingest.
+    try:
+        await _maybe_auto_promote_v7(db, run, source)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("v7-native auto-promote gagal utk run %s: %s", run.run_id, exc)
     return run
 
 
@@ -365,10 +371,24 @@ async def get_run(
     }
 
 
-async def _create_usulan_from_finding(db: AsyncSession, f: EwsFinding) -> Penugasan:
-    """Buat Penugasan USULAN_CACM prefilled dari 1 finding. TIDAK commit & TIDAK
-    set field finding — caller yang mengatur f.tindak_lanjut/penugasan_id + commit.
-    Dipakai oleh promote manual (PT) maupun auto-promote (C2)."""
+async def _create_usulan_from_finding(
+    db: AsyncSession,
+    f: "EwsFinding | CacmFinding",
+) -> Penugasan:
+    """Buat Penugasan USULAN_CACM prefilled dari 1 finding (EWS legacy ATAU
+    v7-native CacmFinding). TIDAK commit & TIDAK set field finding — caller
+    yang mengatur f.tindak_lanjut/penugasan_id + commit.
+
+    Dispatch by type — keduanya menulis section "Sinyal CACM / EWS SIRUP"
+    ke context.md dengan field yang berbeda di belakang layar.
+    """
+    if isinstance(f, CacmFinding):
+        return await _create_usulan_from_cacm_finding(db, f)
+    return await _create_usulan_from_ews_finding(db, f)
+
+
+async def _create_usulan_from_ews_finding(db: AsyncSession, f: EwsFinding) -> Penugasan:
+    """Original implementation (EwsFinding legacy). Field langsung tersedia."""
     judul_singkat = (f.judul or f.ringkasan or f.kode)[:120]
     obyek = f"Reviu Pengadaan {f.satker} — {f.kode}: {judul_singkat}"[:400]
 
@@ -417,12 +437,115 @@ async def _create_usulan_from_finding(db: AsyncSession, f: EwsFinding) -> Penuga
     return p
 
 
+async def _create_usulan_from_cacm_finding(db: AsyncSession, f: CacmFinding) -> Penugasan:
+    """V7-native variant — load paket dari CacmObservasi via bukti_observasi_ids,
+    regulasi dari YAML kriteria via load_registry. Output context.md "Sinyal CACM"
+    format yang sama dengan EWS legacy supaya agen AT/KT tidak perlu cek beda.
+    """
+    # Judul singkat dari kriteria_id + status
+    kriteria_id = f.kriteria_id
+    judul_singkat = f"{kriteria_id}: {(f.narasi or 'finding v7-native').split('.')[0]}"[:120]
+    obyek = f"Reviu Pengadaan {f.satker_nama} — {kriteria_id}: {judul_singkat}"[:400]
+
+    kode_pen = gen_kode_penugasan("reviu-pengadaan")
+    folder = penugasan_folder(kode_pen)
+    payload = PenugasanCreate(obyek=obyek, skill=Skill.REVIU_PENGADAAN, nomor_st=None, tanggal_st=None)
+    _scaffold_penugasan_files(folder=folder, kode=kode_pen, payload=payload, ketua_tim_name=None)
+
+    # Load paket dari CacmObservasi via bukti_observasi_ids
+    paket_lines = ""
+    n_paket = 0
+    total_pagu = 0
+    if f.bukti_observasi_ids:
+        obs_rows = (
+            await db.execute(
+                select(CacmObservasi).where(CacmObservasi.id.in_(f.bukti_observasi_ids))
+            )
+        ).scalars().all()
+        n_paket = len(obs_rows)
+        paket_items: list[str] = []
+        for o in obs_rows[:15]:
+            d = o.data or {}
+            nama = d.get("nama") or d.get("nama_paket", "")
+            pagu = _to_int(d.get("pagu"))
+            total_pagu += pagu or 0
+            paket_items.append(
+                f"  - {nama} — Rp {pagu:,} ({d.get('metode','')}, {d.get('jenis','')})"
+            )
+        paket_lines = "\n".join(paket_items)
+        # Hitung total pagu seluruh observasi (bukan hanya 15)
+        for o in obs_rows:
+            d = o.data or {}
+            total_pagu += _to_int(d.get("pagu")) or 0
+
+    # Load regulasi & threshold display dari YAML kriteria
+    regulasi_str = "-"
+    threshold_str = "-"
+    try:
+        from app.cacm_evaluator import load_registry
+        reg = load_registry()
+        k = reg.get(kriteria_id)
+        if k:
+            regulasi_str = k.regulasi or "-"
+            # Threshold display: ambil dari first MERAH (paling kritis)
+            thr_lines: list[str] = []
+            for thr in (k.thresholds or []):
+                thr_lines.append(f"{thr.status}: {thr.condition}")
+            threshold_str = " | ".join(thr_lines) or "-"
+    except Exception:  # noqa: BLE001 — graceful
+        pass
+
+    cacm_section = (
+        f"\n\n## Sinyal CACM / v7-native (sumber usulan penugasan)\n\n"
+        f"- Kriteria v7: {kriteria_id} (rev {f.kriteria_revisi}) — status: {f.status}\n"
+        f"- Satker: {f.satker_nama}\n"
+        f"- Metrik: {f.metric_display or '-'}\n"
+        f"- Paket terdampak: {n_paket}"
+        + (f" | Total pagu: Rp {total_pagu:,}\n" if total_pagu else "\n")
+        + f"- Threshold YAML: {threshold_str}\n"
+        + f"- Regulasi: {regulasi_str}\n"
+        + f"- Dimensi: {f.dimensi}\n\n"
+        + f"Narasi evaluator:\n{f.narasi or '-'}\n"
+        + (f"\nPaket terdampak (top 15):\n{paket_lines}\n" if paket_lines else "")
+        + "\n> Sumber: CACM v7-native (kriteria YAML deterministik). Bukti: "
+        + f"{len(f.bukti_observasi_ids or [])} observasi.\n"
+    )
+    ctx_path = folder / "context.md"
+    try:
+        existing = ctx_path.read_text(encoding="utf-8") if ctx_path.exists() else ""
+        ctx_path.write_text(existing + cacm_section, encoding="utf-8")
+    except OSError:
+        pass
+
+    p = Penugasan(
+        kode=kode_pen,
+        obyek=obyek,
+        skill=Skill.REVIU_PENGADAAN,
+        nomor_st=None,
+        tanggal_st=None,
+        status=PenugasanStatus.USULAN_CACM,
+        ketua_tim_id=None,
+        folder_path=str(folder),
+    )
+    db.add(p)
+    await db.flush()
+    return p
+
+
 async def _open_usulan_exists(db: AsyncSession, satker_kode: str | None, kode: str) -> bool:
     """True bila sudah ada usulan TERBUKA (penugasan USULAN_CACM) untuk
-    satker+kode EWS yang sama — anti-spam saat sinyal berulang tiap run."""
+    satker+kode EWS yang sama — anti-spam saat sinyal berulang tiap run.
+
+    Cek dilakukan via DUA jalur (EwsFinding dan CacmFinding), supaya
+    auto-promote EWS legacy tidak duplicate usulan yang sudah dibuat oleh
+    auto-promote v7-native (atau sebaliknya). Mapping kode ↔ kriteria_id
+    via `app/cacm_mapping.py`.
+    """
     if not satker_kode:
         return False
-    pen_ids = (
+
+    # Jalur 1: cek di EwsFinding (kode EWS langsung)
+    pen_ids_ews = (
         await db.execute(
             select(EwsFinding.penugasan_id).where(
                 EwsFinding.satker_kode == satker_kode,
@@ -432,8 +555,28 @@ async def _open_usulan_exists(db: AsyncSession, satker_kode: str | None, kode: s
             )
         )
     ).scalars().all()
+
+    # Jalur 2: cek di CacmFinding (cari kriteria_id v7 yg setara dgn kode EWS)
+    from app.cacm_mapping import v7_kriteria_for_ews, ews_kode_for_v7
+    pen_ids_v7: list[int] = []
+    # `kode` bisa berupa EWS-XX atau PBJ-... (kriteria_id v7). Normalisasi keduanya.
+    v7_id = v7_kriteria_for_ews(kode) or kode  # kalau kode adalah EWS, map; kalau sudah v7, pakai langsung
+    if v7_id:
+        pen_ids_v7 = (
+            await db.execute(
+                select(CacmFinding.penugasan_id).where(
+                    CacmFinding.satker_kode == satker_kode,
+                    CacmFinding.kriteria_id == v7_id,
+                    CacmFinding.tindak_lanjut == "DIPROMOSIKAN",
+                    CacmFinding.penugasan_id.is_not(None),
+                )
+            )
+        ).scalars().all()
+
+    pen_ids = list(set(pen_ids_ews) | set(pen_ids_v7))
     if not pen_ids:
         return False
+
     open_pens = (
         await db.execute(
             select(Penugasan.id).where(
@@ -506,6 +649,89 @@ async def promote_finding(
     f.penugasan_id = p.id
     await db.commit()
     return {"ok": True, "penugasan_id": p.id, "kode": p.kode, "obyek": p.obyek}
+
+
+async def _maybe_auto_promote_v7(db: AsyncSession, run: CacmRun, source: str) -> int:
+    """Auto-promote OPT-IN untuk CacmFinding v7-native. Mirror logic
+    `_maybe_auto_promote` (EWS legacy) tapi pakai env terpisah:
+
+        CACM_V7_AUTO_PROMOTE=off|merah|merah_kuning  (default: off)
+
+    Tidak menggantikan auto-promote EWS legacy. Anti-duplikat via
+    `_open_usulan_exists` yang sudah extended ke dua jalur (Sec #7b).
+    """
+    mode = (getattr(settings, "cacm_v7_auto_promote", None) or "off").strip().lower()
+    if source not in ("webhook", "pull") or mode not in ("merah", "merah_kuning"):
+        return 0
+    statuses = {"MERAH"} if mode == "merah" else {"MERAH", "KUNING"}
+    findings = (
+        await db.execute(
+            select(CacmFinding).where(
+                CacmFinding.cacm_run_id == run.id,
+                CacmFinding.tindak_lanjut == "BARU",
+            )
+        )
+    ).scalars().all()
+    count = 0
+    for f in findings:
+        if (f.status or "").upper() not in statuses:
+            continue
+        # Cek anti-duplikat (lewat kriteria_id v7 — dedupe extend handle dua arah)
+        if await _open_usulan_exists(db, f.satker_kode, f.kriteria_id):
+            continue
+        p = await _create_usulan_from_finding(db, f)
+        f.tindak_lanjut = "DIPROMOSIKAN"
+        f.penugasan_id = p.id
+        count += 1
+    if count:
+        await db.commit()
+        log.info("CACM v7-native auto-promote: %d usulan dibuat dari run %s (%s)", count, run.run_id, source)
+    return count
+
+
+@router.post("/cacm-findings/{finding_id}/promote", status_code=status.HTTP_201_CREATED)
+async def promote_cacm_finding(
+    finding_id: int,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Jadikan CacmFinding v7-native sebagai Penugasan baru (USULAN_CACM).
+    Paralel dengan POST /cacm/findings/{id}/promote (EWS legacy). PT only.
+    """
+    user, role = current
+    _require_pt(role)
+
+    f = (await db.execute(select(CacmFinding).where(CacmFinding.id == finding_id))).scalar_one_or_none()
+    if not f:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "CacmFinding tidak ditemukan")
+    if f.tindak_lanjut == "DIPROMOSIKAN" and f.penugasan_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Finding sudah dipromosikan jadi penugasan #{f.penugasan_id}.",
+        )
+    if (f.status or "").upper() not in _PROMOTABLE:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Status {f.status} tidak dapat dipromosikan (hanya MERAH/KUNING).",
+        )
+    # Anti-duplikat (cek juga jalur EWS legacy untuk satker+kriteria yg sama)
+    if await _open_usulan_exists(db, f.satker_kode, f.kriteria_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Sudah ada usulan terbuka untuk satker={f.satker_kode} kriteria={f.kriteria_id} "
+            f"(mungkin dari jalur EWS legacy).",
+        )
+
+    p = await _create_usulan_from_finding(db, f)
+    f.tindak_lanjut = "DIPROMOSIKAN"
+    f.penugasan_id = p.id
+    await db.commit()
+    return {
+        "ok": True,
+        "penugasan_id": p.id,
+        "penugasan_kode": p.kode,
+        "status": p.status.value if hasattr(p.status, "value") else str(p.status),
+    }
 
 
 @router.get("/usulan/pending")
@@ -776,6 +1002,142 @@ async def runs_v7_native_findings(
             }
             for r in rows
         ],
+    }
+
+
+@router.get("/runs/{run_id}/findings/diff")
+async def runs_findings_diff(
+    run_id: int,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Diff EwsFinding (legacy) vs CacmFinding (v7-native) untuk satu run.
+
+    Pair berdasarkan (satker_nama, kriteria) — mapping kode EWS ↔ kriteria_id
+    di `app/cacm_mapping.py`. Output:
+      - `matched`: pair (ews_status, v7_status) + flag `is_match`.
+      - `v7_only`: CacmFinding tanpa pasangan EWS (kriteria_id baru/tupoksi/unitcost).
+      - `ews_only`: EwsFinding tanpa pasangan v7 (mis. evaluator gagal/YAML hilang).
+      - Ringkasan counter.
+
+    Tujuan: validasi cut-over sebelum auto-promote v7-native dinyalakan.
+    """
+    from app.cacm_mapping import (
+        EWS_TO_V7, V7_TO_EWS, V7_ONLY, ews_kode_for_v7, v7_kriteria_for_ews,
+        is_v7_only,
+    )
+
+    ews_rows = (
+        await db.execute(
+            select(EwsFinding)
+            .where(EwsFinding.cacm_run_id == run_id)
+            .order_by(EwsFinding.satker, EwsFinding.kode)
+        )
+    ).scalars().all()
+    v7_rows = (
+        await db.execute(
+            select(CacmFinding)
+            .where(CacmFinding.cacm_run_id == run_id)
+            .order_by(CacmFinding.satker_nama, CacmFinding.kriteria_id)
+        )
+    ).scalars().all()
+
+    # Index keduanya by (satker_nama_norm, kode_norm) — pakai EWS kode sbg
+    # kunci kanonik (v7 kriteria_id di-map balik via V7_TO_EWS).
+    def _norm_satker(s: str | None) -> str:
+        return (s or "").strip().lower()
+
+    ews_idx: dict[tuple[str, str], EwsFinding] = {}
+    for e in ews_rows:
+        key = (_norm_satker(e.satker), e.kode)
+        ews_idx[key] = e
+
+    v7_idx: dict[tuple[str, str], CacmFinding] = {}
+    v7_only_rows: list[CacmFinding] = []
+    for c in v7_rows:
+        kode_ews = V7_TO_EWS.get(c.kriteria_id)
+        if kode_ews is None:
+            v7_only_rows.append(c)
+            continue
+        key = (_norm_satker(c.satker_nama), kode_ews)
+        v7_idx[key] = c
+
+    matched: list[dict] = []
+    matched_keys: set = set()
+    for key, e in ews_idx.items():
+        c = v7_idx.get(key)
+        if c is None:
+            continue  # ews_only — diisi di loop berikut
+        matched_keys.add(key)
+        is_match = (e.status or "").upper() == (c.status or "").upper()
+        matched.append({
+            "satker_nama": e.satker,
+            "satker_kode": e.satker_kode,
+            "ews_kode": e.kode,
+            "v7_kriteria_id": c.kriteria_id,
+            "ews_status": e.status,
+            "v7_status": c.status,
+            "is_match": is_match,
+            "ews_finding_id": e.id,
+            "v7_finding_id": c.id,
+            "ews_nilai": e.nilai_aktual,
+            "v7_metric_display": c.metric_display,
+            "ews_judul": e.judul or e.ringkasan,
+            "v7_narasi": (c.narasi or "")[:200],
+        })
+
+    ews_only: list[dict] = []
+    for key, e in ews_idx.items():
+        if key in matched_keys:
+            continue
+        # Pasangan v7 tidak ditemukan untuk EWS ini
+        ews_only.append({
+            "satker_nama": e.satker,
+            "satker_kode": e.satker_kode,
+            "ews_kode": e.kode,
+            "expected_v7_kriteria_id": EWS_TO_V7.get(e.kode),
+            "ews_status": e.status,
+            "ews_finding_id": e.id,
+            "ews_nilai": e.nilai_aktual,
+            "ews_judul": e.judul or e.ringkasan,
+            "reason": "v7-native belum dievaluasi (mungkin YAML kriteria tidak ada / evaluator gagal)"
+                if EWS_TO_V7.get(e.kode) is not None
+                else "EWS legacy tanpa pasangan v7 (kode EWS tidak ada di EWS_TO_V7 mapping)",
+        })
+
+    v7_only: list[dict] = [
+        {
+            "satker_nama": c.satker_nama,
+            "satker_kode": c.satker_kode,
+            "v7_kriteria_id": c.kriteria_id,
+            "v7_status": c.status,
+            "v7_finding_id": c.id,
+            "v7_metric_display": c.metric_display,
+            "v7_narasi": (c.narasi or "")[:200],
+            "reason": "Kriteria v7 baru tanpa pasangan EWS legacy (kelas semantic/benchmark)"
+                if c.kriteria_id in V7_ONLY
+                else "Kriteria v7 tanpa pasangan di EWS_TO_V7 mapping (perlu update mapping?)",
+        }
+        for c in v7_only_rows
+    ]
+
+    n_match = sum(1 for m in matched if m["is_match"])
+    n_mismatch = len(matched) - n_match
+
+    return {
+        "run_id": run_id,
+        "summary": {
+            "n_ews_total": len(ews_rows),
+            "n_v7_total": len(v7_rows),
+            "n_matched_pairs": len(matched),
+            "n_match_status": n_match,
+            "n_mismatch": n_mismatch,
+            "n_v7_only": len(v7_only),
+            "n_ews_only": len(ews_only),
+        },
+        "matched": matched,
+        "v7_only": v7_only,
+        "ews_only": ews_only,
     }
 
 

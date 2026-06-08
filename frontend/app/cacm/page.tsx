@@ -253,6 +253,9 @@ export default function CacmPage() {
               </div>
             )}
 
+            {/* Diff EWS legacy vs v7-native — validasi cut-over */}
+            <DiffSection runId={run.id} />
+
             {/* V7-native findings (paralel CACM Fase 1 evaluator) */}
             <V7NativeFindingsSection runId={run.id} />
 
@@ -370,9 +373,11 @@ const CACM_STATUS_CLS_V7: Record<string, string> = {
 function V7NativeFindingsSection({ runId }: { runId: number }) {
   const session = getSession();
   const canReEval = session?.role_aktif === 'PT' || session?.role_aktif === 'PM';
+  const canPromote = session?.role_aktif === 'PT';
   const [findings, setFindings] = useState<V7Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [promotingId, setPromotingId] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -384,6 +389,29 @@ function V7NativeFindingsSection({ runId }: { runId: number }) {
     finally { setLoading(false); }
   };
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [runId]);
+
+  const doPromote = async (f: V7Finding) => {
+    if (!canPromote) return;
+    if (f.tindak_lanjut === 'DIPROMOSIKAN') {
+      setMsg(`Finding ${f.kriteria_id} sudah dipromosikan jadi penugasan #${f.penugasan_id}.`);
+      return;
+    }
+    if (!['MERAH', 'KUNING'].includes(f.status.toUpperCase())) {
+      setMsg(`Status ${f.status} tidak bisa dipromosikan (hanya MERAH/KUNING).`);
+      return;
+    }
+    if (!confirm(`Promosikan finding ${f.kriteria_id} (${f.satker_nama}) jadi penugasan USULAN_CACM?`)) return;
+    setPromotingId(f.id); setMsg(null);
+    try {
+      const r = await api.promoteCacmFinding(f.id);
+      setMsg(`✓ Dipromosikan ke penugasan ${r.penugasan_kode} (#${r.penugasan_id}).`);
+      refresh();
+    } catch (e: any) {
+      setMsg(`Gagal promote: ${e.message}`);
+    } finally {
+      setPromotingId(null);
+    }
+  };
 
   const doReEval = async () => {
     if (!canReEval) return;
@@ -445,27 +473,241 @@ function V7NativeFindingsSection({ runId }: { runId: number }) {
                   <th className="py-1.5 pr-2">Kriteria</th>
                   <th className="py-1.5 px-2">Status</th>
                   <th className="py-1.5 px-2">Metric</th>
-                  <th className="py-1.5 pl-2">Narasi</th>
+                  <th className="py-1.5 px-2">Narasi</th>
+                  <th className="py-1.5 pl-2 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((f) => (
-                  <tr key={f.id} className="border-b border-gray-100 last:border-0">
-                    <td className="py-1.5 pr-2 font-mono text-gray-500">{f.kriteria_id}</td>
-                    <td className="py-1.5 px-2">
-                      <span className={`px-1.5 py-0.5 rounded border text-[10px] ${CACM_STATUS_CLS_V7[f.status] || 'bg-gray-100'}`}>
-                        {f.status}
-                      </span>
-                    </td>
-                    <td className="py-1.5 px-2 text-gray-700">{f.metric_display || '—'}</td>
-                    <td className="py-1.5 pl-2 text-gray-500 text-[11px]">{f.narasi}</td>
-                  </tr>
-                ))}
+                {items.map((f) => {
+                  const promotable = ['MERAH', 'KUNING'].includes(f.status.toUpperCase());
+                  const alreadyPromoted = f.tindak_lanjut === 'DIPROMOSIKAN';
+                  return (
+                    <tr key={f.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-1.5 pr-2 font-mono text-gray-500">{f.kriteria_id}</td>
+                      <td className="py-1.5 px-2">
+                        <span className={`px-1.5 py-0.5 rounded border text-[10px] ${CACM_STATUS_CLS_V7[f.status] || 'bg-gray-100'}`}>
+                          {f.status}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2 text-gray-700">{f.metric_display || '—'}</td>
+                      <td className="py-1.5 px-2 text-gray-500 text-[11px]">{f.narasi}</td>
+                      <td className="py-1.5 pl-2 text-right">
+                        {alreadyPromoted ? (
+                          <span className="text-[10px] text-gray-400 italic">→ #{f.penugasan_id}</span>
+                        ) : canPromote && promotable ? (
+                          <button
+                            onClick={() => doPromote(f)}
+                            disabled={promotingId !== null}
+                            className="text-[10px] px-2 py-0.5 rounded border border-amber-400 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                            title="Promosikan jadi penugasan USULAN_CACM"
+                          >
+                            {promotingId === f.id ? '…' : '↗ Promote'}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// DiffSection — bandingkan EWS legacy vs v7-native per (satker, kriteria).
+// Tujuan: validasi cut-over sebelum auto-promote v7-native dinyalakan.
+// =============================================================================
+
+type DiffData = Awaited<ReturnType<typeof api.getCacmDiff>>;
+
+const STATUS_BADGE: Record<string, string> = {
+  MERAH: 'bg-red-100 text-red-800 border-red-300',
+  KUNING: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  HIJAU: 'bg-green-100 text-green-800 border-green-300',
+  INFO: 'bg-gray-100 text-gray-600 border-gray-300',
+};
+
+function DiffSection({ runId }: { runId: number }) {
+  const [data, setData] = useState<DiffData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mismatchOnly, setMismatchOnly] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    api.getCacmDiff(runId)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [runId]);
+
+  if (loading) {
+    return <div className="mb-4 p-3 text-xs text-gray-400 italic border border-purple-100 rounded">Memuat diff EWS vs v7-native…</div>;
+  }
+  if (!data || (data.summary.n_ews_total === 0 && data.summary.n_v7_total === 0)) {
+    return null; // hide bila tidak ada data
+  }
+
+  const s = data.summary;
+  const matchPct = s.n_matched_pairs > 0 ? Math.round((s.n_match_status / s.n_matched_pairs) * 100) : 0;
+  const matchedShow = mismatchOnly
+    ? data.matched.filter((m) => !m.is_match)
+    : data.matched;
+
+  // Health badge: hijau ≥90% match, kuning 60-89%, merah <60%.
+  const healthColor =
+    matchPct >= 90 ? 'bg-green-100 text-green-800 border-green-300' :
+    matchPct >= 60 ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+    'bg-red-100 text-red-800 border-red-300';
+
+  return (
+    <div className="mb-4 bg-white border border-purple-200 rounded-lg p-4">
+      <div className="flex justify-between items-start gap-2 flex-wrap mb-2">
+        <div>
+          <h3 className="font-semibold text-primary-dark">
+            ⚖ Diff EWS legacy vs v7-native
+            <span className={`ml-2 text-[11px] font-normal px-1.5 py-0.5 rounded border ${healthColor}`}>
+              {matchPct}% match
+            </span>
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Validasi sebelum cut-over. Pair (satker, kriteria) dibandingkan via mapping <code>EWS_TO_V7</code>.
+          </p>
+        </div>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+        >
+          {expanded ? 'Ringkas' : 'Detail'}
+        </button>
+      </div>
+
+      {/* Summary counter */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3">
+        <div className="border rounded p-2 bg-gray-50">
+          <div className="text-gray-500">Pair total</div>
+          <div className="text-base font-semibold">{s.n_matched_pairs}</div>
+          <div className="text-[10px] text-gray-400">EWS:{s.n_ews_total} · v7:{s.n_v7_total}</div>
+        </div>
+        <div className="border rounded p-2 bg-green-50">
+          <div className="text-gray-500">Status match</div>
+          <div className="text-base font-semibold text-green-700">{s.n_match_status}</div>
+        </div>
+        <div className="border rounded p-2 bg-red-50">
+          <div className="text-gray-500">Mismatch</div>
+          <div className="text-base font-semibold text-red-700">{s.n_mismatch}</div>
+        </div>
+        <div className="border rounded p-2 bg-amber-50">
+          <div className="text-gray-500">v7-only / ews-only</div>
+          <div className="text-base font-semibold text-amber-700">{s.n_v7_only} / {s.n_ews_only}</div>
+        </div>
+      </div>
+
+      {expanded && (
+        <>
+          {/* Filter toggle */}
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-xs flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mismatchOnly}
+                onChange={(e) => setMismatchOnly(e.target.checked)}
+                className="cursor-pointer"
+              />
+              <span className="text-gray-700">Tampilkan hanya MISMATCH</span>
+            </label>
+            <span className="text-[10px] text-gray-400">
+              ({matchedShow.length} dari {data.matched.length} pair)
+            </span>
+          </div>
+
+          {/* Matched table */}
+          {matchedShow.length > 0 && (
+            <div className="overflow-x-auto mb-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-1.5 pr-2">Satker</th>
+                    <th className="py-1.5 pr-2 font-mono text-[10px]">EWS / v7</th>
+                    <th className="py-1.5 px-2">EWS status</th>
+                    <th className="py-1.5 px-2">v7 status</th>
+                    <th className="py-1.5 pl-2">Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matchedShow.map((m, i) => (
+                    <tr key={i} className={`border-b border-gray-100 last:border-0 ${!m.is_match ? 'bg-red-50/40' : ''}`}>
+                      <td className="py-1.5 pr-2 text-gray-600">{m.satker_nama}</td>
+                      <td className="py-1.5 pr-2 font-mono text-[10px] text-gray-500">
+                        {m.ews_kode}<br/>{m.v7_kriteria_id}
+                      </td>
+                      <td className="py-1.5 px-2">
+                        <span className={`px-1.5 py-0.5 rounded border text-[10px] ${STATUS_BADGE[m.ews_status] || 'bg-gray-100'}`}>
+                          {m.ews_status}
+                        </span>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{m.ews_nilai || '—'}</div>
+                      </td>
+                      <td className="py-1.5 px-2">
+                        <span className={`px-1.5 py-0.5 rounded border text-[10px] ${STATUS_BADGE[m.v7_status] || 'bg-gray-100'}`}>
+                          {m.v7_status}
+                        </span>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{m.v7_metric_display || '—'}</div>
+                      </td>
+                      <td className="py-1.5 pl-2">
+                        {m.is_match ? (
+                          <span className="text-green-600 text-[11px]">✓ match</span>
+                        ) : (
+                          <span className="text-red-600 text-[11px]">✗ beda</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* v7-only */}
+          {data.v7_only.length > 0 && (
+            <div className="mb-3 p-2 border border-amber-200 rounded bg-amber-50/30">
+              <div className="text-xs font-semibold text-amber-800 mb-1">
+                v7-only ({data.v7_only.length}) — kriteria v7 tanpa pasangan EWS
+              </div>
+              <ul className="text-[11px] text-gray-600 space-y-0.5">
+                {data.v7_only.map((v, i) => (
+                  <li key={i}>
+                    <span className="font-mono text-gray-500">{v.v7_kriteria_id}</span> · {v.satker_nama} ·{' '}
+                    <span className={`px-1 py-0.5 rounded border text-[10px] ${STATUS_BADGE[v.v7_status] || 'bg-gray-100'}`}>{v.v7_status}</span>{' '}
+                    <span className="text-gray-400">— {v.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* ews-only */}
+          {data.ews_only.length > 0 && (
+            <div className="mb-3 p-2 border border-orange-200 rounded bg-orange-50/30">
+              <div className="text-xs font-semibold text-orange-800 mb-1">
+                ews-only ({data.ews_only.length}) — EWS legacy tanpa pasangan v7
+              </div>
+              <ul className="text-[11px] text-gray-600 space-y-0.5">
+                {data.ews_only.map((v, i) => (
+                  <li key={i}>
+                    <span className="font-mono text-gray-500">{v.ews_kode}</span> · {v.satker_nama} ·{' '}
+                    <span className={`px-1 py-0.5 rounded border text-[10px] ${STATUS_BADGE[v.ews_status] || 'bg-gray-100'}`}>{v.ews_status}</span>{' '}
+                    <span className="text-gray-400">— {v.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
