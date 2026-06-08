@@ -720,6 +720,15 @@ function ChatTab({
         reload; saat kembali ke tab ini progres otomatis disambung. Tombol <em>Lepas</em> hanya
         menutup tampilan, tidak menghentikan agen. Hasil di-persist ke DB dan tampil di history.
       </p>
+
+      {/* Review Temuan inline di bawah hasil analisis chat (Prioritas 2). */}
+      {/* Key berbasis history.length + running supaya auto-refresh saat agen selesai run baru. */}
+      <div className="mt-5">
+        <TemuanReviewPanel
+          penugasanId={penugasanId}
+          key={`temuan-review-${history.length}-${running ? 'run' : 'idle'}`}
+        />
+      </div>
     </div>
   );
 }
@@ -1397,9 +1406,6 @@ function OutputTab({ penugasan }: { penugasan: Penugasan }) {
           {error}
         </div>
       )}
-
-      {/* Review Temuan (Prioritas 2 — HITL per-temuan) */}
-      <TemuanReviewPanel penugasanId={penugasan.id} />
 
       {loading && (
         <div className="bg-white border border-gray-200 rounded-lg p-5 text-sm text-gray-500">
