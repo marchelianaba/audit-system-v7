@@ -99,7 +99,11 @@ export default function DetailPenugasanPage() {
         <div className="text-sm text-gray-500 mb-2">INTEGRAL / Penugasan / Detail Pelaksanaan</div>
 
         {/* Hero: info penugasan + 7-tahapan grid (mirror SIMWAS v2 INTEGRAL) */}
-        <HeroPenugasan penugasan={penugasan} lhpReviewStatus={lhpStatus} />
+        <HeroPenugasan
+          penugasan={penugasan}
+          lhpReviewStatus={lhpStatus}
+          onStageSelect={(t) => setTab(t)}
+        />
       </div>
 
       {/* Tab bar — rename untuk match workflow workspace */}

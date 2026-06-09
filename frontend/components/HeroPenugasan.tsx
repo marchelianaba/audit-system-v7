@@ -121,12 +121,32 @@ function deriveStageStatus(
   return 'pending';
 }
 
+export type DetailTab = 'dokumen' | 'setup' | 'chat' | 'output';
+
+// Peta tahapan → tab workspace di detail page (klik kartu = buka tab terkait).
+//   0 Survey         → Dokumen & Survey
+//   1 KP / 2 PKP / 3 KKP → Setup (KP&PKP / Workspace AT)
+//   4 LRS KK / 5 Konsep / 6 LRS LHP / 7 Laporan → Output (Konsep Laporan / Approval)
+const STAGE_TAB: Record<number, DetailTab> = {
+  0: 'dokumen',
+  1: 'setup',
+  2: 'setup',
+  3: 'setup',
+  4: 'output',
+  5: 'output',
+  6: 'output',
+  7: 'output',
+};
+
 export function HeroPenugasan({
   penugasan,
   lhpReviewStatus,
+  onStageSelect,
 }: {
   penugasan: Penugasan;
   lhpReviewStatus?: 'APPROVED' | 'NEEDS_REVISION' | null;
+  /** Klik kartu tahapan → buka tab workspace yang relevan. */
+  onStageSelect?: (tab: DetailTab) => void;
 }) {
   const skillGroup = SKILL_GROUP[penugasan.skill];
   const showSurvey = skillGroup === 'audit';
@@ -201,7 +221,15 @@ export function HeroPenugasan({
             workflow {totalStages}-tahap
           </span>
         </div>
-        <StageGrid stages={stages} showSurvey={showSurvey} />
+        <StageGrid
+          stages={stages}
+          showSurvey={showSurvey}
+          onSelect={
+            onStageSelect
+              ? (s) => onStageSelect(STAGE_TAB[Number(s.num)] ?? 'dokumen')
+              : undefined
+          }
+        />
       </div>
     </div>
   );
