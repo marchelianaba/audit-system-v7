@@ -1051,4 +1051,34 @@ export const api = {
         penugasan_folder: string;
       }>;
     }>(`/feedback/list?days=${days}`),
+
+  // ===== Templates KP & PKP (INTEGRAL workflow tahapan 1+2) =====
+
+  /** List template KP/PKP dari wiki, filter by skill (optional).
+   * Mengembalikan template `default` sebagai fallback jika skill tidak match. */
+  listTemplates: (kind: 'kp' | 'pkp', skill?: string) => {
+    const qs = skill ? `?skill=${encodeURIComponent(skill)}` : '';
+    return request<{
+      count: number;
+      items: Array<{
+        slug: string;
+        judul: string;
+        skill: string;
+        jenis: string;
+        field_required: string[];
+        field_optional: string[];
+        versi?: string;
+      }>;
+    }>(`/knowledge/templates/${kind}${qs}`);
+  },
+
+  /** Ambil isi lengkap 1 template KP/PKP (frontmatter + body markdown). */
+  getTemplate: (kind: 'kp' | 'pkp', slug: string) =>
+    request<{
+      slug: string;
+      kind: string;
+      meta: Record<string, any>;
+      body: string;
+      raw: string;
+    }>(`/knowledge/templates/${kind}/${encodeURIComponent(slug)}`),
 };

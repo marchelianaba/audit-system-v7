@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, clearToken, getSession, Session, SkillInfo } from '@/lib/api';
+import { AppShell } from '@/components/AppShell';
 
 type SearchResult = {
   name: string;
@@ -103,25 +104,7 @@ export default function KnowledgePage() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen">
-      <header className="bg-primary text-white px-6 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <Link href="/penugasan" className="text-white/80 hover:text-white text-sm">
-            ← Penugasan
-          </Link>
-          <span className="text-white/40">|</span>
-          <span className="font-semibold text-sm">Knowledge — Wiki &amp; Pattern Temuan</span>
-        </div>
-        <div className="text-right text-xs">
-          <div>{session.user.nama_lengkap}</div>
-          <div className="opacity-80">
-            <span className="px-2 py-0.5 rounded bg-white/15 ml-2">{session.role_aktif}</span>
-            <button onClick={handleLogout} className="ml-3 underline">
-              Keluar
-            </button>
-          </div>
-        </div>
-      </header>
+    <AppShell>
 
       <div className="max-w-6xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-primary-dark mb-1">Knowledge / Wiki</h1>
@@ -231,7 +214,7 @@ export default function KnowledgePage() {
         {/* ===== W3: Tulis-balik Vault (semua role bisa lihat; aksi tergantung role) ===== */}
         <WritebackPanel role={session.role_aktif} />
       </div>
-    </main>
+    </AppShell>
   );
 }
 

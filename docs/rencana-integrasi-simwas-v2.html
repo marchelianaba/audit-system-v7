@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<title>Rencana Integrasi Audit v7 → SIMWAS v2 INTEGRAL (Revisi 8 Juni 2026)</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 32px; color: #1a1a2e; line-height: 1.6; }
+  h1 { color: #5C4FE7; border-bottom: 3px solid #5C4FE7; padding-bottom: 8px; }
+  h2 { color: #2d2d6b; margin-top: 32px; padding: 8px 14px; background: linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%); border-left: 5px solid #5C4FE7; }
+  h3 { color: #5C4FE7; margin-top: 24px; }
+  code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f9fafb; font-weight: 600; }
+  .box { padding: 16px; border-radius: 8px; margin: 16px 0; }
+  .box-blue { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  .box-green { background: #ecfdf5; border-left: 4px solid #10b981; }
+  .box-amber { background: #fffbeb; border-left: 4px solid #f59e0b; }
+  .box-red { background: #fef2f2; border-left: 4px solid #ef4444; }
+  .box-violet { background: #f5f3ff; border-left: 4px solid #5C4FE7; }
+  .stage { display: inline-block; background: #5C4FE7; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; margin-right: 4px; }
+  .agen { background: #10b981; }
+  .ai { background: #f59e0b; }
+  .manual { background: #6b7280; }
+  .deleted { background: #ef4444; text-decoration: line-through; }
+  ul li { margin: 4px 0; }
+  .meta { color: #6b7280; font-size: 0.9em; }
+  .diff-old { color: #991b1b; text-decoration: line-through; opacity: 0.6; }
+  .diff-new { color: #047857; font-weight: 600; }
+  .role { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: 600; }
+  .role-at { background: #dbeafe; color: #1e40af; }
+  .role-kt { background: #fef3c7; color: #92400e; }
+  .role-pt { background: #fce7f3; color: #9d174d; }
+  .role-pm { background: #e0e7ff; color: #3730a3; }
+  .role-pj { background: #dcfce7; color: #166534; }
+  .role-admin { background: #f3f4f6; color: #374151; }
+</style>
+</head>
+<body>
+
+<h1>🔗 Rencana Integrasi Audit AI v7 → SIMWAS v2 (INTEGRAL)</h1>
+<p class="meta">Disusun: 8 Juni 2026 · <b>REVISI sesuai catatan user 8 Juni 2026 sore</b> · Berdasarkan eksplorasi langsung <code>simwasv2.komdigi.go.id</code></p>
+
+<div class="box box-green">
+<b>✅ KEPUTUSAN USER (tercatat)</b>
+<ul>
+<li><b>Skenario integrasi</b>: <b>A — v7 sebagai AI engine SIMWAS</b> (dipanggil via REST API)</li>
+<li><b>Tim SIMWAS</b>: contact teknis tersedia</li>
+<li><b>Branding</b>: rebrand jadi <b>"INTEGRAL AI Workspace"</b></li>
+</ul>
+</div>
+
+<div class="box box-violet">
+<b>📝 REVISI 8 CATATAN USER</b>
+<ol>
+<li>Survey Pendahuluan <b>hanya untuk skill audit-*</b> (audit-pengadaan, audit-kinerja, audit-umum) — bukan semua</li>
+<li><b>Tahapan "Bukti Cek AI" DIHAPUS</b> — KKP & LHP sudah AI + ada HITL approval auditor (audit trail terjamin via HITL log)</li>
+<li><b>ST dibuat manual admin SIMWAS</b> → ditarik via API ke v7 (v7 hanya konsumsi, tidak generate)</li>
+<li><b>KP diisi PT</b> dengan <b>template wiki</b> (PT pilih template + isi field)</li>
+<li><b>PKP diisi KT</b> dengan mendetailkan KP — <b>template wiki</b></li>
+<li><b>Tab KKP = workspace AT all-in-one</b>: generate konteks + upload dokumen + analisis AI + HITL + approval AT</li>
+<li><b>Tab Konsep Laporan = workspace KT all-in-one</b>: generate draft LHP + HITL approval temuan AT + approval draft LHP</li>
+<li><b>Template + Kriteria SIMWAS</b> di v7 menu = <b>CACM + Knowledge Management</b></li>
+</ol>
+</div>
+
+<h2>1. Workflow Final (Revisi)</h2>
+
+<h3>1.1 Tahapan Penugasan — turun jadi 7 (dari 9)</h3>
+<table>
+<tr><th>#</th><th>Tahapan</th><th>Aktor</th><th>Sumber/Tool</th><th>Status v7</th></tr>
+<tr><td>—</td><td><b>ST</b> (Surat Tugas)</td><td><span class="role role-admin">Admin SIMWAS</span></td><td>Manual upload → API push ke v7</td><td>⚙️ Endpoint terima API</td></tr>
+<tr><td>0</td><td><b>Survey Pendahuluan</b> ⚠️</td><td><span class="role role-at">AT</span></td><td><b>Hanya skill <code>audit-*</code></b> — upload dokumen survey</td><td>📋 Conditional logic baru</td></tr>
+<tr><td>1</td><td><b>KP</b> Kartu Penugasan</td><td><span class="role role-pt">PT</span></td><td><b>Template di wiki</b> → PT isi field via form</td><td>📋 Template baru + form</td></tr>
+<tr><td>2</td><td><b>PKP</b></td><td><span class="role role-kt">KT</span></td><td><b>Template di wiki</b> + detail dari KP</td><td>📋 Template baru + form (auto-prefill dari KP)</td></tr>
+<tr><td>3</td><td><b>KKP</b> (Workspace AT all-in-one)</td><td><span class="role role-at">AT</span></td><td>Generate konteks → Upload dok → Agen AI → HITL → Approval AT</td><td>✅ Sudah ada, perlu konsolidasi UI</td></tr>
+<tr><td>4</td><td><b>LRS KK</b></td><td><span class="role role-kt">KT</span> + <span class="role role-pt">PT</span></td><td>Auto-derived dari HITL approval AT (sudah ada)</td><td>✅ Ada (PR #2/#6)</td></tr>
+<tr><td>5</td><td><b>Konsep Laporan</b> (Workspace KT all-in-one)</td><td><span class="role role-kt">KT</span></td><td>Generate draft LHP → HITL temuan (yg sudah disetujui AT) → Approval draft LHP</td><td>✅ Sudah ada, perlu konsolidasi UI</td></tr>
+<tr><td>6</td><td><b>LRS LHP</b></td><td><span class="role role-pt">PT</span> + <span class="role role-pm">PM</span></td><td>Review konsep LHP dari KT → approve/minta revisi</td><td>📋 Workflow + DB model baru</td></tr>
+<tr><td>7</td><td><b>Laporan Hasil</b></td><td><span class="role role-pj">PJ</span> / Inspektur</td><td>Watermark FINAL + tanggal + nama Inspektur + (opsional e-sign)</td><td>📋 Finalisasi flow baru</td></tr>
+<tr><td colspan="5" style="background: #fef2f2; color: #991b1b;"><span class="stage deleted">DIHAPUS</span> <b>Bukti Cek AI</b> — alasan: KKP & LHP sudah AI + ada HITL log otomatis = audit trail terjamin tanpa dokumen terpisah</td></tr>
+</table>
+
+<h3>1.2 Roles & Tanggung Jawab Final</h3>
+<table>
+<tr><th>Role</th><th>Singkatan</th><th>Tanggung Jawab Utama</th><th>Status v7</th></tr>
+<tr><td>Penanggung Jawab</td><td>PJ</td><td>Tanda tangan Laporan Hasil (Inspektur)</td><td>⚠️ Perlu tambah role di DB</td></tr>
+<tr><td>Pengendali Mutu</td><td>PM</td><td>LRS LHP — review akhir mutu</td><td>✅ Ada</td></tr>
+<tr><td>Pengendali Teknis</td><td>PT</td><td>Isi KP, LRS LHP, eskalasi temuan</td><td>✅ Ada</td></tr>
+<tr><td>Ketua Tim</td><td>KT</td><td>Isi PKP, workspace Konsep Laporan, approve temuan AT, draft LHP</td><td>✅ Ada</td></tr>
+<tr><td>Anggota Tim</td><td>AT</td><td>Workspace KKP — semua proses AI + HITL + approval AT</td><td>✅ Ada (bisa multi)</td></tr>
+</table>
+
+<h2>2. Konsolidasi UI: 2 Workspace Tab Utama</h2>
+
+<div class="box box-blue">
+<b>Konsep baru per catatan #6 & #7</b>: alih-alih tab Setup / Output / Chat terpisah, v7 punya <b>2 workspace mega-tab</b> yang masing-masing menyatukan semua aksi role tersebut.
+</div>
+
+<h3>2.1 Tab KKP — Workspace AT all-in-one</h3>
+<p>Layout single-page (scroll vertikal) dengan sections berurutan:</p>
+<table>
+<tr><th>Section</th><th>Aksi AT</th><th>Tool/Agen v7</th></tr>
+<tr><td>① Konteks Penugasan</td><td>Lihat ST + KP (read-only) + Generate context.md via AI</td><td>`build_context_md_template` + agen AT [MODE:CONTEXT]</td></tr>
+<tr><td>② Upload Dokumen</td><td>Drag-drop dokumen objek → otomatis trigger digest pipeline</td><td>`digest_generic` / `run_batch_*` per skill</td></tr>
+<tr><td>③ Analisis AI</td><td>Klik "Jalankan Analisis Agen AI" → progress stream</td><td>Agen AT full run dgn skill-aware logic</td></tr>
+<tr><td>④ Review Temuan (HITL)</td><td>Lihat draft temuan → Approve/Edit/Reject per temuan</td><td>`TemuanReview` model + UI panel</td></tr>
+<tr><td>⑤ Approval AT</td><td>Tombol "Setujui Final KKP" — render KKP.docx + lock</td><td>`render_kkp_docx` (filter APPROVED) → status KKP_APPROVED</td></tr>
+</table>
+
+<h3>2.2 Tab Konsep Laporan — Workspace KT all-in-one</h3>
+<table>
+<tr><th>Section</th><th>Aksi KT</th><th>Tool/Agen v7</th></tr>
+<tr><td>① Lihat KKP per Anggota</td><td>Read-only list semua KKP yg sudah AT-approve</td><td>`read_temuan_json` filter status APPROVED</td></tr>
+<tr><td>② Generate Draft LHP</td><td>Klik "Generate Draft LHP via AI" → agen KT compile temuan jadi LHP</td><td>Agen KT + `render_report` profil per skill</td></tr>
+<tr><td>③ HITL Approval Temuan</td><td>KT konfirmasi temuan yg sudah AT-approve (super-approval)</td><td>`TemuanReview` extend dgn `kt_approved_at`</td></tr>
+<tr><td>④ Edit Draft LHP</td><td>Editor inline atau download → edit → upload ulang</td><td>`write_rekomendasi_json` + re-render</td></tr>
+<tr><td>⑤ Submit untuk LRS LHP</td><td>Tombol "Kirim ke PT untuk LRS" — pindah tahapan 6</td><td>Status transition + notifikasi PT</td></tr>
+</table>
+
+<h3>2.3 Tab CACM (replace "Template Kriteria" SIMWAS)</h3>
+<p>v7 sudah punya CACM Fase 1 (kriteria YAML + evaluator + diff UI). Tinggal expose ke menu sebagai sub-tab Knowledge:</p>
+<ul>
+<li>Pattern Library</li>
+<li>Promosi Pattern</li>
+<li>Graduasi Skill</li>
+<li>Tulis-balik Vault (W3)</li>
+<li><b>Kriteria CACM</b> (9 YAML + diff EWS vs v7 + Re-evaluate)</li>
+</ul>
+
+<h3>2.4 Tab Knowledge Management (replace "Template Dokumen" SIMWAS)</h3>
+<ul>
+<li>Template KP (frontmatter `jenis: kp_template`)</li>
+<li>Template PKP (frontmatter `jenis: pkp_template`)</li>
+<li>Template Laporan / Nota Dinas / Pedoman (existing wiki structure)</li>
+<li>Pattern Temuan (already ada)</li>
+</ul>
+
+<h2>3. Wiki Sebagai Template Source (catatan #4 & #5)</h2>
+
+<div class="box box-violet">
+<b>Konsep</b>: Wiki v7 jadi <b>sumber kebenaran template KP + PKP</b>. PT/KT pilih template → form pre-fill → edit → save.
+</div>
+
+<h3>3.1 Struktur Folder Wiki Baru</h3>
+<pre><code>knowledge/wiki/templates/
+├── kp/                            # Template Kartu Penugasan
+│   ├── kp-audit-pengadaan.md      # Per skill — frontmatter + body
+│   ├── kp-audit-kinerja.md
+│   ├── kp-reviu-rka-kl.md
+│   ├── kp-reviu-pengadaan.md
+│   ├── kp-evaluasi-sakip.md
+│   ├── kp-konsultasi-pengadaan.md
+│   ├── kp-pemantauan-tlhp.md
+│   └── kp-default.md              # Fallback skill umum
+├── pkp/                           # Template Program Kerja Pengawasan
+│   ├── pkp-audit-pengadaan.md
+│   ├── pkp-reviu-rka-kl.md
+│   └── ... (mirror per skill)
+└── README.md
+</code></pre>
+
+<h3>3.2 Frontmatter Schema Template KP</h3>
+<pre><code>---
+jenis: kp_template
+skill: audit-pengadaan
+versi: 1.0
+field_required:
+  - judul_penugasan
+  - tujuan_pengawasan
+  - ruang_lingkup
+  - jadwal_mulai
+  - jadwal_selesai
+  - anggota_tim
+field_optional:
+  - referensi_regulasi
+  - dasar_penugasan_lain
+---
+
+# Kartu Penugasan — Audit Pengadaan
+
+## Tujuan Umum
+{{tujuan_pengawasan}}
+
+## Ruang Lingkup
+{{ruang_lingkup}}
+
+[... template body dgn placeholder ...]
+</code></pre>
+
+<h3>3.3 UI Form Pilih Template KP</h3>
+<ol>
+<li>PT buka penugasan baru → tab "Kartu Penugasan"</li>
+<li>Dropdown "Pilih Template" → otomatis filter berdasarkan skill penugasan</li>
+<li>Form muncul dengan field-field dari frontmatter (required ditandai)</li>
+<li>PT isi field → live preview di bawah</li>
+<li>Tombol "Simpan KP" → render DOCX + status tahapan 1 = SELESAI</li>
+</ol>
+
+<h2>4. Gap Analysis Revisi</h2>
+
+<h3>4.1 Yang Sudah Ada di v7 ✅</h3>
+<ul>
+<li>HITL Review Temuan (PR #2/#6)</li>
+<li>Agen AT + KT</li>
+<li>Pipeline V6 + digest generic</li>
+<li>Filter render_kkp APPROVED-only</li>
+<li>Edit temuan overlay</li>
+<li>CACM Fase 1 (diff + promote v7)</li>
+<li>Wiki + Pattern temuan</li>
+</ul>
+
+<h3>4.2 Yang Perlu Ditambah/Diubah 📋</h3>
+<table>
+<tr><th>Item</th><th>Effort</th><th>Catatan</th></tr>
+<tr><td>API endpoint terima ST dari SIMWAS</td><td>2 jam</td><td>Catatan #3</td></tr>
+<tr><td>Conditional Survey Pendahuluan untuk skill audit-*</td><td>3 jam</td><td>Catatan #1 — UI conditional + tool baru</td></tr>
+<tr><td>Template KP + PKP di wiki (7 skill × 2 = 14 file)</td><td>5 jam</td><td>Catatan #4 #5 — content generate</td></tr>
+<tr><td>UI form pilih template KP (PT)</td><td>4 jam</td><td>Catatan #4</td></tr>
+<tr><td>UI form pilih template PKP (KT)</td><td>3 jam</td><td>Catatan #5 — auto-prefill dari KP</td></tr>
+<tr><td>Konsolidasi Tab KKP all-in-one (AT workspace)</td><td>6 jam</td><td>Catatan #6 — gabung Setup+Output+Chat existing</td></tr>
+<tr><td>Konsolidasi Tab Konsep Laporan (KT workspace)</td><td>5 jam</td><td>Catatan #7 — super-approve temuan AT</td></tr>
+<tr><td>Tab CACM (sudah ada di /knowledge — pindah ke menu utama)</td><td>1 jam</td><td>Catatan #8</td></tr>
+<tr><td>Tab Knowledge Management (rename + restructure /knowledge)</td><td>2 jam</td><td>Catatan #8</td></tr>
+<tr><td>LRS LHP workflow (PT/PM review)</td><td>5 jam</td><td>Tahap 6</td></tr>
+<tr><td>Role PJ (Penanggung Jawab) di DB + role-gate</td><td>2 jam</td><td>Tahap 7 (Inspektur)</td></tr>
+<tr><td>Finalisasi LHP (watermark + e-sign opt)</td><td>3 jam</td><td>Tahap 7</td></tr>
+<tr><td><b>Frontend Visual</b></td><td colspan="2"></td></tr>
+<tr><td>Sidebar collapsible ungu + rebrand INTEGRAL AI Workspace</td><td>4 jam</td><td>Foundation</td></tr>
+<tr><td>Color palette + toast + empty state</td><td>3 jam</td><td>Foundation</td></tr>
+<tr><td>Detail Penugasan layout (7 tahapan + Participants + Discussion + Activity)</td><td>8 jam</td><td>Pengganti detail page existing</td></tr>
+<tr><td>Daftar Penugasan DataTable + filter</td><td>4 jam</td><td>Match SIMWAS look</td></tr>
+<tr><td><b>API Integration</b></td><td colspan="2"></td></tr>
+<tr><td>OpenAPI spec + API endpoint v7 untuk SIMWAS</td><td>6 jam</td><td>I1+I2</td></tr>
+<tr><td>Webhook bidirectional status sync</td><td>4 jam</td><td>I3</td></tr>
+<tr><td>UAT + dokumentasi handover</td><td>5 jam</td><td>Closing</td></tr>
+<tr><td><b>TOTAL</b></td><td><b>~75 jam</b></td><td>~2 minggu kerja full-time</td></tr>
+</table>
+
+<h2>5. Roadmap Eksekusi Final (4 Sprint Revisi)</h2>
+
+<h3>Sprint 1 — Visual Foundation + Workflow Restructure (week 1, ~18 jam)</h3>
+<ol>
+<li><b>Rebrand INTEGRAL AI Workspace</b> (2 jam): page titles, favicon, logo, footer</li>
+<li><b>Sidebar collapsible ungu + color palette</b> (4 jam): Tailwind config + Layout component</li>
+<li><b>Toast + empty state</b> (2 jam): sonner + ilustrasi roket</li>
+<li><b>Detail Penugasan layout</b> (8 jam): grid 7 tahapan + Participants sidebar + Discussion + Activity Timeline</li>
+<li><b>Restructure menu</b> (2 jam): rename Template Dokumen → Knowledge, Template Kriteria → CACM</li>
+</ol>
+
+<h3>Sprint 2 — Workspace AT + KT (week 2, ~20 jam)</h3>
+<ol>
+<li><b>Tab KKP all-in-one</b> (6 jam): konsolidasi tab Setup/Output/Chat existing → 5-section workspace AT</li>
+<li><b>Tab Konsep Laporan all-in-one</b> (5 jam): workspace KT 5-section</li>
+<li><b>Template KP wiki + UI form PT</b> (6 jam): 7 template + form picker + DOCX render</li>
+<li><b>Template PKP wiki + UI form KT</b> (3 jam): auto-prefill dari KP</li>
+</ol>
+
+<h3>Sprint 3 — Workflow LRS + Survey + API (week 3, ~22 jam)</h3>
+<ol>
+<li><b>Survey Pendahuluan conditional</b> (3 jam): UI hanya muncul utk skill audit-*, ingestion + agen extension</li>
+<li><b>LRS LHP workflow</b> (5 jam): DB model `LhpReview` + UI panel PT/PM</li>
+<li><b>Role PJ + finalisasi LHP</b> (5 jam): DB enum extend + tombol Inspektur</li>
+<li><b>Daftar Penugasan DataTable SIMWAS-like</b> (4 jam)</li>
+<li><b>API contract + endpoint v7 untuk SIMWAS</b> (5 jam): I1+I2</li>
+</ol>
+
+<h3>Sprint 4 — Integrasi Live + UAT (week 4, ~15 jam)</h3>
+<ol>
+<li><b>API endpoint terima ST dari SIMWAS</b> (2 jam)</li>
+<li><b>Webhook bidirectional status sync</b> (4 jam)</li>
+<li><b>UAT bersama tim SIMWAS</b> (6 jam): 1 penugasan E2E via SIMWAS UI + v7 backend</li>
+<li><b>Dokumentasi handover + runbook ops</b> (3 jam)</li>
+</ol>
+
+<h3>📊 Total: 4 sprint × ~18 jam/sprint ≈ 75 jam (~2 minggu kerja full-time)</h3>
+
+<h2>6. Persiapan Parallel (oleh user/tim, bukan saya)</h2>
+<ol>
+<li><b>Schedule meeting dengan contact teknis SIMWAS</b> (sebelum Sprint 3):
+  <ul>
+    <li>API key/OAuth + sandbox environment</li>
+    <li>Endpoint SIMWAS untuk push ST → v7</li>
+    <li>Format DOCX template (download dari Template Dokumen SIMWAS)</li>
+    <li>Webhook endpoint untuk status sync</li>
+  </ul>
+</li>
+<li><b>Diskusi SSO</b> (OIDC atau token sharing — supaya auditor tidak login 2x)</li>
+<li><b>Konfirmasi domain deployment</b>: subdomain SIMWAS (mis. <code>ai.simwasv2.komdigi.go.id</code>) atau separate?</li>
+<li><b>Material template KP + PKP</b>: kalau ada template internal Inspektorat II yg sudah dipakai, share supaya v7 wiki adaptasi (bukan mulai dari nol)</li>
+</ol>
+
+<h2>7. Risiko Revisi</h2>
+<table>
+<tr><th>Risiko</th><th>Mitigasi</th></tr>
+<tr><td>Tim SIMWAS belum siap API → v7 stuck di Sprint 4</td><td>Sprint 1-3 standalone dulu (UI + workspace + LRS) — bisa demo internal sebelum tunggu API</td></tr>
+<tr><td>Template KP/PKP butuh validasi auditor senior</td><td>Workshop 2 jam dgn 1-2 auditor senior di Sprint 2 — review draft template</td></tr>
+<tr><td>Workspace AT all-in-one kepanjangan scroll</td><td>Section collapsible default-collapsed untuk yg sudah selesai</td></tr>
+<tr><td>Survey Pendahuluan conditional logic bug</td><td>Unit test skill detection + UI snapshot test</td></tr>
+</table>
+
+<h2>8. Next Steps (siap eksekusi)</h2>
+<div class="box box-green">
+<ol>
+<li><b>Konfirmasi user</b>: revisi plan ini sudah cukup? Atau ada catatan #11+ yg perlu diakomodasi?</li>
+<li><b>Mulai Sprint 1</b>: rebrand + sidebar + color palette + detail page layout</li>
+<li><b>Parallel</b>: user siapkan meeting tim SIMWAS + material template KP/PKP internal</li>
+</ol>
+</div>
+
+<div class="box box-blue meta">
+<b>Catatan</b>: dokumen ini hidup. Update setiap akhir sprint atau ada decision baru.
+</div>
+
+</body>
+</html>

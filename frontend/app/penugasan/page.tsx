@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, getSession, clearToken, Penugasan, Session, Skill, SkillInfo } from '@/lib/api';
+import { AppShell } from '@/components/AppShell';
 
 // Status penugasan (di-derive backend dari artefak) → label + warna yang ramah.
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -125,31 +126,11 @@ export default function DashboardPage() {
   if (!session) return null;
 
   return (
-    <main className="min-h-screen">
-      <header className="bg-primary text-white px-6 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-white text-primary font-bold flex items-center justify-center text-sm">
-            v7
-          </div>
-          <div>
-            <div className="font-semibold text-sm">Audit AI v7</div>
-            <div className="text-xs opacity-80">Inspektorat II Komdigi</div>
-          </div>
-        </div>
-        <div className="text-right text-xs">
-          <div>{session.user.nama_lengkap}</div>
-          <div className="opacity-80">
-            <span className="px-2 py-0.5 rounded bg-white/15 ml-2">{session.role_aktif}</span>
-            <button onClick={handleLogout} className="ml-3 underline">
-              Keluar
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-6xl mx-auto p-6">
+    <AppShell>
+      <div className="max-w-6xl mx-auto">
+        <div className="text-sm text-gray-500 mb-1">INTEGRAL / Penugasan</div>
         <div className="flex justify-between items-center mb-5">
-          <h1 className="text-2xl font-bold text-primary-dark">Penugasan Saya</h1>
+          <h1 className="text-2xl font-bold text-primary-dark">Daftar Penugasan</h1>
           <div className="flex items-center gap-3">
             <Link
               href="/cacm"
@@ -319,6 +300,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }

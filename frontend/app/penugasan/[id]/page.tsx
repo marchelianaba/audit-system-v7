@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, getSession, Dokumen, Penugasan, Role, Session, GateStatus } from '@/lib/api';
+import { AppShell } from '@/components/AppShell';
+import { HeroPenugasan } from '@/components/HeroPenugasan';
 
 type Tab = 'dokumen' | 'setup' | 'chat' | 'output';
 
@@ -87,22 +89,16 @@ export default function DetailPenugasanPage() {
   const allReady = dokumen.length > 0 && dokumen.every((d) => d.status === 'READY');
 
   return (
-    <main className="min-h-screen">
-      <header className="bg-primary text-white px-6 py-3 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <Link href="/penugasan" className="text-white/80 hover:text-white text-sm">
-            ← Penugasan
-          </Link>
-          <span className="text-white/40">|</span>
-          <span className="font-semibold text-sm">{penugasan.obyek}</span>
-        </div>
-        <div className="text-xs">
-          {session.user.nama_lengkap}{' '}
-          <span className="px-2 py-0.5 rounded bg-white/15 ml-2">{session.role_aktif}</span>
-        </div>
-      </header>
+    <AppShell>
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="text-sm text-gray-500 mb-2">INTEGRAL / Penugasan / Detail Pelaksanaan</div>
 
-      <div className="bg-white border-b border-gray-200">
+        {/* Hero: info penugasan + 7-tahapan grid (mirror SIMWAS v2 INTEGRAL) */}
+        <HeroPenugasan penugasan={penugasan} />
+      </div>
+
+      {/* Tab bar — rename untuk match workflow workspace */}
+      <div className="bg-white border-y border-gray-200 sticky top-16 z-10">
         <div className="max-w-6xl mx-auto px-6 flex gap-1">
           {(['dokumen', 'setup', 'chat', 'output'] as Tab[]).map((t) => (
               <button
@@ -114,10 +110,10 @@ export default function DetailPenugasanPage() {
                     : 'border-transparent text-gray-500 hover:text-primary-dark'
                 }`}
               >
-                {t === 'dokumen' && 'Dokumen'}
-                {t === 'setup' && (session.role_aktif === 'AT' ? 'Konteks' : 'Setup Penugasan')}
-                {t === 'chat' && (session.role_aktif === 'AT' ? 'Chat AT' : 'Chat KT')}
-                {t === 'output' && 'Output & QC'}
+                {t === 'dokumen' && '📁 Dokumen & Survey'}
+                {t === 'setup' && (session.role_aktif === 'AT' ? '🎯 KKP — Workspace AT' : '📋 KP & PKP — Setup')}
+                {t === 'chat' && (session.role_aktif === 'AT' ? '🤖 Agen AT' : '🤖 Agen KT')}
+                {t === 'output' && (session.role_aktif === 'AT' ? '✅ Approval AT & Output' : '📄 Konsep Laporan — Workspace KT')}
               </button>
             ))}
         </div>
@@ -170,7 +166,7 @@ export default function DetailPenugasanPage() {
           <OutputTab key={`output-${id}`} penugasan={penugasan} />
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }
 

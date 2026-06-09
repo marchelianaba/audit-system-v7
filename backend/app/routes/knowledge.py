@@ -450,3 +450,94 @@ async def patterns_library_get(
             f"Pattern '{pattern_id}' tidak ditemukan. Cek /knowledge/patterns/library untuk daftar valid.",
         )
     return res
+
+
+# ===========================================================================
+# Template KP & PKP (INTEGRAL workflow tahapan 1 + 2)
+# ===========================================================================
+
+def _parse_template_frontmatter(text: str) -> tuple[dict, str]:
+    """Parse YAML frontmatter dari template markdown. Return (meta, body)."""
+    import re
+    m = re.match(r"^---\n(.*?\n)---\n(.*)$", text, re.DOTALL)
+    if not m:
+        return {}, text
+    try:
+        import yaml
+        meta = yaml.safe_load(m.group(1)) or {}
+        return meta, m.group(2)
+    except Exception:  # noqa: BLE001
+        return {}, text
+
+
+@router.get("/templates/{kind}")
+async def list_templates(
+    kind: str,
+    skill: str = Query(default=""),
+    _current: tuple[User, Role] = Depends(get_current_user),
+) -> dict:
+    """List template KP atau PKP dari wiki.
+
+    Args:
+        kind: 'kp' atau 'pkp'
+        skill: filter skill (mis. 'audit-pengadaan'). Empty = semua.
+
+    Return: {items: [{slug, judul, skill, jenis, field_required, field_optional}, ...]}
+    """
+    if kind not in ("kp", "pkp"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "kind harus 'kp' atau 'pkp'")
+    s = get_settings()
+    root = s.wiki_path / "templates" / kind
+    if not root.is_dir():
+        return {"items": []}
+    items: list[dict] = []
+    for f in sorted(root.glob("*.md")):
+        try:
+            txt = f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        meta, _ = _parse_template_frontmatter(txt)
+        s_filter = (skill or "").strip().lower()
+        f_skill = str(meta.get("skill", "")).strip().lower()
+        if s_filter and f_skill != s_filter and f_skill != "default":
+            continue
+        # Extract title from first h1
+        body_lines = txt.split("\n")
+        title = next((l.replace("# ", "").strip() for l in body_lines if l.startswith("# ")), f.stem)
+        items.append({
+            "slug": f.stem,
+            "judul": title,
+            "skill": f_skill or "default",
+            "jenis": meta.get("jenis"),
+            "field_required": meta.get("field_required", []),
+            "field_optional": meta.get("field_optional", []),
+            "versi": meta.get("versi"),
+        })
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/templates/{kind}/{slug}")
+async def get_template(
+    kind: str,
+    slug: str,
+    _current: tuple[User, Role] = Depends(get_current_user),
+) -> dict:
+    """Ambil isi lengkap 1 template KP/PKP."""
+    if kind not in ("kp", "pkp"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "kind harus 'kp' atau 'pkp'")
+    s = get_settings()
+    f = s.wiki_path / "templates" / kind / f"{slug}.md"
+    if not f.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Template {kind}/{slug} tidak ditemukan")
+    try:
+        txt = f.read_text(encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Gagal baca: {e}")
+    meta, body = _parse_template_frontmatter(txt)
+    return {
+        "slug": slug,
+        "kind": kind,
+        "meta": meta,
+        "body": body,
+        "raw": txt,
+    }
