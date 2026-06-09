@@ -48,7 +48,8 @@ from app.tools.v6_bridge import qc_summary_counts, run_v6_script, safe_read_json
 
 @tool(
     "read_context",
-    "Baca context.md + sasaran-assignment.json + daftar file di subfolder input penugasan. "
+    "Baca context.md + Kartu Penugasan (_KP/kartu-penugasan.md, diisi PT) + "
+    "sasaran-assignment.json (PKP) + daftar file di subfolder input penugasan. "
     "Pakai ini PERTAMA sebelum apapun untuk dapat konteks.",
     {"penugasan_folder": str},
 )
@@ -60,6 +61,10 @@ async def read_context(args: dict) -> dict:
         else ""
     )
     assignment = safe_read_json(folder / "_PKP" / "sasaran-assignment.json")
+    # Kartu Penugasan (tahapan 1, diisi PT) — sumber identitas/tujuan/ruang
+    # lingkup resmi saat menyusun context.md. Kosong bila PT belum mengisi.
+    kp_path = folder / "_KP" / "kartu-penugasan.md"
+    kartu_penugasan = kp_path.read_text(encoding="utf-8") if kp_path.exists() else ""
 
     # Daftar file di subfolder input (00-input, 01-..., 02-..., dst)
     # supaya agen tahu file mana yang bisa direferensikan di dokumen_sumber.
@@ -77,6 +82,7 @@ async def read_context(args: dict) -> dict:
                 "text": json.dumps(
                     {
                         "context_md": context_md,
+                        "kartu_penugasan": kartu_penugasan,
                         "sasaran_assignment": assignment,
                         "input_files": sorted(input_files),
                     },

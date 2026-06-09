@@ -536,15 +536,32 @@ export const api = {
     ),
 
   // ===== Kartu Penugasan (KP) — diisi PT (Fase B) =====
-  /** Baca isi Kartu Penugasan (markdown). Semua role. */
+  /** Baca Kartu Penugasan: markdown + nilai field form INTEGRAL. Semua role. */
   getKpMd: (penugasanId: number) =>
-    request<{ content: string; exists: boolean }>(`/penugasan/${penugasanId}/kp-md`),
+    request<{
+      content: string;
+      exists: boolean;
+      fields: Record<string, string> | null;
+      template_slug: string | null;
+    }>(`/penugasan/${penugasanId}/kp-md`),
 
-  /** Simpan Kartu Penugasan (PT/KT only). */
-  saveKpMd: (penugasanId: number, content: string) =>
+  /** Simpan Kartu Penugasan (PT/KT only). fields = nilai form terstruktur. */
+  saveKpMd: (
+    penugasanId: number,
+    content: string,
+    fields?: Record<string, string>,
+    templateSlug?: string | null
+  ) =>
     request<{ ok: boolean; size_bytes: number; path: string }>(
       `/penugasan/${penugasanId}/kp-md`,
-      { method: 'PUT', body: JSON.stringify({ content }) }
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          content,
+          fields: fields ?? null,
+          template_slug: templateSlug ?? null,
+        }),
+      }
     ),
 
   /** Prasyarat Generate Context: sasaran (KT) + dokumen ter-digest (AT). */

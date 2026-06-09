@@ -291,6 +291,10 @@ class SasaranItem(BaseModel):
     assigned_to: list[str] = Field(default_factory=list, description="Nama anggota tim")
     langkah_kerja: list[str] = Field(default_factory=list)
     status: str = Field(default="AKTIF")
+    # Kolom PKP format INTEGRAL/SIMWAS: Sasaran | Langkah Kerja | Dilaksanakan
+    # Oleh | Waktu | No KKP. Dua kolom terakhir disimpan di sini.
+    waktu: str | None = Field(default=None, description="Periode pelaksanaan (kolom Waktu PKP SIMWAS)")
+    no_kkp: str | None = Field(default=None, description="Nomor KKP (kolom No KKP PKP SIMWAS)")
 
 
 class SasaranAssignmentPayload(BaseModel):
@@ -855,6 +859,17 @@ async def put_context_md(
 # ============================================================
 
 _KP_REL = "_KP/kartu-penugasan.md"
+_KP_FIELDS_REL = "_KP/kp-fields.json"
+
+
+class KpPayload(BaseModel):
+    content: str = Field(..., description="Isi Kartu Penugasan (markdown ter-render)")
+    # Nilai field form terstruktur (format INTEGRAL: judul_penugasan,
+    # tujuan_pengawasan, ruang_lingkup, jadwal_*, tim_pengawasan, dst).
+    # Disimpan terpisah supaya form bisa di-reedit tanpa parse markdown.
+    fields: dict[str, str] | None = None
+    # Slug template wiki yang dipakai (kosong = isi manual tanpa template).
+    template_slug: str | None = None
 
 
 @router.get("/{penugasan_id}/kp-md")
@@ -863,22 +878,38 @@ async def get_kp_md(
     _current: tuple[User, Role] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Read isi Kartu Penugasan (markdown) — semua role bisa baca."""
+    """Read Kartu Penugasan: markdown + nilai field form — semua role bisa baca."""
     p = await _get_penugasan_or_404(db, penugasan_id)
-    path = Path(p.folder_path) / _KP_REL
+    folder = Path(p.folder_path)
+    path = folder / _KP_REL
+    fields_path = folder / _KP_FIELDS_REL
+    fields: dict | None = None
+    template_slug: str | None = None
+    if fields_path.exists():
+        try:
+            raw = json.loads(fields_path.read_text(encoding="utf-8"))
+            fields = raw.get("fields") if isinstance(raw, dict) else None
+            template_slug = raw.get("template_slug") if isinstance(raw, dict) else None
+        except (json.JSONDecodeError, OSError):
+            fields = None
     if not path.exists():
-        return {"content": "", "exists": False}
-    return {"content": path.read_text(encoding="utf-8"), "exists": True}
+        return {"content": "", "exists": False, "fields": fields, "template_slug": template_slug}
+    return {
+        "content": path.read_text(encoding="utf-8"),
+        "exists": True,
+        "fields": fields,
+        "template_slug": template_slug,
+    }
 
 
 @router.put("/{penugasan_id}/kp-md")
 async def put_kp_md(
     penugasan_id: int,
-    payload: ContextMdPayload,
+    payload: KpPayload,
     current: tuple[User, Role] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Overwrite Kartu Penugasan. Hanya PT (pemilik tahapan 1) / KT."""
+    """Overwrite Kartu Penugasan (markdown + field form). Hanya PT/KT."""
     _user, role = current
     if role not in (Role.PT, Role.KT):
         raise HTTPException(
@@ -886,9 +917,19 @@ async def put_kp_md(
             f"Kartu Penugasan diisi oleh Pengendali Teknis (PT)/Ketua Tim (KT). Role Anda: {role.value}.",
         )
     p = await _get_penugasan_or_404(db, penugasan_id)
-    path = Path(p.folder_path) / _KP_REL
+    folder = Path(p.folder_path)
+    path = folder / _KP_REL
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(payload.content, encoding="utf-8")
+    if payload.fields is not None:
+        (folder / _KP_FIELDS_REL).write_text(
+            json.dumps(
+                {"fields": payload.fields, "template_slug": payload.template_slug},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     return {"ok": True, "size_bytes": len(payload.content.encode("utf-8")), "path": _KP_REL}
 
 
