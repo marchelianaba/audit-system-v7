@@ -1,13 +1,14 @@
 ---
 name: reviu-pengadaan
 format_laporan: kksa
-version: 1.3
+version: 1.4
 jenis: Reviu Perencanaan dan Pemilihan Pengadaan Barang/Jasa
 dasar-hukum: Perpres 16/2018 jo. Perpres 12/2021, Perlem LKPP 12/2021
 model: claude-sonnet-4-6
 auto_execute: true
-auto_execute_command: python3 audit-system-v4/scripts/reviu-pengadaan/run_batch.py --penugasan <PENUGASAN_DIR>
+auto_execute_command: "tool: run_batch_pbj(penugasan_folder, role=\"AT\")"
 changelog:
+  - v1.4 (2026-06-14): Refactor orkestrasi ke v7 — pisah substansi domain dari orkestrasi; struktur seragam Tahap R0–R4; hapus referensi bash/Task/_ROLE/AskUserQuestion (legacy audit-system-v4); pipeline via tool run_batch_pbj. Lengkapi Batasan yang terpotong.
   - v1.3 (2026-05-06): Tambah orchestrator run_batch.py (reuse digest_pengadaan dari audit-pengadaan + cross_check reviu-pengadaan); set auto_execute true.
   - v1.2 (2026-04-08): Hapus cek RUP/SiRUP dari scope perencanaan; hapus SPPBJ dari
       scope perencanaan; tambah SCOPE SWITCH; perbaiki panduan judul font/alignment.
@@ -17,92 +18,28 @@ changelog:
 
 > **Checklist gate-by-gate:** Lihat `audit-system-v4/checklists/reviu-pengadaan.md` untuk daftar pemeriksaan tahap demi tahap.
 
-## ⚡ AUTO-EXECUTE LANGKAH 0 — WAJIB SEBELUM ANALISIS APAPUN
+## Eksekusi di v7 (orkestrasi — seragam semua skill reviu)
 
-**SEGERA setelah skill ini dipanggil dan auditor menyebut folder penugasan, Claude HARUS mengikuti urutan 3 step di bawah BERURUTAN.** Tidak boleh skip, tidak boleh langsung ke pipeline tanpa cek role.
+> **Skill ini = substansi domain.** Cara menjalankan (role, pipeline, urutan tool, titik HITL) diatur seragam oleh agen Anggota Tim v7 di `backend/app/prompts/anggota_tim.md` — BUKAN oleh skill ini. Skill ini **TIDAK** memakai bash, `run_batch.py`, `Task 00/01/03/04`, `_ROLE.md`, atau `AskUserQuestion` (itu paradigma lama audit-system-v4).
 
----
+- **Pelaku:** Agen Anggota Tim (AT). Role & sasaran dibaca dari `_PKP/sasaran-assignment.json` (diisi Ketua Tim via UI Setup). AT hanya mengerjakan sasaran yang `assigned_to`-nya memuat namanya.
+- **Pipeline R3:** tool **`run_batch_pbj(penugasan_folder, role="AT")`** (7 rules, reuse digest pengadaan). KT/PT/PM tidak men-generate KKP — hanya approve & draft LHR.
+- **Mode:** AT **auto-execute** R0→R3 tanpa berhenti tiap tahap (jangan tanya "Mau saya lanjut?"). Titik HITL: **KT approve KKP**, lalu **KT draft LHR**.
+- **Tool inti:** `read_context` → `run_batch_pbj` → `read_anomalies` → analisis substantif → `append_temuan` → `record_pkp_assessment` → `render_kkp_docx` → `run_qc_kkp`.
 
-### STEP A — Identifikasi Role (Task 00)
+## Tahap Reviu (R0–R4)
 
-Cek apakah `<PENUGASAN>/_ROLE.md` sudah ada DAN sesuai user yang sedang sesi.
+| Tahap | Aktivitas | Pelaku |
+|---|---|---|
+| **R0 — Validasi & Konteks** | Tentukan scope (Perencanaan/Pemilihan/Penuh) dari KP; pastikan KAK/HPS/kontrak tersedia; susun `context.md` bila placeholder. | AT (auto) |
+| **R1 — Kerangka Reviu (KP-R)** | Tujuan, lingkup, metodologi — bersumber `sasaran-assignment.json`. | KT (UI Setup) |
+| **R2 — Program Kerja (PKP-R)** | Aspek reviu per sasaran (KAK, HPS, metode, kontrak). | KT (UI Setup) |
+| **R3 — Pelaksanaan** | `run_batch_pbj` (7 rules) → verifikasi false positive → **analisis substantif wajib** (tabel di bawah) → `append_temuan` (K/K/A/R, **tanpa Sebab**) + `record_pkp_assessment`. | AT (auto) |
+| **R4 — Laporan (LHR)** | Render LHR + Nota Dinas; polish narasi & simpulan keyakinan terbatas. | KT |
 
-- **Jika tidak ada / user beda:** jalankan **Task 00** dulu (lihat `audit-system-v4/tasks/00-identifikasi-role.md`). Tanya 2 hal via `AskUserQuestion`:
-  1. Nama lengkap user
-  2. Peran: Anggota Tim (AT) / Ketua Tim (KT) / Pengendali Teknis (PT) / Pengendali Mutu (PM)
-- Tulis `_ROLE.md` dengan frontmatter `nama_lengkap`, `role`, `role_kode`, `session_start`.
-- **JANGAN LANJUT ke Step B sampai `_ROLE.md` ada dan valid.**
+### Analisis Substantif Wajib (Tahap R3)
 
----
-
-### STEP B — Inisiasi Penugasan (Task 01) — Hanya kalau belum
-
-Cek apakah `<PENUGASAN>/_PKP/sasaran-assignment.json` sudah ada.
-
-- **Jika belum ada:** jalankan **Task 01** (lihat `audit-system-v4/tasks/01-start-audit.md`). Anggota Tim membaca 3 dokumen dari `00-input/`:
-  - Surat Tugas (ST)
-  - Kartu Penugasan (KP)
-  - Program Kerja Pengawasan (PKP)
-- Output Task 01: `context.md` + `_PKP/sasaran-assignment.json` (pembagian sasaran ke anggota tim).
-- **JANGAN LANJUT ke Step C sampai sasaran-assignment.json ada.**
-
----
-
-### STEP C — Jalankan Pipeline dengan Role Gating
-
-Baca `role_kode` dari `_ROLE.md`. Jalankan `run_batch.py` dengan flag `--role` yang sesuai:
-
-**Jika role = AT (Anggota Tim) — Pipeline KKP (Task 03):**
-
-```bash
-python3 audit-system-v4/scripts/reviu-pengadaan/run_batch.py \
-    --penugasan "<FOLDER_PENUGASAN>" \
-    --role AT \
-    --no-render
-```
-
-Output: `_KKP/anomalies.json`, `_KKP/temuan.json`, `_KKP/KKP-{nama-anggota}.docx`. **TIDAK render LHP** — itu pekerjaan Ketua Tim.
-
-**Jika role = KT/PT/PM (Ketua Tim/Pengendali) — Pipeline LHP (Task 04):**
-
-```bash
-python3 audit-system-v4/scripts/reviu-pengadaan/run_batch.py \
-    --penugasan "<FOLDER_PENUGASAN>" \
-    --role KT \
-    --context "<FOLDER_PENUGASAN>/context.md"
-```
-
-Pre-check: `temuan.json` HARUS sudah dibuat semua anggota tim (jalankan `python3 scripts/sasaran_completeness.py --penugasan <DIR>` untuk verify). Output: `_LHP/(via skill isi-laporan).docx` (Konsep Laporan).
-
----
-
-### Output Final (sama untuk semua role)
-
-Setelah pipeline selesai, terlepas dari role:
-- `_KKP/_pipeline_meta.json` — timing, status, jumlah anomali per severity
-- `_BUKTI-AI/Bukti-Cek-AI-*.docx` — dokumen bukti penggunaan AI (slot #6 Integral)
-- `_SUBMIT/submit-latest.json` — paket 8-tahapan untuk Integral SIMWAS
-
-**Setelah pipeline selesai, BARU Claude masuk ke peran review/judgment**: filter false positive, validasi temuan substantif, polish narasi KKP/LHP.
-
----
-
-### Troubleshooting
-
-- **`_ROLE.md` ada tapi user beda:** Run Task 00 ulang dengan user baru. Override `_ROLE.md`.
-- **`sasaran-assignment.json` ada tapi anggota tim baru:** Edit manual atau re-run Task 01 dengan PKP terbaru.
-- **Anggota Tim mau jalankan render LHP:** Tolak — minta Ketua Tim. `role_check.py` akan auto-block via Task 04.
-- **Ketua Tim mau jalankan KKP:** Tolak — minta Anggota Tim yang assigned. Ketua Tim hanya reviu KKP, bukan generate.
-- **Pipeline error:** Cek script integrity `python3 -c "import ast; ast.parse(open('audit-system-v4/scripts/reviu-pengadaan/run_batch.py').read())"`. Cek dependency: python3 ≥ 3.10, openpyxl, python-docx, pdfplumber.
-
----
-
-
-## ⚡ AUTO-EXECUTE LANGKAH 1 — ANALISIS SUBSTANTIF WAJIB POST-PIPELINE
-
-**Setelah LANGKAH 0 (pipeline rule-based) selesai, Claude WAJIB lanjut analisis substantif berikut SECARA OTOMATIS.** Tidak boleh menawarkan opsi ke auditor ("Mau saya bantu...?") — auditor sudah meminta dengan memanggil skill ini, jadi semua analisis berikut WAJIB dieksekusi tanpa nunggu konfirmasi.
-
-Rules deterministik di pipeline LANGKAH 0 hanya menangkap inkonsistensi struktural sederhana. Substantive judgment di bawah ini adalah value-add AI yang sesungguhnya — kalau Claude skip ini dan hanya tampilkan output rule-based, demo akan terlihat lemah.
+Rules deterministik (R3 pipeline) hanya menangkap inkonsistensi struktural sederhana. Analisis di bawah adalah value-add AI — **wajib** dieksekusi otomatis (jangan berhenti di output rule-based, jangan tanya "Mau saya lanjut?"):
 
 | # | Tugas Substantif | Detail |
 |---|------------------|--------|
@@ -111,9 +48,9 @@ Rules deterministik di pipeline LANGKAH 0 hanya menangkap inkonsistensi struktur
 | 3. | **Konsistensi dasar hukum HPS dengan Tahun Anggaran** | Baca header HPS bagian DASAR PERHITUNGAN. Cek apakah SBM dirujuk = SBM TA pelaksanaan? Cek Pedoman Pelaksanaan Anggaran = TA pelaksanaan? Bila SBM/Pedoman rujukan ≠ TA DIPA → temuan PERINGATAN. |
 | 4. | **Konsistensi spek KAK ↔ komponen HPS** | Setiap kebutuhan teknis di KAK harus traceable ke line item HPS detail. Setiap line item HPS harus traceable ke kebutuhan KAK. Bila ada komponen HPS tanpa pembentuk harga atau tanpa basis di KAK → temuan PERINGATAN. |
 | 5. | **Analisis kewajaran metode pemilihan** | Cek nilai HPS vs ambang batas metode pemilihan (Tender, Tender Cepat, Penunjukan Langsung, dst per Perpres 16/2018 Pasal 41). Bila metode tidak sesuai nilai → temuan PERINGATAN. |
-| 6. | **Tambahkan temuan substantif ke _KKP/temuan.json** | Setiap temuan baru di-append sebagai T-XXX dengan status "DRAFT", sasaran_id sesuai sasaran yang Anda tugaskan, anggota_tim sesuai _ROLE.md. |
+| 6. | **Tambahkan temuan substantif via `append_temuan`** | Setiap temuan baru di-append dengan status "DRAFT", `sasaran_id` sesuai sasaran yang ditugaskan, `assigned_to` = nama AT dari `sasaran-assignment.json`. Sertakan `langkah_kerja_terkait` + `pattern_id` (ketertelusuran). |
 
-**Setiap temuan substantif WAJIB di-append** ke `_KKP/temuan.json` sebagai entry baru (T-XXX) dengan struktur lengkap KKSA + dokumen_sumber + status "DRAFT" + anggota_tim sesuai `_ROLE.md`.
+**Setiap temuan substantif WAJIB di-append** via `append_temuan` dengan struktur lengkap K/K/A/R (tanpa Sebab) + `dokumen_sumber` + status "DRAFT". Setelah selesai, panggil **`record_pkp_assessment`** (kememadaian PKP per sasaran).
 
 **Setelah semua analisis substantif selesai, BARU lapor ke auditor** dengan ringkasan: total temuan rule-based + total temuan substantif + per-severity breakdown. Hindari kalimat "Mau saya lanjut ...?" — tampilkan langsung hasil.
 
@@ -122,7 +59,7 @@ Rules deterministik di pipeline LANGKAH 0 hanya menangkap inkonsistensi struktur
 
 ## Identitas
 - **Nama Skill:** reviu-pengadaan
-- **Versi:** 1.2
+- **Versi:** 1.4
 - **Jenis Pengawasan:** Reviu Perencanaan dan Pemilihan Pengadaan Barang/Jasa
 - **Dasar Hukum:** Perpres 16/2018 jo. Perpres 12/2021, Perlem LKPP 12/2021
 - **Tingkat Keyakinan:** Terbatas — hanya memastikan pemenuhan aspek administratif
@@ -136,32 +73,20 @@ Kamu adalah reviewer (bukan auditor penuh) yang memeriksa kelengkapan dan kesesu
 
 Paradigma reviu adalah **berbasis temuan dengan judul deskriptif** — setiap catatan reviu memiliki judul temuan berupa kalimat yang menggambarkan kondisi yang ditemukan (positif maupun negatif). Kamu menggunakan elemen Kondisi, Kriteria, Akibat, dan Rekomendasi. Berbeda dengan audit penuh, kamu tidak menganalisis Sebab dan tidak menghitung kerugian negara. Fokus pada: apakah dokumen lengkap, sesuai ketentuan, dan apa konsekuensi jika tidak sesuai?
 
-## Pipeline Pre-digest & Cross-check (WAJIB untuk Task 03, v0.1)
+## Pipeline & Cross-check (Tahap R3)
 
-Skill ini **reuse digest** dari `scripts/audit-pengadaan/digest_pengadaan.py` (dokumen sama — KAK/HPS/SPPBJ), dan punya cross-check rules sendiri di `scripts/reviu-pengadaan/cross_check.py`.
+Pipeline dipanggil agen via tool **`run_batch_pbj(penugasan_folder, role="AT")`** (di belakang layar: reuse digest pengadaan KAK/HPS/SPPBJ + 7 cross-check rules reviu). Hasil dibaca via **`read_anomalies`** / `read_ingested_digest`. Agen TIDAK menjalankan `digest_pengadaan.py`/`cross_check.py` lewat bash.
 
-### Cara Pakai
+### Hemat Token — Jangan Re-Read PDF Setelah Digest
 
-```bash
-# 1. Digest (pakai parser audit-pengadaan)
-python3 scripts/audit-pengadaan/digest_pengadaan.py "penugasan/[nama]" \
-  -o "penugasan/[nama]/_KKP/pengadaan-digest.json"
+**ATURAN PENTING**: setelah pipeline jalan dan menghasilkan digest + anomali, agen **TIDAK BOLEH** membuka ulang seluruh PDF KAK/HPS untuk fakta yang sudah di-parse otomatis (nomor dokumen, tanggal, nilai HPS, periode, nilai SLA, jumlah komponen, keyword migrasi/kapasitas, dst) — semua ada di field `parsed.*` digest.
 
-# 2. Cross-check reviu-pengadaan (7 rules, limited assurance)
-python3 scripts/reviu-pengadaan/cross_check.py "penugasan/[nama]/_KKP/pengadaan-digest.json" \
-  -o "penugasan/[nama]/_KKP/anomalies.json"
-```
-
-### Hemat Token — Jangan Re-Read PDF Setelah Digest (v4.0.4)
-
-**ATURAN PENTING**: setelah `digest_pengadaan.py` dan `reviu-pengadaan/cross_check.py` jalan dan menghasilkan `pengadaan-digest.json` + `anomalies.json`, Claude **TIDAK BOLEH** membuka ulang seluruh PDF KAK/HPS untuk dapat fakta yang sudah di-parse otomatis (nomor dokumen, tanggal, nilai HPS, periode, nilai SLA, jumlah komponen, keyword migrasi/kapasitas, dst). Fakta-fakta itu sudah ada di field `dokumen.kak[*].parsed.*` dan `dokumen.hps[*].parsed.*` digest.
-
-**Boleh re-read** PDF hanya untuk:
-- Verifikasi halaman spesifik yang akan dikutip ke `dokumen_sumber[*].kutipan` di temuan.json (cantumkan halaman tepat)
+**Boleh `read_pdf_page`** hanya untuk:
+- Verifikasi halaman spesifik yang akan dikutip ke `dokumen_sumber[*].kutipan` di temuan (cantumkan halaman tepat)
 - Cross-validasi suspected false positive dari rules (mis. RP.2 "periode KAK = 45 Tahun" mungkin parser glitch — cek halaman 1 KAK saja)
 - Mendapatkan kalimat tepat untuk Pasal/butir yang menjadi sumber temuan
 
-**Tidak boleh** re-read full PDF "untuk memahami konteks". Pre-digest sudah memberi konteks via `_raw_first_chars` dan `parsed.*`. Setiap re-read full PDF menambah ~3-8k token tanpa nilai tambah substansi.
+**Tidak boleh** re-read full PDF "untuk memahami konteks". Setiap re-read full PDF menambah ~3-8k token tanpa nilai tambah substansi.
 
 ### 7 Rules v0.1
 
@@ -432,4 +357,5 @@ Untuk teks lengkap peraturan, gunakan referensi bersama di `../audit-pengadaan/r
 ## Batasan
 - JANGAN menganalisis Sebab — reviu tidak menginvestigasi mengapa ketidaksesuaian terjadi
 - JANGAN menghitung kerugian negara — itu domain audit penuh
-- JANGAN menganalisis kualita
+- JANGAN menganalisis kualitas/hasil pelaksanaan fisik pekerjaan — itu domain audit-pengadaan (verifikasi output vs kontrak)
+- JANGAN memperluas lingkup di luar yang ditetapkan ST; bila ada indikasi penyimpangan/kerugian → eskalasi ke KT untuk pertimbangan audit-pengadaan

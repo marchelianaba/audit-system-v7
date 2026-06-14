@@ -241,6 +241,12 @@ def _normalize_temuan_input(raw: dict) -> dict:
     out.setdefault("sebab", None)  # reviu tidak punya sebab; bisa null
     out.setdefault("dokumen_sumber", [])
 
+    # Ketertelusuran (WAJIB diisi agen — lihat anggota_tim.md): langkah kerja PKP
+    # yang memunculkan temuan + pattern wiki (bila ada). Default kosong agar tidak
+    # memblok schema lama, tapi prompt mewajibkan agen mengisinya.
+    out.setdefault("langkah_kerja_terkait", "")
+    out.setdefault("pattern_id", "")
+
     # Metadata
     out.setdefault("tanggal_input", datetime.utcnow().isoformat() + "Z")
     out.setdefault("status", "DRAFT")
@@ -255,7 +261,8 @@ def _normalize_temuan_input(raw: dict) -> dict:
     "Append 1 temuan ke _KKP/temuan.json. Bridge otomatis transform key sederhana "
     "(judul, assigned_to) ke schema V6 (judul_temuan, anggota_tim.nama_lengkap). "
     "Field wajib di input: sasaran_id, anggota_tim/assigned_to, judul, kondisi, kriteria, "
-    "akibat, dokumen_sumber[{file, halaman, kutipan}].",
+    "akibat, dokumen_sumber[{file, halaman, kutipan}]. Ketertelusuran (isi bila ada): "
+    "langkah_kerja_terkait (langkah PKP yang memunculkan temuan), pattern_id (id pattern wiki).",
     {
         "penugasan_folder": str,
         "temuan": dict,

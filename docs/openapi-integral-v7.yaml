@@ -1,0 +1,782 @@
+openapi: 3.1.0
+
+# =============================================================================
+# KONTRAK API — INTEGRAL AI Workspace (Audit AI v7) sebagai AI engine SIMWAS v2
+# -----------------------------------------------------------------------------
+# Disusun: 2026-06-11 · Inspektorat II, Kementerian Komunikasi dan Digital RI
+#
+# Peran v7  : HEADLESS JSON API. Tidak punya UI produksi. SIMWAS membangun UI
+#             (Blade) dan memanggil endpoint ini per-tahap pengawasan.
+# Peran SIMWAS: system of record + orkestrator + UI + SSO.
+#
+# Status tiap endpoint ditandai lewat extension `x-status`:
+#   live      = sudah jalan & terverifikasi E2E (penugasan 51)
+#   manual    = jalan, tapi input via paste JSON (belum tarik API SIMWAS)
+#   proposed  = BELUM dibangun; spesifikasi yang v7 ajukan untuk disepakati
+#
+# Catatan auth: saat ini login prototype (role-only, JWT HS256 internal).
+# Target produksi = SSO SIMWAS (lihat securitySchemes: SimwasSSO & SimwasApiKey).
+# =============================================================================
+
+info:
+  title: INTEGRAL AI Workspace — API Engine (Audit AI v7)
+  version: 0.1.0
+  description: >-
+    Kontrak REST yang v7 ajukan untuk integrasi dengan SIMWAS v2 (INTEGRAL).
+    SIMWAS memanggil v7 per-tahap; v7 mengembalikan data terstruktur (JSON) dan
+    artefak dokumen (.docx). Dokumen ini mencerminkan endpoint nyata di backend
+    FastAPI v7 plus beberapa endpoint `proposed` yang masih perlu dibangun.
+
+servers:
+  - url: http://localhost:8000
+    description: Dev lokal (Docker)
+  - url: http://127.0.0.1:8000
+    description: >-
+      Produksi yang direkomendasikan — v7 dengar di loopback / jaringan privat
+      pada server yang sama dengan SIMWAS; TIDAK diekspos ke publik.
+
+tags:
+  - name: auth
+    description: Autentikasi & identitas (prototype → SSO SIMWAS)
+  - name: penugasan
+    description: Siklus penugasan (mirror dari ST SIMWAS)
+  - name: kp-pkp
+    description: Kartu Penugasan (PT) & Program Kerja Pengawasan (KT)
+  - name: dokumen
+    description: Upload & digest dokumen bukti
+  - name: analisis
+    description: Konteks + agen AI (SSE) untuk produksi temuan
+  - name: hitl
+    description: Review temuan (HITL) & reviu konsep LHP
+  - name: output
+    description: Artefak hasil (KKP JSON, LHP .docx, QC)
+  - name: simwas-sync
+    description: Tarik data dari SIMWAS (ST / PKP)
+  - name: meta
+    description: Health & registry skill
+
+# -----------------------------------------------------------------------------
+# Keamanan
+# -----------------------------------------------------------------------------
+security:
+  - SimwasSSO: []
+
+components:
+  securitySchemes:
+    SimwasSSO:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        [proposed] Identitas user. Produksi: JWT bertanda-tangan SIMWAS,
+        diverifikasi v7 lewat JWKS publik SIMWAS (klaim: sub, role AT|KT|PT|PM,
+        nama, exp). Saat ini: JWT internal v7 (HS256) dari POST /auth/login,
+        dikirim sebagai `Authorization: Bearer <token>` atau query `?_token=`
+        (fallback khusus EventSource/SSE).
+    SimwasApiKey:
+      type: apiKey
+      in: header
+      name: X-SIMWAS-API-KEY
+      description: >-
+        [proposed] Auth server-to-server untuk panggilan SIMWAS → v7 yang tidak
+        membawa konteks user (mis. sync ST). Mengikuti pola yang sudah ada di
+        v7 (cacm_agent_api_key / X-API-Key).
+
+  parameters:
+    PenugasanId:
+      name: penugasan_id
+      in: path
+      required: true
+      schema: { type: integer }
+    FilePath:
+      name: path
+      in: query
+      required: true
+      description: Path relatif terhadap folder penugasan (validasi anti-traversal).
+      schema: { type: string, example: "_KKP/temuan.json" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        detail: { type: string }
+
+    Role:
+      type: string
+      enum: [AT, KT, PT, PM]
+      description: AT=Anggota Tim, KT=Ketua Tim, PT=Pengendali Teknis, PM=Pengendali Mutu
+
+    PenugasanStatus:
+      type: string
+      enum: [USULAN_CACM, DRAFT, INGESTING, KKP_IN_PROGRESS, KKP_QC, KKP_DONE, LHP_IN_PROGRESS, LHP_QC, LHP_DONE]
+      description: Diturunkan backend dari artefak di disk — bukan kolom yang ditulis langsung.
+
+    LoginRequest:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        email: { type: string, nullable: true }
+        nip: { type: string, nullable: true, description: Diabaikan di prototype }
+
+    SessionOut:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/UserOut' }
+        role_aktif: { $ref: '#/components/schemas/Role' }
+        token: { type: string }
+
+    UserOut:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        nama_lengkap: { type: string }
+        nip: { type: string }
+        role_default: { $ref: '#/components/schemas/Role' }
+
+    PenugasanCreate:
+      type: object
+      required: [obyek, skill]
+      properties:
+        obyek: { type: string, example: "Reviu RKA App PDP 2026" }
+        skill: { type: string, example: "reviu-rka-kl", description: "Slug skill (lihat GET /skills)" }
+        nomor_st: { type: string, nullable: true }
+        tanggal_st: { type: string, format: date, nullable: true }
+
+    PenugasanOut:
+      type: object
+      properties:
+        id: { type: integer }
+        kode: { type: string, example: "WF/01/IJ.3/06/2026" }
+        obyek: { type: string }
+        skill: { type: string }
+        nomor_st: { type: string, nullable: true }
+        tanggal_st: { type: string, format: date, nullable: true }
+        status: { $ref: '#/components/schemas/PenugasanStatus' }
+        folder_path: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    KpPayload:
+      type: object
+      properties:
+        content: { type: string, description: Markdown Kartu Penugasan }
+        fields:
+          type: object
+          description: Field form INTEGRAL terstruktur (nomor, judul, dasar, aktivitas_tingkat_risiko, tujuan, ruang_lingkup, dll)
+          additionalProperties: true
+        sasaran:
+          type: array
+          items: { type: object, additionalProperties: true }
+          description: Daftar sasaran pengawasan (auto-sync ke PKP, append-only)
+        template_slug: { type: string, nullable: true }
+
+    SasaranItem:
+      type: object
+      properties:
+        sasaran_id: { type: string, example: "S-RKA-01" }
+        deskripsi: { type: string }
+        langkah_kerja: { type: array, items: { type: string } }
+        dilaksanakan_oleh: { type: string, nullable: true }
+        waktu: { type: string, nullable: true }
+        no_kkp: { type: string, nullable: true }
+        status: { type: string, enum: [AKTIF, SELESAI_KKP], default: AKTIF }
+
+    SasaranAssignmentPayload:
+      type: object
+      properties:
+        sasaran:
+          type: array
+          items: { $ref: '#/components/schemas/SasaranItem' }
+        nomor_pkp: { type: string, nullable: true }
+        langkah_perencanaan: { type: array, items: { type: object, additionalProperties: true } }
+        langkah_pelaporan: { type: array, items: { type: object, additionalProperties: true } }
+
+    SimwasPkpRow:
+      type: object
+      description: Satu baris PKP dari SIMWAS (sebelum di-group per sasaran)
+      required: [sasaran]
+      properties:
+        sasaran: { type: string }
+        langkah_kerja: { type: string, description: Satu langkah per baris }
+        dilaksanakan_oleh: { type: string, nullable: true }
+        waktu: { type: string, nullable: true, description: Audit trail; tidak masuk output }
+        no_kkp: { type: string, nullable: true, description: Audit trail; tidak masuk output }
+        sasaran_id: { type: string, nullable: true, description: Auto-generate bila kosong }
+
+    SimwasSyncPayload:
+      type: object
+      required: [source, strategy]
+      properties:
+        source:
+          type: string
+          enum: [manual, api]
+          description: manual=paste JSON (live) · api=tarik langsung dari REST SIMWAS (proposed/501)
+        strategy:
+          type: string
+          enum: [replace, append]
+        pkp_rows:
+          type: array
+          items: { $ref: '#/components/schemas/SimwasPkpRow' }
+
+    StSyncPayload:
+      type: object
+      description: "[proposed] Payload push ST dari SIMWAS → v7"
+      required: [simwas_id, nomor_st, obyek, skill]
+      properties:
+        simwas_id: { type: string, description: ID/kode ST di SIMWAS (jadi kode penugasan v7) }
+        nomor_st: { type: string }
+        tanggal_st: { type: string, format: date }
+        obyek: { type: string }
+        skill: { type: string, description: Slug skill v7 (pemetaan jenis pengawasan) }
+        periode_mulai: { type: string, format: date, nullable: true }
+        periode_selesai: { type: string, format: date, nullable: true }
+        tim:
+          type: array
+          description: Susunan tim (mengisi PELAKSANA yang kini kosong)
+          items:
+            type: object
+            properties:
+              nip: { type: string }
+              nama: { type: string }
+              peran: { $ref: '#/components/schemas/Role' }
+
+    TemuanReviewItem:
+      type: object
+      properties:
+        id_temuan: { type: string }
+        judul: { type: string }
+        kondisi: { type: string }
+        kriteria: { type: string }
+        akibat: { type: string }
+        rekomendasi: { type: string }
+        referensi_sasaran: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, EDITED] }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+
+    TemuanReviewList:
+      type: object
+      properties:
+        total: { type: integer }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TemuanReviewItem' }
+
+    LhpReviewCreate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [APPROVED, NEEDS_REVISION] }
+        catatan: { type: string, nullable: true, description: Wajib bila NEEDS_REVISION }
+
+    FileEntry:
+      type: object
+      properties:
+        name: { type: string }
+        path: { type: string }
+        size: { type: integer }
+        mtime: { type: number }
+        ext: { type: string }
+
+    FilesListing:
+      type: object
+      properties:
+        penugasan_id: { type: integer }
+        folder_path: { type: string }
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string, example: "KKP" }
+              label: { type: string }
+              files:
+                type: array
+                items: { $ref: '#/components/schemas/FileEntry' }
+
+    SkillInfo:
+      type: object
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        jenis: { type: string }
+        output: { type: string }
+        has_pipeline: { type: boolean }
+
+# -----------------------------------------------------------------------------
+# Endpoint
+# -----------------------------------------------------------------------------
+paths:
+
+  /health:
+    get:
+      tags: [meta]
+      summary: Health check
+      security: []
+      x-status: live
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string, example: ok } } }
+
+  /skills:
+    get:
+      tags: [meta]
+      summary: Registry skill pengawasan (pemetaan jenis ST → skill v7)
+      x-status: live
+      responses:
+        '200':
+          description: Daftar skill
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SkillInfo' } }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: "[prototype] Login role-only — diganti SSO SIMWAS di produksi"
+      security: []
+      x-status: live
+      x-note: Produksi mengganti ini dengan verifikasi JWT SIMWAS (JWKS). Lihat securityScheme SimwasSSO.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Sesi + token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionOut' }
+        '404': { description: User tidak ditemukan, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/simwas/st/sync:
+    post:
+      tags: [simwas-sync]
+      summary: "[proposed] Push Surat Tugas dari SIMWAS → buat/update penugasan v7"
+      description: >-
+        Mengisi nomor_st, obyek, skill, periode, dan susunan tim (PELAKSANA) yang
+        saat ini kosong di v7. v7 memakai simwas_id sebagai kode (berhenti generate
+        kode sendiri untuk penugasan asal SIMWAS). Idempoten per simwas_id.
+      security:
+        - SimwasApiKey: []
+      x-status: proposed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StSyncPayload' }
+      responses:
+        '200':
+          description: Penugasan dibuat/diupdate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PenugasanOut' }
+        '401': { description: API key tidak valid }
+
+  /penugasan:
+    get:
+      tags: [penugasan]
+      summary: List penugasan (status diturunkan dari artefak)
+      x-status: live
+      responses:
+        '200':
+          description: Daftar
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PenugasanOut' } }
+    post:
+      tags: [penugasan]
+      summary: Buat penugasan (PT) — di produksi sebaiknya lewat /api/simwas/st/sync
+      x-status: live
+      x-role: PT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PenugasanCreate' }
+      responses:
+        '201':
+          description: Dibuat
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PenugasanOut' }
+
+  /penugasan/{penugasan_id}:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [penugasan]
+      summary: Detail satu penugasan
+      x-status: live
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PenugasanOut' } } } }
+        '404': { description: Tidak ditemukan }
+    delete:
+      tags: [penugasan]
+      summary: Hapus penugasan + seluruh artefak (PT)
+      x-status: live
+      x-role: PT
+      responses:
+        '200': { description: Terhapus }
+
+  /penugasan/{penugasan_id}/kp-md:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [kp-pkp]
+      summary: Baca Kartu Penugasan (markdown + field terstruktur)
+      x-status: live
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: { type: string }
+                  exists: { type: boolean }
+                  fields: { type: object, additionalProperties: true }
+                  sasaran: { type: array, items: { type: object, additionalProperties: true } }
+                  template_slug: { type: string, nullable: true }
+    put:
+      tags: [kp-pkp]
+      summary: Simpan Kartu Penugasan (PT/KT) — sasaran auto-sync ke PKP
+      x-status: live
+      x-role: PT,KT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KpPayload' }
+      responses:
+        '200': { description: Tersimpan }
+
+  /penugasan/{penugasan_id}/sasaran-assignment:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [kp-pkp]
+      summary: Baca PKP (sasaran + langkah kerja I/II/III)
+      x-status: live
+      responses:
+        '200': { description: OK }
+    put:
+      tags: [kp-pkp]
+      summary: Simpan PKP (KT/PT) — render PKP.md untuk QC SAIPI
+      x-status: live
+      x-role: KT,PT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SasaranAssignmentPayload' }
+      responses:
+        '200': { description: Tersimpan }
+
+  /penugasan/{penugasan_id}/sasaran/sync-from-simwas:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    post:
+      tags: [simwas-sync]
+      summary: Sync PKP dari SIMWAS (KT/PT)
+      description: source=manual aktif (paste JSON). source=api masih 501 sampai REST SIMWAS resmi.
+      x-status: manual
+      x-role: KT,PT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SimwasSyncPayload' }
+      responses:
+        '200': { description: Sasaran ter-sync }
+        '501': { description: source=api belum diimplementasikan (menunggu kontrak SIMWAS) }
+
+  /penugasan/{penugasan_id}/context-readiness:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [analisis]
+      summary: Cek prasyarat sebelum Generate Konteks (sasaran + bahan analisis)
+      x-status: live
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready: { type: boolean }
+                  reason: { type: string, nullable: true }
+
+  /penugasan/{penugasan_id}/preload-context:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    post:
+      tags: [analisis]
+      summary: Bangun bundle konteks pra-load (vault + pattern wiki + KP/PKP + digest)
+      x-status: live
+      x-role: PT,KT,AT
+      responses:
+        '200': { description: Bundle dibangun }
+
+  /dokumen:
+    get:
+      tags: [dokumen]
+      summary: List dokumen penugasan
+      x-status: live
+      parameters:
+        - name: penugasan_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Daftar dokumen }
+    post:
+      tags: [dokumen]
+      summary: Upload dokumen bukti (AT) — auto-digest di background
+      x-status: live
+      x-role: AT
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [penugasan_id, file]
+              properties:
+                penugasan_id: { type: integer }
+                jenis: { type: string, description: "TOR|RAB|PBJ|ST|SURVEY|OTHER" }
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Terupload (status UPLOADED/INGESTING/READY) }
+
+  /dokumen/{dokumen_id}:
+    delete:
+      tags: [dokumen]
+      summary: Hapus dokumen + reset artefak turunan (AT)
+      x-status: live
+      x-role: AT
+      parameters:
+        - name: dokumen_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Terhapus }
+
+  /agen/{agent_name}/stream:
+    get:
+      tags: [analisis]
+      summary: Jalankan agen AI & stream hasil (SSE)
+      description: >-
+        EventSource. agent_name: anggota_tim (AT, produksi temuan) atau ketua_tim
+        (KT, draft LHP). Run jalan sebagai background task — tetap lanjut walau
+        koneksi SSE putus (reconnect via /attach). Prompt khusus `[MODE:CONTEXT]`
+        hanya membangun context.md (butuh sasaran + bahan analisis).
+        Event: start, text, tool_use, tool_result, error, done, idle.
+      x-status: live
+      parameters:
+        - name: agent_name
+          in: path
+          required: true
+          schema: { type: string, enum: [anggota_tim, ketua_tim] }
+        - name: penugasan_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: prompt
+          in: query
+          required: true
+          schema: { type: string }
+        - name: _token
+          in: query
+          required: false
+          description: Fallback token untuk EventSource (tidak bisa kirim header)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Stream SSE
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /agen/{agent_name}/active:
+    get:
+      tags: [analisis]
+      summary: Cek apakah ada run agen aktif (non-stream)
+      x-status: live
+      parameters:
+        - name: agent_name
+          in: path
+          required: true
+          schema: { type: string, enum: [anggota_tim, ketua_tim] }
+        - name: penugasan_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Status run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: boolean }
+                  run_id: { type: string, nullable: true }
+                  text_so_far: { type: string, nullable: true }
+
+  /penugasan/{penugasan_id}/temuan-review:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [hitl]
+      summary: List temuan + status review (HITL)
+      x-status: live
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemuanReviewList' }
+
+  /penugasan/{penugasan_id}/temuan-review/{temuan_id}/approve:
+    post:
+      tags: [hitl]
+      summary: Approve satu temuan (AT/KT/PT/PM)
+      x-status: live
+      parameters:
+        - { $ref: '#/components/parameters/PenugasanId' }
+        - { name: temuan_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { note: { type: string, nullable: true } } }
+      responses:
+        '200': { description: Disetujui }
+
+  /penugasan/{penugasan_id}/temuan-review/{temuan_id}/reject:
+    post:
+      tags: [hitl]
+      summary: Reject satu temuan (KT/PT/PM)
+      x-status: live
+      parameters:
+        - { $ref: '#/components/parameters/PenugasanId' }
+        - { name: temuan_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Ditolak }
+
+  /penugasan/{penugasan_id}/temuan-review/bulk-approve:
+    post:
+      tags: [hitl]
+      summary: Setujui semua temuan PENDING (KT/PT/PM)
+      x-status: live
+      parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+      responses:
+        '200': { description: Disetujui massal }
+
+  /penugasan/{penugasan_id}/lhp-review:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [hitl]
+      summary: Riwayat reviu konsep LHP
+      x-status: live
+      responses:
+        '200': { description: OK }
+    post:
+      tags: [hitl]
+      summary: Reviu konsep LHP — approve / minta revisi (PT/PM)
+      x-status: live
+      x-role: PT,PM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LhpReviewCreate' }
+      responses:
+        '201': { description: Tercatat }
+        '422': { description: NEEDS_REVISION tanpa catatan }
+
+  /penugasan/{penugasan_id}/files:
+    parameters: [ { $ref: '#/components/parameters/PenugasanId' } ]
+    get:
+      tags: [output]
+      summary: List artefak hasil (KKP, LHP, QC, dll) per kategori
+      x-status: live
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FilesListing' }
+
+  /penugasan/{penugasan_id}/files/download:
+    parameters:
+      - { $ref: '#/components/parameters/PenugasanId' }
+      - { $ref: '#/components/parameters/FilePath' }
+    get:
+      tags: [output]
+      summary: Unduh artefak (mis. LHP-SUBSTANSI.docx, KKP.docx)
+      x-status: live
+      responses:
+        '200':
+          description: File biner/teks
+          content:
+            application/octet-stream: { schema: { type: string, format: binary } }
+
+  /penugasan/{penugasan_id}/files/preview:
+    parameters:
+      - { $ref: '#/components/parameters/PenugasanId' }
+      - { $ref: '#/components/parameters/FilePath' }
+    get:
+      tags: [output]
+      summary: Preview artefak teks (.md/.json/.txt/.csv) — mis. _KKP/temuan.json
+      x-status: live
+      parameters:
+        - { name: max_bytes, in: query, required: false, schema: { type: integer, default: 51200 } }
+      responses:
+        '200':
+          description: Isi teks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: { type: string }
+                  size_bytes: { type: integer }
+                  ext: { type: string }
+                  truncated: { type: boolean }
+                  content: { type: string }
+
+# -----------------------------------------------------------------------------
+# Webhook keluar (v7 → SIMWAS) — PROPOSED
+# -----------------------------------------------------------------------------
+webhooks:
+  tahapSelesai:
+    post:
+      tags: [output]
+      summary: "[proposed] v7 memberi tahu SIMWAS saat sebuah tahap AI selesai"
+      description: >-
+        Karena analisis agen berjalan lama (async), v7 sebaiknya memanggil balik
+        SIMWAS saat selesai daripada SIMWAS polling. Body ditandatangani HMAC-SHA256
+        (header X-SIMWAS-Signature: sha256=<hex>), mengikuti pola cacm_webhook_secret
+        yang sudah ada di v7. URL & secret dikonfigurasi di env v7.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                penugasan_id: { type: integer }
+                kode: { type: string }
+                tahap: { type: string, enum: [KONTEKS, KKP, LHP] }
+                status: { type: string, example: KKP_DONE }
+                artefak:
+                  type: array
+                  items: { type: string, example: "_LHP/LHP-SUBSTANSI.docx" }
+                timestamp: { type: string, format: date-time }
+      responses:
+        '200': { description: SIMWAS menerima notifikasi }

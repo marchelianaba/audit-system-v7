@@ -59,7 +59,7 @@ export default function LoginPage() {
       const session = await api.login(role, email);
       setToken(session.token);
       setSession(session);
-      router.push('/penugasan');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message);
     } finally {

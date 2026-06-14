@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kontrak API — INTEGRAL AI Workspace (Audit AI v7) ⇄ SIMWAS v2</title>
+<style>
+  :root{
+    --ungu:#5C4FE7; --ungu-tua:#3C3489; --ungu-muda:#EEEDFE;
+    --teks:#1f2233; --teks-redup:#5f6178; --garis:#e6e6ef;
+    --hijau:#0F6E56; --hijau-bg:#E1F5EE; --amber:#854F0B; --amber-bg:#FAEEDA;
+    --merah:#A32D2D; --merah-bg:#FCEBEB; --biru:#185FA5; --biru-bg:#E6F1FB;
+    --surface:#ffffff; --page:#f6f6fb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--teks);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65;font-size:15px}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 24px 80px}
+  header.hero{background:linear-gradient(135deg,var(--ungu),var(--ungu-tua));color:#fff;
+    border-radius:16px;padding:32px 30px;margin-bottom:28px}
+  header.hero .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+  header.hero h1{margin:.3em 0 .2em;font-size:26px;line-height:1.25}
+  header.hero p{margin:.2em 0;opacity:.92;font-size:14px}
+  h2{font-size:20px;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--ungu-muda);color:var(--ungu-tua)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--teks)}
+  p{margin:10px 0}
+  .card{background:var(--surface);border:1px solid var(--garis);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--garis);vertical-align:top}
+  th{background:var(--ungu-muda);color:var(--ungu-tua);font-weight:600}
+  code{background:#f0f0f6;border:1px solid var(--garis);border-radius:5px;padding:1px 5px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .b-live{background:var(--hijau-bg);color:var(--hijau)}
+  .b-manual{background:var(--amber-bg);color:var(--amber)}
+  .b-proposed{background:var(--biru-bg);color:var(--biru)}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:#ece9fb;color:var(--ungu-tua);margin-right:3px}
+  ol.flow{counter-reset:step;list-style:none;padding-left:0}
+  ol.flow li{position:relative;padding:12px 14px 12px 48px;border-left:2px solid var(--ungu-muda);margin-left:14px}
+  ol.flow li::before{counter-increment:step;content:counter(step);position:absolute;left:-15px;top:10px;
+    width:28px;height:28px;border-radius:50%;background:var(--ungu);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  ol.flow li b{color:var(--ungu-tua)}
+  .note{background:var(--amber-bg);border:1px solid #f0d9a8;border-radius:10px;padding:14px 16px;margin:14px 0;font-size:14px}
+  .note.info{background:var(--biru-bg);border-color:#bcd8f3}
+  .chk{list-style:none;padding-left:0}
+  .chk li{padding:6px 0 6px 26px;position:relative}
+  .chk li::before{content:"▸";position:absolute;left:4px;color:var(--ungu);font-weight:700}
+  .legend span{margin-right:14px;font-size:12.5px;color:var(--teks-redup)}
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--garis);font-size:12.5px;color:var(--teks-redup);
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .ascii{background:#1f2233;color:#e6e6ef;border-radius:12px;padding:18px 20px;overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;white-space:pre}
+  .small{font-size:12.5px;color:var(--teks-redup)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Dokumen Kontrak Teknis · Inspektorat II Komdigi</div>
+  <h1>Kontrak API — INTEGRAL AI Workspace (Audit AI v7) ⇄ SIMWAS v2</h1>
+  <p>v7 = mesin AI headless · SIMWAS = orkestrator, system of record, dan UI</p>
+  <p style="margin-top:10px;font-size:13px">Disusun 11 Juni 2026 · Spesifikasi mesin: <code style="background:rgba(255,255,255,.15);border-color:transparent;color:#fff">docs/openapi-integral-v7.yaml</code></p>
+</header>
+
+<div class="card" style="border-left:4px solid var(--ungu)">
+  <b>Ringkasan satu paragraf.</b> SIMWAS v2 memegang seluruh siklus pengawasan: data, alur kerja,
+  template, dan tampilan yang dilihat auditor. Audit AI v7 dipanggil di tahap-tahap tertentu untuk
+  pekerjaan AI berat (digest dokumen, produksi temuan, draft laporan) lalu mengembalikan hasil
+  <b>terstruktur</b> (JSON) dan <b>dokumen jadi</b> (.docx). v7 tidak punya tampilan produksi —
+  tim SIMWAS membangun layarnya di Laravel/Blade dan memanggil API ini.
+</div>
+
+<h2>1. Keputusan yang sudah ditetapkan</h2>
+<table>
+  <tr><th style="width:38%">Hal</th><th>Keputusan</th></tr>
+  <tr><td>Skema integrasi</td><td>Skenario A — v7 sebagai AI engine, dipanggil SIMWAS via REST API</td></tr>
+  <tr><td>Tampilan (UI)</td><td>Dibangun ulang oleh tim SIMWAS (Blade). v7 <b>headless</b>, hanya melayani JSON + .docx</td></tr>
+  <tr><td>Project & server</td><td>Dua project terpisah (PHP vs Python). Penempatan termudah: <b>satu server, dua service Docker</b></td></tr>
+  <tr><td>Sumber data</td><td>SIMWAS = system of record. v7 mirror penugasan/PKP berdasarkan ID SIMWAS, berhenti membuat kode sendiri</td></tr>
+  <tr><td>Identitas user</td><td>SSO SIMWAS (JWT bertanda-tangan / JWKS) menggantikan login prototype v7</td></tr>
+</table>
+
+<h2>2. Topologi penempatan (rekomendasi)</h2>
+<p>Karena SIMWAS sudah berjalan di servernya sendiri, cara termudah memulai: v7 ditaruh sebagai
+<b>stack Docker terpisah di server yang sama</b>, hanya bisa diakses SIMWAS lewat jaringan lokal —
+tidak dibuka ke publik. Pindah ke server sendiri belakangan cukup ganti alamat, tanpa ubah kode.</p>
+<div class="ascii">┌──────────────────────────────────────────────────────────────┐
+│  SATU SERVER (PDN / PDNS · Docker host)                        │
+│                                                                │
+│   ┌────────────────────┐        REST API (X-SIMWAS-API-KEY)    │
+│   │  SIMWAS v2          │  ───────────────────────────►        │
+│   │  Laravel · UI · SSO │  ◄───────────────────────────        │
+│   │  system of record   │        webhook (saat tahap selesai)  │
+│   └────────┬───────────┘        ┌──────────────────────────┐   │
+│            │ auditor (browser)  │  INTEGRAL v7 (headless)   │   │
+│            ▼  HTTPS + SSO       │  FastAPI + Postgres       │   │
+│      [ layar Blade SIMWAS ]     │  + Claude Agent SDK       │   │
+│                                 └───────────┬──────────────┘   │
+└─────────────────────────────────────────────┼─────────────────┘
+                                               ▼  egress HTTPS
+                                        api.anthropic.com  (LLM)</div>
+<p class="small">v7 hanya didengar di <code>127.0.0.1</code>/jaringan privat. Satu-satunya jalur keluar
+adalah egress HTTPS ke Anthropic — ini titik yang perlu izin & keputusan kepatuhan (lihat bagian 8).</p>
+
+<h2>3. Autentikasi — tiga kanal</h2>
+<div class="grid2">
+  <div class="card">
+    <span class="pill">Kanal 1</span><b> User (SSO)</b>
+    <p class="small">SIMWAS menerbitkan JWT bertanda-tangan; v7 memverifikasi lewat <b>JWKS publik</b>
+    SIMWAS. Klaim minimal: <code>sub</code>, <code>role</code> (AT/KT/PT/PM), <code>nama</code>,
+    <code>exp</code>. Dikirim <code>Authorization: Bearer &lt;jwt&gt;</code>.</p>
+    <p class="small">Menggantikan login prototype v7 dan memperbaiki akar masalah token kedaluwarsa (error 401).</p>
+  </div>
+  <div class="card">
+    <span class="pill">Kanal 2</span><b> Server-ke-server</b>
+    <p class="small">Panggilan SIMWAS→v7 tanpa konteks user (mis. sync ST) memakai header
+    <code>X-SIMWAS-API-KEY</code>. Pola ini sudah ada presedennya di v7 (<code>X-API-Key</code> untuk agen CACM).</p>
+  </div>
+  <div class="card">
+    <span class="pill">Kanal 3</span><b> Webhook (v7→SIMWAS)</b>
+    <p class="small">Saat analisis selesai, v7 memanggil balik URL SIMWAS. Body ditandatangani
+    <b>HMAC-SHA256</b> (<code>X-SIMWAS-Signature: sha256=&lt;hex&gt;</code>) — pola yang sudah dipakai v7
+    untuk webhook CACM.</p>
+  </div>
+  <div class="card" style="background:var(--ungu-muda);border-color:#d7d3f7">
+    <b>Kenapa webhook, bukan polling?</b>
+    <p class="small">Analisis agen AI berjalan lama (puluhan detik–menit). SIMWAS jangan menunggu
+    di dalam satu request. Pola: SIMWAS memicu → dapat <code>run_id</code> → menerima webhook saat selesai.</p>
+  </div>
+</div>
+
+<h2>4. Urutan panggilan per-tahap</h2>
+<p>Pemetaan 7 tahapan INTEGRAL ke panggilan API v7. Tahap yang diberi tanda
+<span class="badge b-live">live</span> sudah berjalan & terverifikasi E2E pada penugasan uji.</p>
+<ol class="flow">
+  <li><b>ST → penugasan</b> <span class="badge b-proposed">proposed</span><br>
+    <code>POST /api/simwas/st/sync</code> — SIMWAS push Surat Tugas; v7 buat/mirror penugasan + isi
+    pelaksana & periode. <span class="small">(Sekarang penugasan dibuat via <code>POST /penugasan</code>.)</span></li>
+  <li><b>Kartu Penugasan (PT)</b> <span class="badge b-live">live</span><br>
+    <code>PUT /penugasan/{id}/kp-md</code> — simpan KP + sasaran (auto-sync ke PKP).</li>
+  <li><b>PKP (KT)</b> <span class="badge b-live">live</span> / <span class="badge b-manual">manual</span><br>
+    <code>PUT /penugasan/{id}/sasaran-assignment</code>, atau tarik dari SIMWAS lewat
+    <code>POST …/sasaran/sync-from-simwas</code> (<code>source=manual</code> aktif; <code>api</code> menunggu kontrak).</li>
+  <li><b>Upload & digest dokumen (AT)</b> <span class="badge b-live">live</span><br>
+    <code>POST /dokumen</code> (multipart) — auto-digest di background (TOR/RAB deterministik + fallback AI).</li>
+  <li><b>Generate konteks (AT)</b> <span class="badge b-live">live</span><br>
+    <code>GET /agen/anggota_tim/stream?prompt=[MODE:CONTEXT]…</code> (SSE) — rakit context.md dari 4 sumber.</li>
+  <li><b>Analisis → temuan (AT)</b> <span class="badge b-live">live</span><br>
+    <code>GET /agen/anggota_tim/stream</code> (SSE) → tulis <code>_KKP/temuan.json</code>. Lihat <code>…/temuan-review</code>.</li>
+  <li><b>HITL: review temuan</b> <span class="badge b-live">live</span><br>
+    <code>POST …/temuan-review/{tid}/approve|reject</code>, <code>PUT …/edit</code>, <code>POST …/bulk-approve</code>.</li>
+  <li><b>Draft LHP (KT)</b> <span class="badge b-live">live</span><br>
+    <code>GET /agen/ketua_tim/stream</code> (SSE) → hasil <code>.docx</code> + QC SAIPI.</li>
+  <li><b>Reviu konsep LHP (PT/PM)</b> <span class="badge b-live">live</span><br>
+    <code>POST /penugasan/{id}/lhp-review</code> — APPROVED / NEEDS_REVISION (+catatan wajib bila revisi).</li>
+  <li><b>Ambil hasil</b> <span class="badge b-live">live</span><br>
+    <code>GET …/files</code> → <code>GET …/files/download?path=_LHP/LHP-SUBSTANSI.docx</code>.</li>
+</ol>
+
+<h2>5. Format hasil yang v7 kembalikan</h2>
+<div class="grid2">
+  <div class="card">
+    <b>Temuan (KKP)</b> — JSON
+    <p class="small">Dari <code>GET …/temuan-review</code> atau preview <code>_KKP/temuan.json</code>. Tiap temuan:
+    <code>id_temuan</code>, <code>judul</code>, <code>kondisi</code>, <code>kriteria</code>, <code>akibat</code>,
+    <code>rekomendasi</code>, <code>referensi_sasaran</code>, <code>status</code>. Dipetakan ke kolom KKSA SIMWAS.</p>
+  </div>
+  <div class="card">
+    <b>Draft LHP</b> — dokumen .docx
+    <p class="small">Diunduh lewat <code>…/files/download</code>. Sudah dirender V6 sesuai format laporan + lulus
+    QC SAIPI (REN-001…007). SIMWAS cukup menyajikan/lampirkan.</p>
+  </div>
+  <div class="card">
+    <b>Hasil QC SAIPI</b> — JSON
+    <p class="small"><code>_KKP/kkp-qc-result.json</code>, <code>_LHP/lhp-qc-result.json</code>: jumlah OK/KRITIS
+    per aturan, untuk gerbang mutu sebelum tahap lanjut.</p>
+  </div>
+  <div class="card">
+    <b>Status penugasan</b> — enum
+    <p class="small"><code>DRAFT → INGESTING → KKP_IN_PROGRESS → KKP_DONE → LHP_IN_PROGRESS → LHP_DONE</code>.
+    Diturunkan v7 dari artefak; SIMWAS bisa menampilkan progres tanpa menyimpan ulang.</p>
+  </div>
+</div>
+
+<h2>6. Daftar endpoint (inti integrasi)</h2>
+<p class="legend">
+  <span><span class="badge b-live">live</span> sudah jalan & teruji</span>
+  <span><span class="badge b-manual">manual</span> jalan, input paste JSON</span>
+  <span><span class="badge b-proposed">proposed</span> perlu dibangun</span>
+</p>
+<table>
+  <tr><th>Method &amp; Path</th><th>Fungsi</th><th>Role</th><th>Status</th></tr>
+  <tr><td><code>POST /api/simwas/st/sync</code></td><td>Push ST → buat/mirror penugasan + pelaksana</td><td>API-key</td><td><span class="badge b-proposed">proposed</span></td></tr>
+  <tr><td><code>POST /penugasan</code></td><td>Buat penugasan</td><td>PT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /penugasan</code> · <code>GET /penugasan/{id}</code></td><td>List / detail penugasan</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET/PUT /penugasan/{id}/kp-md</code></td><td>Baca/simpan Kartu Penugasan</td><td>PT,KT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET/PUT /penugasan/{id}/sasaran-assignment</code></td><td>Baca/simpan PKP</td><td>KT,PT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>POST /penugasan/{id}/sasaran/sync-from-simwas</code></td><td>Tarik PKP dari SIMWAS</td><td>KT,PT</td><td><span class="badge b-manual">manual</span></td></tr>
+  <tr><td><code>POST /dokumen</code> (multipart)</td><td>Upload + auto-digest dokumen</td><td>AT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /agen/{anggota_tim|ketua_tim}/stream</code></td><td>Jalankan agen AI (SSE)</td><td>AT,KT,PT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /agen/{name}/active</code></td><td>Cek run aktif (non-stream)</td><td>AT,KT,PT</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /penugasan/{id}/temuan-review</code></td><td>List temuan + status HITL</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>POST …/temuan-review/{tid}/approve|reject</code></td><td>Setujui/tolak temuan</td><td>AT/KT/PT/PM</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>POST …/temuan-review/bulk-approve</code></td><td>Setujui semua PENDING</td><td>KT/PT/PM</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET/POST /penugasan/{id}/lhp-review</code></td><td>Reviu konsep LHP</td><td>PT,PM</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /penugasan/{id}/files</code></td><td>List artefak per kategori</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET …/files/download?path=</code></td><td>Unduh .docx / file</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET …/files/preview?path=</code></td><td>Preview JSON/MD/TXT</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>GET /skills</code></td><td>Registry skill (pemetaan jenis ST)</td><td>semua</td><td><span class="badge b-live">live</span></td></tr>
+  <tr><td><code>webhook tahapSelesai</code></td><td>v7 → SIMWAS saat tahap AI selesai</td><td>HMAC</td><td><span class="badge b-proposed">proposed</span></td></tr>
+</table>
+<p class="small">Daftar lengkap dengan skema request/response ada di <code>docs/openapi-integral-v7.yaml</code>
+(bisa diimpor ke Swagger UI / Postman).</p>
+
+<h2>7. Pembagian pekerjaan</h2>
+<div class="grid2">
+  <div class="card">
+    <b>Disediakan tim SIMWAS</b>
+    <ul class="chk">
+      <li>Penerbit SSO + <b>JWKS publik</b> (verifikasi token) & format klaim</li>
+      <li>Nilai <code>X-SIMWAS-API-KEY</code> untuk panggilan server-ke-server</li>
+      <li>Endpoint penerima <b>webhook</b> + secret HMAC</li>
+      <li>Pemetaan <b>jenis pengawasan SIMWAS → slug skill v7</b></li>
+      <li>Sumber daya server (RAM/CPU) + izin <b>egress ke api.anthropic.com</b></li>
+      <li>Layar Blade yang memanggil endpoint v7</li>
+    </ul>
+  </div>
+  <div class="card">
+    <b>Dibangun / disiapkan v7</b>
+    <ul class="chk">
+      <li>Verifikasi JWT SIMWAS via JWKS (ganti login prototype)</li>
+      <li>Middleware <code>X-SIMWAS-API-KEY</code></li>
+      <li>Endpoint <code>POST /api/simwas/st/sync</code> (isi pelaksana + periode)</li>
+      <li>Implementasi <code>source=api</code> pada sync PKP (kini 501)</li>
+      <li>Pemanggil webhook keluar saat KKP/LHP selesai</li>
+      <li>Berkas OpenAPI final + contoh payload (Postman collection)</li>
+    </ul>
+  </div>
+</div>
+<div class="note info">
+  <b>Bisa dikerjakan sekarang tanpa menunggu tim SIMWAS.</b> Endpoint <code>st/sync</code>, middleware
+  API-key, dan pemanggil webhook dapat dibangun & diuji <i>mock-first</i> memakai payload contoh. Begitu
+  tim SIMWAS menyediakan JWKS, API-key, dan URL webhook, tinggal disambungkan.
+</div>
+
+<h2>8. Keputusan yang masih terbuka</h2>
+<div class="note">
+  <ul style="margin:0;padding-left:18px">
+    <li><b>Egress LLM ke Anthropic.</b> v7 memanggil <code>api.anthropic.com</code> untuk analisis. Untuk data
+      audit sensitif di PDN/PDNS, perlu keputusan kepatuhan: zero-retention/enterprise, gateway redaksi, atau model on-prem.</li>
+    <li><b>Format identitas SSO.</b> Klaim & masa berlaku token SIMWAS; apakah ada konsep "role aktif" yang bisa berganti.</li>
+    <li><b>Pemetaan jenis ↔ skill.</b> Daftar resmi jenis pengawasan SIMWAS dipetakan ke 17 skill v7.</li>
+    <li><b>Validasi konten template KP/PKP</b> oleh auditor senior (di luar lingkup koding).</li>
+  </ul>
+</div>
+
+<footer>
+  <span>INTEGRAL AI Workspace · Inspektorat II — Kementerian Komunikasi dan Digital RI</span>
+  <span>Kontrak API v0.1 · 11 Juni 2026 · Powered by Audit AI v7 + Claude Agent SDK</span>
+</footer>
+
+</div>
+</body>
+</html>

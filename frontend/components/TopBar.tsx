@@ -5,7 +5,7 @@
  *
  * Mirror style SIMWAS v2:
  * - Judul: "Sistem Informasi Manajemen Pengawasan" + "Kementerian Komunikasi Dan Digital RI"
- * - Right: theme toggle (placeholder), notification bell (badge merah), avatar online indicator
+ * - Right: avatar + role (dropdown logout)
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -50,23 +50,6 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Theme toggle placeholder */}
-        <button
-          className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"
-          title="Theme (light)"
-        >
-          ☀
-        </button>
-
-        {/* Notification bell — placeholder dgn badge */}
-        <button
-          className="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 relative"
-          title="Notifikasi"
-        >
-          🔔
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
-
         {/* Avatar + role */}
         <div className="relative">
           <button

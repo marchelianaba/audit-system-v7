@@ -1,13 +1,13 @@
 ---
 name: reviu-rka-kl
 format_laporan: kksa
-version: 3.0
+version: 3.1
 jenis: Reviu Rencana Kerja dan Anggaran Kementerian/Lembaga
 dasar-hukum: PMK 107/2024 (perubahan PMK 62/PMK.02/2023), Pasal 61
 model: claude-sonnet-4-6
 output: LHR RKA-K/L + Nota Dinas Pengantar
 auto_execute: true
-auto_execute_command: python3 audit-system-v4/scripts/reviu-rka-kl/run_batch.py --penugasan <PENUGASAN_DIR>
+auto_execute_command: "tool: run_batch_rka(penugasan_folder, workers=4, judul, nomor, tanggal, penerima)"
 ---
 
 # Skill: Reviu Rencana Kerja dan Anggaran (RKA-K/L)
@@ -18,54 +18,39 @@ auto_execute_command: python3 audit-system-v4/scripts/reviu-rka-kl/run_batch.py 
 
 ---
 
-## ⚡ AUTO-EXECUTE LANGKAH 0 — WAJIB SEBELUM ANALISIS APAPUN
+## Eksekusi di v7 (orkestrasi — seragam semua skill reviu)
 
-**SEGERA setelah skill ini dipanggil dan auditor menyebut folder penugasan, Claude HARUS menjalankan pipeline orchestrator `run_batch.py` SEBELUM tindakan analisis apapun.** Tidak boleh skip, tidak boleh "uji coba dulu", tidak boleh manual.
+> **Skill ini = substansi domain.** Cara menjalankan (role, pipeline, urutan tool, titik HITL) diatur seragam oleh agen Anggota Tim v7 di `backend/app/prompts/anggota_tim.md` — BUKAN oleh skill ini. Skill ini **TIDAK** memakai bash, `run_batch.py`, `Task 00/01`, `_ROLE.md`, atau `AskUserQuestion` (itu paradigma lama audit-system-v4).
 
-```bash
-python3 audit-system-v4/scripts/reviu-rka-kl/run_batch.py \
-    --penugasan "<FOLDER_PENUGASAN>" \
-    --workers 4 \
-    --judul "Laporan Hasil Reviu RKA-K/L <Direktorat> TA <YYYY>" \
-    --nomor "<nomor LHR>" \
-    --tanggal "<DD Bulan YYYY>" \
-    --penerima "<Direktur ...>"
-```
+- **Pelaku:** Agen Anggota Tim (AT). Role & sasaran dibaca dari `_PKP/sasaran-assignment.json` (diisi Ketua Tim via UI Setup). AT hanya mengerjakan sasaran yang `assigned_to`-nya memuat namanya.
+- **Pipeline R3:** tool **`run_batch_rka(penugasan_folder, workers=4, judul, nomor, tanggal, penerima)`** (39 rules: digest TOR/RAB → cross-check → anomalies-master). KT/PT/PM tidak men-generate KKP — hanya approve & draft LHR.
+- **Mode:** AT **auto-execute** R0→R3 tanpa berhenti tiap tahap (jangan tanya "Mau saya lanjut?"). Titik HITL: **KT approve KKP**, lalu **KT draft LHR**.
+- **Tool inti:** `read_context` → `run_batch_rka` → `read_anomalies` → analisis substantif → `append_temuan` → `record_pkp_assessment` → `render_kkp_docx` → `run_qc_kkp`.
 
-Output otomatis (≤ 30 detik untuk N≤30 RO):
-- `<PENUGASAN>/_KKP/tor-{N}.json` × N + `rab-{N}.json` × N (digest)
-- `<PENUGASAN>/_KKP/anomalies-master.json` (39 rules deterministik + cross-RO check)
-- `<PENUGASAN>/_KKP/_pipeline_meta.json` (timing, status per RO)
-- `<PENUGASAN>/_LHP/LHR-DRAFT.docx` (multi-RO, dedup A.3, top-5 rekomendasi prioritas)
+## Tahap Reviu (R0–R4)
 
-**Setelah pipeline selesai, BARU Claude masuk ke peran review/judgment** (filter false positive, validasi temuan substantif, polish narasi LHR). Jangan generate KKP/LHR/rule manual sebelum pipeline output ada — itu duplikasi pekerjaan.
+| Tahap | Aktivitas | Pelaku |
+|---|---|---|
+| **R0 — Validasi & Konteks** | Pastikan struktur input (TOR/RAB/RKA-Satker) ada; tentukan tahap pagu (indikatif/anggaran/alokasi) dari KP; susun `context.md` bila placeholder. | AT (auto) |
+| **R1 — Kerangka Reviu (KP-R)** | Tujuan, lingkup, metodologi (desk review) — bersumber `sasaran-assignment.json`. | KT (UI Setup) |
+| **R2 — Program Kerja (PKP-R)** | Matriks 6 aspek Pasal 61(2) × N RO per sasaran. | KT (UI Setup) |
+| **R3 — Pelaksanaan** | `run_batch_rka` (39 rules) → verifikasi false positive (terutama C.alt-2, E.alt-2) → **analisis substantif wajib** (tabel di bawah) → `append_temuan` (K/K/A/R, **tanpa Sebab**) + `record_pkp_assessment`. | AT (auto) |
+| **R4 — Laporan (LHR)** | Polish LHR (Bab C Hasil Reviu, Bab E Rekomendasi) + Nota Dinas; konfirmasi simpulan keyakinan terbatas. | KT |
 
-**Jika `run_batch.py` error atau tidak ada:**
-1. Cek script integrity: `python3 -c "import ast; ast.parse(open('audit-system-v4/scripts/reviu-rka-kl/run_batch.py').read())"`
-2. Cek dependency: pdftotext (`apt install poppler-utils`), python3 ≥ 3.10, openpyxl, python-docx
-3. Fallback ke 4 script terpisah (digest_tor → digest_rab → cross_check → render_lhr) — lihat Section "Pipeline Components" di bawah
-4. Lapor ke auditor + tunggu instruksi
+### Analisis Substantif Wajib (Tahap R3)
 
-**Jika folder penugasan belum punya struktur (`input/objek/TOR/`, `input/objek/RAB/`)**: minta auditor mendefinisikan struktur, atau pakai mode flat dengan TOR & RAB di root folder. Jangan lanjut tanpa konfirmasi.
-
----
-
-## ⚡ AUTO-EXECUTE LANGKAH 1 — ANALISIS SUBSTANTIF WAJIB POST-PIPELINE
-
-**Setelah LANGKAH 0 (pipeline rule-based) selesai, Claude WAJIB lanjut analisis substantif berikut SECARA OTOMATIS.** Tidak boleh menawarkan opsi ke auditor ("Mau saya bantu...?") — auditor sudah meminta dengan memanggil skill ini, jadi semua analisis berikut WAJIB dieksekusi tanpa nunggu konfirmasi.
-
-Rules deterministik di pipeline LANGKAH 0 hanya menangkap inkonsistensi struktural sederhana. Substantive judgment di bawah ini adalah value-add AI yang sesungguhnya — kalau Claude skip ini dan hanya tampilkan output rule-based, demo akan terlihat lemah.
+Rules deterministik (R3 pipeline) hanya menangkap inkonsistensi struktural sederhana. Analisis di bawah adalah value-add AI — **wajib** dieksekusi otomatis (jangan berhenti di output rule-based, jangan tanya "Mau saya lanjut?"):
 
 | # | Tugas Substantif | Detail |
 |---|------------------|--------|
-| 1. | **Verifikasi false positive rules deterministik** | Pipeline jalankan 39 rules. Untuk setiap anomali HIGH/CRITICAL: buka TOR/RAB di halaman yang dirujuk, verifikasi anomali real atau parser glitch. Hapus false positive dari anomalies-master.json. |
+| 1. | **Verifikasi false positive rules deterministik** | Pipeline jalankan 39 rules. Untuk setiap anomali HIGH/CRITICAL: `read_pdf_page` TOR/RAB di halaman yang dirujuk, verifikasi anomali real atau parser glitch. Buang false positive. |
 | 2. | **Analisis kewajaran SBM/SBK** | Untuk setiap RO: bandingkan harga satuan di RAB vs SBM/SBK yang berlaku TA tersebut. Bila harga > batas SBM atau ada komponen yang tidak ada di SBM → temuan KRITIS. |
 | 3. | **Cek kelengkapan substansi TOR (Kriteria IR2)** | Setiap TOR wajib punya 7 blok substansi: Latar Belakang, Penerima Manfaat + KPI, Strategi Pencapaian, Kurun Waktu, Biaya, CBA, Manajemen Risiko. Tampilkan TOR yang kurang. |
 | 4. | **Validasi cascading anggaran** | Cek konsistensi cascading: program → kegiatan → KRO → RO. Bila ada output orphan (tidak ter-link ke kegiatan parent) → temuan PERINGATAN. |
 | 5. | **Analisis penandaan anggaran** | Setiap RO wajib punya penandaan (Prioritas Nasional, Gender, Stunting, dll. sesuai kategori yang berlaku). Bila penandaan kosong atau tidak relevan dengan substansi RO → temuan PERINGATAN. |
-| 6. | **Tambahkan temuan substantif ke anomalies-master.json** | Append sebagai entry baru dengan rule_id manual seperti SUB.1, SUB.2 (untuk membedakan dari rule deterministik). |
+| 6. | **Tambahkan temuan substantif via `append_temuan`** | Setiap temuan baru di-append dengan status "DRAFT", `sasaran_id` sesuai sasaran yang ditugaskan, `assigned_to` = nama AT. Sertakan `langkah_kerja_terkait` + `pattern_id` (ketertelusuran). |
 
-**Setiap temuan substantif WAJIB di-append** ke `_KKP/temuan.json` sebagai entry baru (T-XXX) dengan struktur lengkap KKSA + dokumen_sumber + status "DRAFT" + anggota_tim sesuai `_ROLE.md`.
+**Setiap temuan substantif WAJIB di-append** via `append_temuan` dengan struktur lengkap K/K/A/R (tanpa Sebab) + `dokumen_sumber` + status "DRAFT". Setelah selesai, panggil **`record_pkp_assessment`** (kememadaian PKP per sasaran).
 
 **Setelah semua analisis substantif selesai, BARU lapor ke auditor** dengan ringkasan: total temuan rule-based + total temuan substantif + per-severity breakdown. Hindari kalimat "Mau saya lanjut ...?" — tampilkan langsung hasil.
 
@@ -215,11 +200,11 @@ Rekomendasi: [Tindakan konkret: sesuaikan dengan SBM, lengkapi KAK,
 
 ---
 
-## Pipeline Components (audit-system-v4 — v3.0)
+## Pipeline Components (referensi internal backend)
 
-**Lokasi:** `audit-system-v4/scripts/reviu-rka-kl/` (BUKAN audit-system-v2 — itu legacy)
+> **Catatan v7:** bagian ini mendokumentasikan isi pipeline di sisi backend. Agen v7 **tidak** menjalankannya via bash — cukup panggil tool **`run_batch_rka`** (yang mem-bungkus orchestrator ini). Daftar di bawah hanya referensi tentang apa yang dilakukan pipeline.
 
-**Entry utama:** `run_batch.py` (orchestrator end-to-end). 4 component script di-orchestrate olehnya:
+**Entry orchestrator:** `run_batch.py` (end-to-end). 4 component script di-orchestrate olehnya:
 
 | Script | Fungsi | Input | Output | v3.0 Notes |
 |---|---|---|---|---|
@@ -277,62 +262,16 @@ Tulis fungsi `def rule_x_y_nama(tor: dict, rab: dict) -> dict | None` di `cross_
 
 ---
 
-## Alur Kerja Reviu (Gate-Based v3.0)
+## Alur Kerja Reviu
 
-```
-GATE 0 — VALIDASI INPUT
-  Auditor sediakan folder penugasan dengan:
-  • 00-surat-tugas/  (ST + ND permintaan jika ada)
-  • input/objek/TOR/  (PDF KAK/TOR per RO)
-  • input/objek/RAB/  (PDF RAB per RO)
-  • input/objek/RKA-Satker/  (RKA per Satker)
-  Plus: PMK SBM tahun berjalan (jika tersedia)
+Alur eksekusi mengikuti **Tahap R0–R4** (lihat bagian "Tahap Reviu (R0–R4)" di atas) — istilah & paradigma seragam dengan semua skill reviu. Ringkas:
 
-GATE 1 — KP-Reviu (Kerangka Penugasan)
-  • Latar belakang, tujuan reviu, ruang lingkup, metodologi
-  • Pakai template: audit-system-v4/templates/PKP-Reviu-RKA-KL-template.xlsx
-  • STOP & konfirmasi auditor
+- **R0** validasi input (TOR/RAB/RKA-Satker) + konteks — AT auto.
+- **R1/R2** Kerangka & Program Kerja — disetup KT via UI (`sasaran-assignment.json`).
+- **R3** pipeline `run_batch_rka` (39 rules) → verifikasi false positive → analisis substantif → `append_temuan` + `record_pkp_assessment` — AT auto, tanpa berhenti.
+- **R4** polish LHR + Nota Dinas — KT.
 
-GATE 2 — PKP-Reviu (Program Kerja Pengujian)
-  • Matriks 6 aspek × N RO
-  • Pakai template
-  • STOP & konfirmasi auditor
-
-GATE 3 — PELAKSANAAN
-  ┌─────────────────────────────────────────────────────────────────┐
-  │ LANGKAH 0 (AUTO-EXECUTE WAJIB) — run_batch.py                   │
-  │   python3 audit-system-v4/scripts/reviu-rka-kl/run_batch.py \   │
-  │       --penugasan "<FOLDER>" --workers 4 \                      │
-  │       --judul "..." --nomor "..." --tanggal "..." --penerima ...│
-  │                                                                 │
-  │   Output otomatis:                                              │
-  │   • _KKP/tor-{N}.json + rab-{N}.json + anomalies-{N}.json       │
-  │   • _KKP/anomalies-master.json (39 rules + cross-RO check)      │
-  │   • _LHP/LHR-DRAFT.docx (siap review)                           │
-  │   • _KKP/_pipeline_meta.json (metadata)                         │
-  └─────────────────────────────────────────────────────────────────┘
-
-  LANGKAH 1 — Review anomali (Claude judgment ~5%)
-  • Baca anomalies-master.json
-  • Filter false positive (terutama C.alt-2, E.alt-2)
-  • Validasi PERINGATAN material → buka halaman PDF spesifik untuk konfirmasi
-  • STOP & TANYA AUDITOR untuk anomali material atau PERINGATAN >5
-
-  LANGKAH 2 — KKR-Reviu.xlsx
-  • Pakai template KKR-Reviu-RKA-KL-template.xlsx
-  • Sheet "Catatan Reviu" diisi dari anomalies-master.json
-  • Klasifikasi status: TERPENUHI / TERPENUHI DENGAN CATATAN / TIDAK TERPENUHI
-
-GATE 4 — LAPORAN HASIL REVIU (LHR)
-  • LHR-DRAFT.docx sudah di-render run_batch.py
-  • Polish narasi Bab E (Hasil Reviu) sesuai konteks domain
-  • Polish Bab F (Rekomendasi) prioritas
-  • Konfirmasi simpulan keyakinan terbatas (Bab G)
-  • Generate Nota Dinas pengantar dari template
-  • STOP & konfirmasi final auditor sebelum penomoran resmi
-```
-
-**Catatan gate-based wajib:** Tidak boleh skip Gate 1 atau 2 walau dalam mode "uji coba" (lihat memory `feedback_gate_based_workflow`). Gate 3 Langkah 0 (`run_batch.py`) WAJIB jalan dulu sebelum Claude masuk ke judgment.
+**HITL** bukan "stop tiap tahap": AT auto-execute R0→R3, lalu **KT approve KKP** dan **KT draft LHR**.
 
 ---
 

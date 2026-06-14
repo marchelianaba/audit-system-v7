@@ -172,7 +172,10 @@ def compute_penugasan_status(folder: Path, dokumen_statuses: list[str], stored_s
     lhp_dir = folder / "_LHP"
     kkp_dir = folder / "_KKP"
 
-    if lhp_dir.exists() and any(lhp_dir.glob("LHP-SUBSTANSI*.docx")):
+    if lhp_dir.exists() and any(
+        next(lhp_dir.glob(pat), None) is not None
+        for pat in ("LHP-SUBSTANSI*.docx", "LHA-*.docx", "LHR-*.docx", "LHE-*.docx", "LP-*.docx")
+    ):
         return PenugasanStatus.LHP_DONE
     if (lhp_dir / "rekomendasi.json").exists():
         return PenugasanStatus.LHP_IN_PROGRESS

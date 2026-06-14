@@ -1,0 +1,48 @@
+{
+  "case_id": "audit-pengadaan-sintetis",
+  "skill": "audit-pengadaan",
+  "folder": "(inline-synthetic)",
+  "deskripsi": "FIXTURE SINTETIS — bukan penugasan nyata. Menguji jalur AUDIT (4-unsur, sebab WAJIB) pada cek deterministik & prompt judge. Temuan ke-3 sengaja tanpa 'sebab' agar cek audit menurunkan skornya.",
+  "_catatan_validasi": "Sintetis untuk regresi harness. Bukan data lapangan; tidak perlu validasi auditor (kecuali ingin menjadikannya contoh baku).",
+  "temuan_inline": [
+    {
+      "sasaran_id": "A-01",
+      "judul_temuan": "HPS Pekerjaan Konstruksi Tidak Didukung Survei Harga yang Memadai",
+      "kondisi": "Harga Perkiraan Sendiri (HPS) paket konstruksi senilai Rp4.200.000.000 hanya didasarkan pada satu sumber penawaran, tanpa survei pasar minimal dua sumber sebagaimana dipersyaratkan.",
+      "kriteria": "Perpres 16/2018 jo. 12/2021 dan Peraturan LKPP tentang penyusunan HPS — HPS disusun berdasarkan data/harga pasar yang dapat dipertanggungjawabkan dari sekurang-kurangnya dua sumber.",
+      "sebab": "Pejabat Pembuat Komitmen tidak menetapkan prosedur survei harga dan tim penyusun HPS tidak melakukan pembandingan harga karena keterbatasan waktu persiapan pengadaan.",
+      "akibat": "HPS berpotensi tidak mencerminkan harga wajar sehingga membuka risiko pemborosan keuangan negara dan kemahalan harga.",
+      "dokumen_sumber": [
+        {"file": "kontrak/HPS-konstruksi.pdf", "halaman": 2, "kutipan": "Sumber harga: 1 (satu) penawaran dari CV Mitra"}
+      ]
+    },
+    {
+      "sasaran_id": "A-02",
+      "judul_temuan": "Volume Terpasang Kurang dari Volume Kontrak pada Pekerjaan Pengadaan Perangkat",
+      "kondisi": "Berita Acara Serah Terima mencatat 100 unit perangkat, namun pemeriksaan fisik uji petik menemukan hanya 92 unit terpasang (selisih 8 unit; nilai ±Rp160.000.000).",
+      "kriteria": "Ketentuan kontrak — penyedia wajib menyerahkan barang sesuai volume dan spesifikasi; pembayaran berdasarkan prestasi yang benar-benar diterima.",
+      "sebab": "Pemeriksa hasil pekerjaan menandatangani BAST tanpa verifikasi fisik menyeluruh dan hanya berdasarkan dokumen pengiriman penyedia.",
+      "akibat": "Pembayaran melebihi prestasi riil sehingga terdapat indikasi kelebihan pembayaran yang merugikan keuangan negara senilai ±Rp160.000.000.",
+      "dokumen_sumber": [
+        {"file": "kontrak/BAST.pdf", "halaman": 1, "kutipan": "Jumlah diterima: 100 unit"},
+        {"file": "uji-petik/berita-acara-cek-fisik.pdf", "halaman": 1, "kutipan": "Terpasang: 92 unit"}
+      ]
+    },
+    {
+      "sasaran_id": "A-03",
+      "judul_temuan": "Keterlambatan Penyelesaian Pekerjaan Belum Dikenakan Denda",
+      "kondisi": "Pekerjaan selesai 18 hari melewati jangka waktu kontrak, namun denda keterlambatan belum diperhitungkan dalam pembayaran termin akhir.",
+      "kriteria": "Klausul kontrak tentang denda keterlambatan sebesar 1/1000 per hari dari nilai kontrak.",
+      "sebab": "",
+      "akibat": "Negara berpotensi kehilangan penerimaan denda keterlambatan sebesar ±Rp75.600.000 yang seharusnya disetorkan.",
+      "dokumen_sumber": [
+        {"file": "kontrak/addendum-waktu.pdf", "halaman": 1, "kutipan": "Realisasi selesai: 18 hari melewati batas"}
+      ]
+    }
+  ],
+  "expected_key_issues": [
+    {"id": "AE1", "ringkas": "HPS tidak didukung survei harga memadai (minimal dua sumber).", "kriteria_acuan": "Perpres PBJP / Peraturan LKPP penyusunan HPS.", "materialitas": "sedang"},
+    {"id": "AE2", "ringkas": "Kelebihan pembayaran akibat volume terpasang < volume kontrak.", "kriteria_acuan": "Ketentuan kontrak — pembayaran sesuai prestasi.", "materialitas": "tinggi"},
+    {"id": "AE3", "ringkas": "Denda keterlambatan belum dikenakan/disetorkan.", "kriteria_acuan": "Klausul denda keterlambatan kontrak.", "materialitas": "sedang"}
+  ]
+}

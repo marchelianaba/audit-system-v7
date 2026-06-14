@@ -1,11 +1,15 @@
 ---
 name: audit-kinerja
 format_laporan: kksa
-version: 2.2
+version: 3.0
 jenis: Audit Kinerja — Efektivitas dan Efisiensi Program/Kegiatan
-dasar-hukum: PP 60/2008, Perpres 29/2014, Standar Audit APIP (AAIPI)
+dasar-hukum: PP 60/2008, Perpres 29/2014, Standar Audit Intern Pemerintah Indonesia (AAIPI)
+dimensi: 2E (efektivitas, efisiensi)
 model: claude-sonnet-4-6
 output: Memo Survey Pendahuluan + KKP + LHA Kinerja
+changelog:
+  - v3.0 (2026-06-14): Kerangka Pemeriksaan Multi-Aspek (8 aspek × 3 lapis) menggantikan "Dimensi Audit (2)"; aspek diturunkan dari sasaran KP + langkah kerja PKP (bukan dipilih bebas); penelusuran Sebab antaraspek (why-tree); lingkup ditegaskan 2E (ekonomis → eskalasi audit-pengadaan). Audit internal (AAIPI) — tanpa rujukan INTOSAI.
+  - v2.2: Survey pendahuluan + research online + aturan anti-halusinasi.
 ---
 
 # Skill: Audit Kinerja — Efektivitas dan Efisiensi Program/Kegiatan
@@ -16,10 +20,11 @@ output: Memo Survey Pendahuluan + KKP + LHA Kinerja
 
 ## Identitas
 - **Nama Skill:** audit-kinerja (skill induk)
-- **Versi:** 2.2
+- **Versi:** 3.0
 - **Jenis Pengawasan:** Audit Kinerja (Performance Audit)
 - **Fokus:** Efektivitas dan efisiensi pelaksanaan program/kegiatan
-- **Dasar Hukum:** PP 60/2008, Perpres 29/2014, Standar Audit APIP (AAIPI)
+- **Lingkup dimensi:** **Efektivitas & Efisiensi (2E)** — ekonomisitas/kewajaran harga di luar lingkup → eskalasi `audit-pengadaan`
+- **Dasar Hukum:** PP 60/2008, Perpres 29/2014, Standar Audit Intern Pemerintah Indonesia (AAIPI)
 - **Tingkat Keyakinan:** Memadai — pengujian bukti mendalam
 - **Kode Nomor Surat:** PW.04.04
 
@@ -71,6 +76,8 @@ audit-kinerja-[program]/  ← SUB-SKILL (dibuat terpisah per program)
 3. Jika sub-skill belum ada → minta auditor upload dokumen proses bisnis internal program; gunakan dokumen tersebut sebagai sumber kriteria
 
 > **Kriteria tidak distandarisasi di skill induk** karena setiap program memiliki proses bisnis, SOP, dan target yang berbeda. Kriteria selalu bersumber dari dokumen program yang diaudit.
+>
+> **Kerangka 8-aspek bersifat universal** (ada di skill induk ini); **kriteria spesifik per aspek** diisi di sub-skill program.
 
 ---
 
@@ -95,7 +102,9 @@ Dua pertanyaan kunci:
 - **Efektivitas** — Apakah program/kegiatan mencapai tujuan dan target yang ditetapkan? Apakah output yang dihasilkan sesuai dengan yang direncanakan (kuantitas dan kualitas)?
 - **Efisiensi** — Apakah sumber daya (anggaran, SDM, waktu) digunakan secara optimal untuk menghasilkan output tersebut? Apakah ada pemborosan atau hambatan yang tidak perlu?
 
-> Ekonomisitas (kewajaran harga pengadaan) **bukan** fokus utama skill ini — itu domain `audit-pengadaan`. Jika ditemukan indikasi pengadaan bermasalah selama audit kinerja, catat sebagai area untuk ditindaklanjuti oleh tim pengadaan.
+Keduanya **tidak dinilai langsung**, melainkan ditelusuri lewat **8 aspek** (kebijakan/desain, tata kelola, SDM, sistem-proses, anggaran-aset, pelaksanaan-output, outcome, data kinerja) — lihat **Kerangka Pemeriksaan Multi-Aspek**. Aspek yang diperiksa dibatasi oleh sasaran (KP) & langkah kerja (PKP).
+
+> **Lingkup 2E.** Ekonomisitas (kewajaran harga pengadaan) **di luar lingkup** skill ini — itu domain `audit-pengadaan`. Jika ditemukan indikasi pengadaan bermasalah selama audit kinerja, catat sebagai area untuk ditindaklanjuti oleh tim pengadaan.
 
 ---
 
@@ -131,6 +140,8 @@ Meski kriteria teknis program berbeda-beda, tiga tolok ukur ini selalu berlaku:
 - **Target IKU** dalam Perjanjian Kinerja → tolok ukur efektivitas
 - **Proses bisnis / SOP internal** → tolok ukur kesesuaian pelaksanaan
 - **Alokasi anggaran** dalam DIPA/RKA → tolok ukur efisiensi (realisasi vs rencana)
+
+> **Peta kriteria lengkap per aspek** ada di bagian **Kerangka Pemeriksaan Multi-Aspek** — kolom "Sumber kriteria". Survey pendahuluan menentukan dokumen mana yang diminta sesuai aspek yang disasar KP/PKP.
 
 ---
 
@@ -169,7 +180,7 @@ Dokumen yang dikumpulkan dan dibaca auditor:
    - Cari regulasi terbaru & pedoman teknis dari instansi pembina (Bappenas, KemenPAN-RB, Kemenkeu)
    - Cari hasil audit BPK/BPKP sebelumnya atau kajian akademis atas program/sektor sejenis
    - Setiap klaim **WAJIB** disertai URL sumber + tanggal akses
-3. **Pemetaan risiko kinerja** — untuk setiap simpul logika, identifikasi:
+3. **Pemetaan risiko kinerja** — untuk setiap simpul logika **dan setiap aspek dari 8 aspek** (lihat Kerangka Pemeriksaan Multi-Aspek), identifikasi:
    - Risiko efektivitas: target tidak tercapai, output tidak berkualitas, tidak sampai ke penerima manfaat
    - Risiko efisiensi: pemborosan anggaran, overhead tinggi, serapan tidak konsisten dengan progres fisik
    - Risiko data: IKU tidak valid, manipulasi data kinerja, target terlalu rendah
@@ -260,9 +271,9 @@ C. Unit Pelaksana       : [Unit]
    2.5 Catatan sumber yang TIDAK ditemukan / perlu verifikasi auditor
        [daftar eksplisit jenis yang tidak bisa diisi — jangan kosongkan diam-diam]
 
-3. PEMETAAN RISIKO KINERJA
-   | No | Area | Risiko Efektivitas | Risiko Efisiensi | Tingkat Risiko | Dasar Risiko (internal/benchmark) |
-   |----|------|--------------------|-|----------------|-----------------------------------|
+3. PEMETAAN RISIKO KINERJA (per aspek)
+   | No | Aspek (1–8) | Risiko Efektivitas | Risiko Efisiensi | Tingkat Risiko | Dasar Risiko (internal/benchmark) |
+   |----|-------------|--------------------|-|----------------|-----------------------------------|
 
 4. ANALYTICAL REVIEW AWAL
    - Target vs realisasi IKU (indikasi awal)
@@ -302,6 +313,7 @@ Setelah Memo Survey Pendahuluan disetujui auditor:
 - **Sasaran di KP dan PKP WAJIB diambil dari bagian 5 Memo SP** (sasaran hasil penajaman), BUKAN verbatim dari ST
 - **Ruang lingkup di KP WAJIB diambil dari bagian 6 Memo SP** (ruang lingkup terukur)
 - **Langkah kerja per sasaran di PKP WAJIB diturunkan dari bagian 7 Memo SP** (hipotesis audit awal)
+- **Tiap sasaran (KP) & langkah kerja (PKP) menyebut aspek yang disasar** (dari 8 aspek). Inilah yang **mengikat ruang lingkup aspek** saat KKP — agen hanya memeriksa aspek yang tercermin di KP/PKP.
 - Jika sasaran hasil penajaman berbeda signifikan dengan sasaran ST, jelaskan alasan penajaman di Memo SP dan mintakan persetujuan auditor
 
 ### Batasan Survey Pendahuluan
@@ -336,26 +348,53 @@ Input (anggaran, SDM) → Proses (pelaksanaan) → Output (hasil langsung)
 
 ---
 
-## Dimensi Audit yang Digunakan
+## Kerangka Pemeriksaan Multi-Aspek (8 Aspek × 3 Lapis)
 
-### Dimensi 1: Efektivitas Pencapaian Target
+Audit kinerja itu luas. Untuk sampai pada simpulan **efektivitas & efisiensi (2E)**, auditor menelusuri **rantai penyampaian program beserta enabler-nya**. 8 aspek berikut adalah **lensa** — memahami DI MANA mencari dan bagaimana menelusuri sebab — bukan daftar yang wajib diperiksa seluruhnya.
 
-| Aspek | Yang Diaudit | Bukti yang Diperlukan |
-|-------|-------------|----------------------|
-| Target vs realisasi IKU | Apakah IKU dalam PK tercapai? | Data realisasi vs PK, laporan kinerja B12 |
-| Kualitas pengukuran | Apakah cara pengukuran IKU valid dan konsisten? | Metodologi pengukuran, data mentah |
-| Konsistensi data | Apakah data di berbagai laporan konsisten? | LKj, laporan bulanan, SMART/e-monitoring |
-| Capaian output fisik | Apakah output ada secara fisik dan berkualitas? | BAST, laporan pengawas, cek lapangan |
-| Kesesuaian proses bisnis | Apakah pelaksanaan mengikuti proses bisnis yang ditetapkan? | Dokumen proses bisnis, wawancara pelaksana |
+**Tiga lapis:**
+- **HULU (desain):** 1. Kebijakan & Desain Program
+- **ENABLER (pengendali & sumber daya):** 2. Tata Kelola & Organisasi · 3. SDM · 4. Sistem, Proses & Teknologi · 5. Anggaran & Aset
+- **HILIR (kinerja):** 6. Pelaksanaan & Output · 7. Hasil & Manfaat (Outcome) · 8. Data Kinerja & Pelaporan
 
-### Dimensi 2: Efisiensi Penggunaan Sumber Daya
+| # | Aspek | Pertanyaan audit inti | Sumber kriteria | Teknik & bukti | Kontribusi 2E |
+|---|-------|----------------------|-----------------|----------------|---------------|
+| 1 | **Kebijakan & Desain Program** | Tujuan & logika intervensi relevan, jelas, koheren dengan kebijakan di atasnya? Teori perubahan masuk akal? | Renstra/RPJMN, regulasi sektor, TOR/proposal, logframe | Reviu desain, analisis logframe, benchmarking K/L sejenis | Efektivitas (akar) |
+| 2 | **Tata Kelola & Organisasi** | Kewenangan, akuntabilitas, koordinasi antarunit/stakeholder & manajemen risiko memadai? | Struktur & tusi, SOP koordinasi, kebijakan SPIP (PP 60/2008) | Walkthrough, wawancara, reviu dokumen tata kelola | Efektivitas + Efisiensi |
+| 3 | **SDM** | Jumlah & kompetensi pelaksana cukup untuk capai target? Beban kerja wajar? | Analisis Beban Kerja (ABK), standar kompetensi jabatan, PermenPANRB terkait | Analisis beban kerja, data kepegawaian, wawancara | Efisiensi + Efektivitas |
+| 4 | **Sistem, Proses & Teknologi** | Proses bisnis/SOP memadai & benar dijalankan? Sistem informasi & data mendukung? | Proses bisnis, SOP/juknis, kebijakan SPBE/aplikasi internal | Process walkthrough, uji pengendalian, telusur sistem | Efisiensi + Efektivitas |
+| 5 | **Anggaran & Aset** | Sumber daya cukup, tepat alokasi & dimanfaatkan optimal? | DIPA/RKA, standar biaya, daftar/laporan aset | Serapan vs progres fisik, biaya per output, utilisasi aset | Efisiensi |
+| 6 | **Pelaksanaan & Output** | Kegiatan sesuai rencana? Output tercapai (kuantitas **&** kualitas) sesuai standar? | Rencana/jadwal kerja, standar output, TOR | Uji petik output, BAST, cek lapangan, foto | Efektivitas |
+| 7 | **Hasil & Manfaat (Outcome)** | Output berubah jadi outcome & sampai ke penerima manfaat? | Target outcome PK/Renstra, indikator dampak | Survei/konfirmasi penerima manfaat, data outcome, analytical review | Efektivitas |
+| 8 | **Data Kinerja & Pelaporan** | IKU valid & terukur? Data kinerja jujur (anti-manipulasi / target terlalu rendah)? | Pedoman SAKIP, definisi operasional IKU | Rekalkulasi IKU, telusur ke data mentah, uji konsistensi antarlaporan | Efektivitas (validitas simpulan) |
 
-| Aspek | Yang Diaudit | Cara Menghitung |
-|-------|-------------|-----------------|
-| Biaya per unit output | Berapa biaya riil per unit output yang dihasilkan? | Realisasi anggaran ÷ jumlah output |
-| Konsistensi keuangan vs fisik | Apakah serapan anggaran sesuai dengan progres fisik? | % realisasi keuangan vs % capaian output |
-| Proporsi biaya langsung | Berapa % anggaran yang langsung menghasilkan output vs overhead? | Komponen belanja di DIPA |
-| Hambatan pelaksanaan | Adakah hambatan yang menyebabkan pemborosan waktu/biaya? | Wawancara, notulen rapat, laporan progres |
+> Tidak ada aspek "ekonomis" — lingkup skill ini **2E**. Indikasi kewajaran harga/pengadaan → eskalasi `audit-pengadaan`.
+
+### Aspek ditetapkan oleh KP & PKP (bukan dipilih bebas)
+
+**Ruang lingkup aspek yang diaudit = aspek yang tercermin pada SASARAN di Kartu Penugasan (KP) + LANGKAH KERJA di Program Kerja Pengawasan (PKP).** 8 aspek di atas berperan dua kali:
+- **Di hulu (perencanaan):** checklist saat survey pendahuluan merumuskan sasaran & langkah kerja → dituangkan ke KP (oleh PT) dan PKP (oleh KT).
+- **Di eksekusi (Task 03/KKP):** lensa pemetaan.
+
+**Langkah wajib di awal KKP — Pemetaan Sasaran/Langkah → Aspek:**
+1. Baca sasaran di KP dan langkah kerja di `_PKP/sasaran-assignment.json`.
+2. Petakan **tiap sasaran & langkah kerja ke aspek** yang relevan (satu sasaran bisa menyentuh >1 aspek).
+3. **Hanya periksa aspek yang tercermin di KP/PKP.** Aspek di luar itu TIDAK diaudit.
+4. Bila saat pengujian muncul indikasi material pada aspek di luar KP/PKP → **catat sebagai usulan perluasan ruang lingkup ke PT/KT**, jangan langsung audit (jaga batas penugasan).
+
+### Penelusuran Sebab antaraspek (why-tree)
+
+Saat gap kinerja ditemukan di hilir, telusuri sebabnya mundur menembus lapisan — ini membuat kolom **Sebab** sistematis, bukan berhenti di "kurang pengawasan":
+
+```
+Gap Efektivitas (aspek 6–7: output/outcome tak tercapai)
+   ↑ mengapa?
+Enabler gagal? (aspek 2–5: tata kelola / SDM / sistem-proses / anggaran-aset)
+   ↑ mengapa?
+Berakar di desain/kebijakan? (aspek 1: logika intervensi lemah / target tak realistis)
+
+Paralel — aspek 8 (data): apakah kinerja yang "dilaporkan" memang nyata?
+```
 
 ---
 
@@ -399,9 +438,11 @@ atau alokasi sumber daya ulang. Sebutkan: siapa bertanggung jawab, apa yang dila
 
 ## Format KKP Audit Kinerja
 
-| No | Judul Temuan | Dimensi | Kondisi | Kriteria | Sebab | Akibat |
-|----|-------------|---------|---------|----------|-------|--------|
-| 1 | [Judul] | Efektivitas/Efisiensi/Ekonomis | [Fakta] | [Target/Acuan] | [Root cause] | [Dampak] |
+| No | Judul Temuan | Aspek (1–8) | Dimensi (2E) | Kondisi | Kriteria | Sebab | Akibat |
+|----|-------------|-------------|--------------|---------|----------|-------|--------|
+| 1 | [Judul] | [aspek terkait] | Efektivitas / Efisiensi | [Fakta] | [Target/Acuan] | [Root cause] | [Dampak] |
+
+> Simpan `aspek` & `dimensi` sebagai field di `temuan.json` (metadata + ditampilkan di narasi KKP). Kolom DOCX hasil `render_kkp.py` tidak wajib berubah — penanda aspek boleh muncul di narasi temuan saja.
 
 ---
 
@@ -426,11 +467,11 @@ Bab 2: GAMBARAN UMUM PROGRAM
 Bab 3: METODOLOGI AUDIT KINERJA
        [Pendekatan 3E, teknik pengumpulan bukti, sumber data]
 
-Bab 4: TEMUAN DAN ANALISIS
+Bab 4: TEMUAN DAN ANALISIS (dilaporkan per dimensi 2E; tiap temuan ditandai aspeknya)
        4.1 Efektivitas Pencapaian Target
-           [Temuan format CCSAA per isu efektivitas — target IKU, kualitas output, kesesuaian proses bisnis]
+           [Temuan CCSAA per isu efektivitas — sebut aspek terkait (mis. Kebijakan & Desain, Pelaksanaan & Output, Outcome, Data Kinerja)]
        4.2 Efisiensi Penggunaan Sumber Daya
-           [Temuan per isu efisiensi — biaya per output, konsistensi keuangan vs fisik, hambatan]
+           [Temuan per isu efisiensi — sebut aspek terkait (mis. Anggaran & Aset, Sistem-Proses-Teknologi, SDM)]
 
 Bab 5: SIMPULAN
        [Jawaban atas pertanyaan audit — apakah program efektif, efisien, ekonomis?]
@@ -438,7 +479,7 @@ Bab 5: SIMPULAN
 Bab 6: REKOMENDASI
        [Matriks: Temuan | Rekomendasi | Penanggung Jawab | Target Waktu]
 
-Lampiran: Daftar Dokumen Sumber, Matriks Temuan Lengkap
+Lampiran: Daftar Dokumen Sumber, Matriks Temuan Lengkap, Matriks Aspek (1–8) × Dimensi (2E)
 ```
 
 ---
@@ -458,7 +499,7 @@ Lampiran: Daftar Dokumen Sumber, Matriks Temuan Lengkap
 - **Fokus hanya efektivitas dan efisiensi** — jangan masuk ke penilaian kewajaran harga/pengadaan (domain audit-pengadaan)
 - **Kriteria dari dokumen program** — jangan gunakan asumsi sendiri tentang "seharusnya bagaimana"; selalu kaitkan dengan proses bisnis/SOP yang diupload
 - **Jangan menyimpulkan kecurangan** — audit kinerja bukan audit investigatif; jika ada indikasi fraud → catat dan eskalasi ke pimpinan
-- **Jangan melampaui ruang lingkup ST** — temuan harus dalam batas yang ditetapkan Surat Tugas
+- **Jangan melampaui ruang lingkup ST/KP/PKP** — aspek yang diaudit dibatasi sasaran (KP) & langkah kerja (PKP); aspek di luar itu tidak diaudit. Indikasi material di luar lingkup → usulkan perluasan ke PT/KT, jangan langsung audit
 - **Sebab harus berbasis bukti** — jangan spekulatif; jika penyebab tidak dapat diverifikasi, nyatakan sebagai area yang perlu investigasi lebih lanjut
 - **Data tidak tersedia = keterbatasan** — jika data kinerja tidak dapat diakses, nyatakan sebagai batasan audit; JANGAN isi dengan estimasi
 - **Rekomendasi realistis** — harus dalam kewenangan auditan untuk melaksanakan
@@ -493,8 +534,8 @@ parent-skill: audit-kinerja
 - IKU utama: [...]
 - Periode yang diaudit: [...]
 
-## Kriteria Spesifik Program
-[Diisi dari proses bisnis internal — tahapan kerja, standar output, target]
+## Kriteria Spesifik Program (organisir per aspek yang relevan dari 8 aspek)
+[Diisi dari proses bisnis internal — tahapan kerja, standar output, target. Kelompokkan per aspek yang disasar program ini, mis. Kebijakan & Desain, Sistem-Proses-Teknologi, Pelaksanaan & Output, Outcome, Data Kinerja]
 
 ## Referensi
 | Dokumen | File |

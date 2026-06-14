@@ -18,11 +18,12 @@ type MenuItem = {
   href: string;
   label: string;
   icon: string;            // emoji untuk prototype — bisa diganti SVG nanti
+  exact?: boolean;         // aktif hanya saat path persis sama (mis. Home vs Penugasan)
   children?: { href: string; label: string }[];
 };
 
 const MENU_ITEMS: MenuItem[] = [
-  { href: '/home', label: 'Home', icon: '🏠' },
+  { href: '/penugasan', label: 'Home', icon: '🏠', exact: true },
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   {
     href: '/penugasan',
@@ -73,9 +74,11 @@ export function Sidebar({
     setExpanded(next);
   }, [pathname]);
 
-  const isActive = (href: string) => {
-    if (href === '/home') return pathname === '/' || pathname === '/home';
-    return pathname === href || pathname.startsWith(href + '/');
+  const isActive = (item: MenuItem) => {
+    // "Home" (exact) hanya aktif tepat di daftar penugasan, supaya tidak
+    // bentrok dengan menu "Penugasan" yang juga aktif saat buka detail.
+    if (item.exact) return pathname === item.href;
+    return pathname === item.href || pathname.startsWith(item.href + '/');
   };
 
   return (
@@ -87,7 +90,7 @@ export function Sidebar({
       {/* Brand + Collapse toggle */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
         {!collapsed && (
-          <Link href="/home" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg integral-gradient flex items-center justify-center text-white font-bold text-sm">
               ∫
             </div>
@@ -121,7 +124,7 @@ export function Sidebar({
       {/* Menu items */}
       <nav className="px-2 space-y-0.5">
         {MENU_ITEMS.map((item) => {
-          const active = isActive(item.href);
+          const active = isActive(item);
           const isExpanded = expanded[item.href] ?? false;
           const hasChildren = item.children && item.children.length > 0;
           return (

@@ -1,0 +1,47 @@
+{
+  "case_id": "reviurkakl-e2e-51",
+  "skill": "reviu-rka-kl",
+  "folder": "2026-06-reviurkakl-20260609-233516135371",
+  "deskripsi": "E2E Workflow Test — Reviu RKA App PDP 2026 (TOR + RAB).",
+  "_catatan_validasi": "DRAFT — expected_key_issues di bawah diseed dari temuan nyata penugasan 51 + 1 kandidat. WAJIB ditinjau auditor senior: tambahkan isu yang SEHARUSNYA tertangkap (untuk menguji recall sebenarnya), buang yang tidak material. Sebelum ditinjau, angka recall belum bisa dipercaya.",
+  "expected_key_issues": [
+    {
+      "id": "E1",
+      "ringkas": "Harga satuan konsumsi rapat melebihi Standar Biaya Masukan (SBM) TA 2026.",
+      "kriteria_acuan": "PMK SBM TA 2026; PMK 107/2024 Pasal 61 (RAB sesuai standar biaya).",
+      "materialitas": "tinggi"
+    },
+    {
+      "id": "E2",
+      "ringkas": "TOR tidak memuat seluruh blok substansi wajib (kelengkapan format PMK 107/2024 Pasal 61).",
+      "kriteria_acuan": "PMK 107/2024 Pasal 61 — komponen format TOR.",
+      "materialitas": "tinggi"
+    },
+    {
+      "id": "E3",
+      "ringkas": "Indikator kinerja TOR tidak terukur / tidak mengukur capaian RO di level output.",
+      "kriteria_acuan": "Kaidah penyusunan KPI–RO (cascading & keterukuran).",
+      "materialitas": "sedang"
+    },
+    {
+      "id": "E4",
+      "ringkas": "Dasar hukum TOR tidak lengkap / tidak menyebut pasal-ayat relevan.",
+      "kriteria_acuan": "Kelengkapan dasar hukum TOR.",
+      "materialitas": "sedang"
+    },
+    {
+      "id": "E5",
+      "ringkas": "TOR tidak memuat baseline capaian tahun sebelumnya sebagai dasar penetapan target.",
+      "kriteria_acuan": "Kaidah penetapan target berbasis baseline.",
+      "materialitas": "sedang"
+    },
+    {
+      "id": "E6-KANDIDAT",
+      "ringkas": "Kesesuaian akun/kode belanja RAB dengan Bagan Akun Standar (BAS) dan klasifikasi belanja.",
+      "kriteria_acuan": "BAS; PMK klasifikasi anggaran.",
+      "materialitas": "sedang",
+      "_kandidat": true,
+      "_alasan": "Isu yang lazim dicek dalam Reviu RKA tetapi belum tentu diproduksi agen — sengaja dimasukkan untuk menguji deteksi 'terlewat'. Auditor senior konfirmasi apakah relevan untuk kasus ini."
+    }
+  ]
+}

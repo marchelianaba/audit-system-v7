@@ -188,12 +188,175 @@ async def write_rekomendasi_json(args: dict) -> dict:
     return {"content": [{"type": "text", "text": f"OK|n_rekomendasi={len(args['rekomendasi'])}"}]}
 
 
+# A1 — penyesuaian jenis (lapisan app, V6 read-only). render_lhp.py menghasilkan
+# docx ber-judul "REVIU" generik + nama file LHP-SUBSTANSI; di sini judul/kata &
+# nama file disesuaikan per jenis pengawasan: audit→LHA, evaluasi→LHE,
+# pemantauan→LP, reviu→LHR.
+_JENIS_LABEL = {
+    "audit": ("AUDIT", "Audit", "LHA"),
+    "kepatuhan": ("AUDIT", "Audit", "LHA"),
+    "evaluasi": ("EVALUASI", "Evaluasi", "LHE"),
+    "pemantauan": ("PEMANTAUAN", "Pemantauan", "LP"),
+    "reviu": ("REVIU", "Reviu", "LHR"),
+}
+
+
+def _jenis_meta(skill: str) -> tuple[str, str, str]:
+    s = _slug(skill)
+    for key, val in _JENIS_LABEL.items():
+        if s.startswith(key):
+            return val
+    return ("PENGAWASAN", "Pengawasan", "LHP")
+
+
+def _para_replace(p, subs: list[tuple]) -> None:
+    full = "".join(r.text for r in p.runs)
+    if not full:
+        return
+    new = full
+    for pat, repl in subs:
+        new = pat.sub(repl, new)
+    if new != full and p.runs:
+        p.runs[0].text = new
+        for r in p.runs[1:]:
+            r.text = ""
+
+
+def _family(skill: str) -> str:
+    s = _slug(skill)
+    for key in ("audit", "kepatuhan", "evaluasi", "pemantauan", "reviu"):
+        if s.startswith(key):
+            return "audit" if key == "kepatuhan" else key
+    return "lain"
+
+
+def _terbilang(n: int) -> str:
+    d = ["nol", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan",
+         "sembilan", "sepuluh", "sebelas"]
+    return d[n] if 0 <= n < len(d) else str(n)
+
+
+def _counts(folder: Path) -> tuple[int, int]:
+    n = m = 0
+    tj = folder / "_KKP" / "temuan.json"
+    if tj.exists():
+        try:
+            d = json.loads(tj.read_text(encoding="utf-8"))
+            items = d if isinstance(d, list) else (d.get("temuan") or d.get("items") or [])
+            n = len(items)
+        except (json.JSONDecodeError, OSError):
+            pass
+    sj = folder / "_PKP" / "sasaran-assignment.json"
+    if sj.exists():
+        try:
+            d = json.loads(sj.read_text(encoding="utf-8"))
+            sas = d.get("sasaran") if isinstance(d, dict) else d
+            m = len(sas or [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    return n, m
+
+
+# A2 — paragraf Metodologi/Intro/Simpulan di-hardcode paradigma REVIU oleh V6
+# (read-only). Di lapisan app diganti dengan paragraf sesuai jenis. Paragraf
+# diidentifikasi lewat penanda stabil dari teks asli V6.
+_SUBSTANCE = {
+    "audit": {
+        "desk review": "Audit dilaksanakan sesuai Standar Audit Intern Pemerintah Indonesia (SAIPI) melalui penelaahan dokumen, pengujian bukti secara memadai, klarifikasi/wawancara dengan pihak terkait, serta — bila relevan — pemeriksaan dan uji petik atas hasil pekerjaan. Tim juga memanfaatkan analisis pre-digest dan cross-check otomatis untuk mendeteksi anomali antar dokumen.",
+        "dikelompokkan ke dalam": "Berdasarkan pengujian atas dokumen dan bukti audit, tim Inspektorat II memperoleh {n} ({nt}) temuan yang dikelompokkan ke dalam {m} ({mt}) aspek sesuai sasaran audit. Temuan dirumuskan dengan paradigma audit (Kondisi-Kriteria-Sebab-Akibat-Rekomendasi) dengan tingkat keyakinan memadai sebagaimana diatur dalam SAIPI.",
+        "limited assurance": "Berdasarkan hasil audit yang kami lakukan dengan tingkat keyakinan memadai, terdapat {n} ({nt}) temuan yang perlu ditindaklanjuti auditi sesuai rekomendasi pada laporan ini. Simpulan ini didasarkan pada bukti yang cukup dan memadai; tindak lanjut atas rekomendasi menjadi tanggung jawab pimpinan auditi.",
+    },
+    "evaluasi": {
+        "desk review": "Evaluasi dilaksanakan melalui penelaahan dokumen, analisis data kinerja/capaian, dan klarifikasi kepada unit terkait, dengan membandingkan kondisi yang ada terhadap kriteria evaluasi yang ditetapkan.",
+        "dikelompokkan ke dalam": "Berdasarkan penelaahan, tim Inspektorat II memperoleh {n} ({nt}) catatan evaluasi yang dikelompokkan ke dalam {m} ({mt}) aspek sesuai sasaran evaluasi. Catatan dirumuskan dengan paradigma Kondisi-Kriteria-Akibat-Rekomendasi.",
+        "limited assurance": "Berdasarkan hasil evaluasi dengan tingkat keyakinan terbatas, terdapat {n} ({nt}) catatan yang perlu ditindaklanjuti untuk meningkatkan kualitas pelaksanaan pada aspek yang dievaluasi.",
+    },
+    "pemantauan": {
+        "desk review": "Pemantauan dilaksanakan melalui penelaahan laporan berkala dan data status pelaksanaan dari auditi/pengawas pekerjaan, dengan membandingkan realisasi terhadap target serta ketentuan kontrak/rencana.",
+        "dikelompokkan ke dalam": "Berdasarkan pemantauan, tim Inspektorat II mencatat {n} ({nt}) isu/kondisi yang perlu perhatian, dikelompokkan ke dalam {m} ({mt}) aspek. Pemantauan bersifat pelaporan status dan tidak memberikan keyakinan atas kebenaran substansi.",
+        "limited assurance": "Berdasarkan hasil pemantauan, terdapat {n} ({nt}) kondisi yang perlu perhatian sebagaimana diuraikan. Laporan ini bersifat pelaporan status — tidak memberikan keyakinan dan tidak menyimpulkan pelanggaran; tindak lanjut menjadi kewenangan pihak pengelola kegiatan.",
+    },
+}
+
+
+def _set_para(p, text: str) -> None:
+    if p.runs:
+        p.runs[0].text = text
+        for r in p.runs[1:]:
+            r.text = ""
+    else:
+        p.text = text
+
+
+def _apply_jenis(docx_path: Path, family: str, up: str, title: str, n: int, m: int) -> None:
+    """A2 substance (paragraf per jenis) + A1 wording (kata Reviu→jenis). Untuk non-reviu."""
+    subst = _SUBSTANCE.get(family, {})
+    fmt = {"n": n, "nt": _terbilang(n), "m": m, "mt": _terbilang(m)}
+    subs = [
+        (re.compile(r"\bREVIU\b"), up),
+        (re.compile(r"\bReviu\b"), title),
+        (re.compile(r"\breviu\b"), title.lower()),
+    ]
+    doc = Document(str(docx_path))
+
+    def handle(p):
+        for marker, tpl in subst.items():
+            if marker in p.text:
+                _set_para(p, tpl.format(**fmt))
+                return
+        _para_replace(p, subs)
+
+    for p in doc.paragraphs:
+        handle(p)
+    for t in doc.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    handle(p)
+    for sec in doc.sections:
+        for area in (sec.header, sec.footer):
+            for p in area.paragraphs:
+                _para_replace(p, subs)
+    doc.save(str(docx_path))
+
+
+def _finalize_jenis(folder: Path, skill: str) -> str | None:
+    """A1 nama-file + A2 substansi/kata per jenis. Return nama file final."""
+    up, title, prefix = _jenis_meta(skill)
+    family = _family(skill)
+    outs = sorted((folder / "_LHP").glob("LHP-SUBSTANSI*.docx"), key=lambda p: p.stat().st_mtime)
+    if not outs:
+        return None
+    produced = outs[-1]
+    if family != "reviu":
+        try:
+            n, m = _counts(folder)
+            _apply_jenis(produced, family, up, title, n, m)
+        except Exception:
+            pass
+    final = produced.with_name(produced.name.replace("LHP-SUBSTANSI", prefix, 1))
+    if final != produced:
+        produced.replace(final)
+    return final.name
+
+
 async def _render_kksa(folder: Path, args: dict) -> dict:
     """Render LHP paradigma KKSA via render_lhp.py V6 (placeholder {{...}})."""
     rekomendasi = folder / "_LHP" / "rekomendasi.json"
     if not rekomendasi.exists():
         return {"content": [{"type": "text", "text": "FAILED|rekomendasi.json belum ada"}], "is_error": True}
     skill = args.get("skill") or ""
+    # B — bab Gambaran Umum tidak boleh kosong/placeholder; paksa agen mengisinya.
+    gu = (args.get("gambaran_umum") or "").strip()
+    if not gu or gu.upper().startswith("[DIISI"):
+        return {
+            "content": [{
+                "type": "text",
+                "text": "FAILED|gambaran_umum kosong/placeholder. Susun 3–5 kalimat substantif "
+                        "(obyek, nilai anggaran/HPS, mekanisme/periode) dari KP+PKP+digest+context, lalu render ulang.",
+            }],
+            "is_error": True,
+        }
     template = resolve_lhp_template(skill)
     if template is None:
         return {
@@ -219,7 +382,10 @@ async def _render_kksa(folder: Path, args: dict) -> dict:
     )
     if code != 0:
         return {"content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}"}], "is_error": True}
-    return {"content": [{"type": "text", "text": f"OK|format=kksa|template={template.name}|{out[:160]}"}]}
+    # A1: sesuaikan judul/kata + nama file per jenis (LHA/LHR/LHE/LP).
+    final_name = _finalize_jenis(folder, skill)
+    tail = f"|file={final_name}" if final_name else ""
+    return {"content": [{"type": "text", "text": f"OK|format=kksa|template={template.name}{tail}|{out[:120]}"}]}
 
 
 @tool(
@@ -366,7 +532,10 @@ def _render_memo(folder: Path, args: dict) -> dict:
         return {"content": [{"type": "text", "text": "FAILED|saran.json kosong"}], "is_error": True}
 
     ctx = _ctx_lines(folder)
-    doc = Document()
+    # Mulai dari template ber-KOP (kop-only) bila tersedia, lalu tambahkan isi
+    # memo di bawahnya. Fallback ke dokumen kosong bila template tak ada.
+    kop_tpl = settings.templates_path / "_skeleton-lhp" / "template-lhp-konsultansi-umum.docx"
+    doc = Document(str(kop_tpl)) if kop_tpl.exists() else Document()
     doc.add_heading("MEMO KONSULTANSI", level=0)
     doc.add_paragraph(args.get("judul") or "Memo Konsultansi")
     meta = doc.add_paragraph()

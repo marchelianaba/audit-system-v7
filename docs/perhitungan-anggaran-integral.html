@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perhitungan Kebutuhan Anggaran — INTEGRAL AI Workspace</title>
+<style>
+  :root{
+    --ungu:#5C4FE7; --ungu-tua:#3d34a8; --ungu-muda:#efeefc;
+    --abu:#6b7280; --garis:#e5e7eb; --hijau:#0f9d58; --kuning:#fef9e7; --kuning-garis:#f4d35e;
+    --teks:#1f2937; --bg:#f7f8fc;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       margin:0;background:var(--bg);color:var(--teks);line-height:1.6;font-size:16px}
+  .wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
+  header{background:linear-gradient(135deg,var(--ungu),var(--ungu-tua));color:#fff;
+         border-radius:16px;padding:28px 28px;margin-bottom:24px;box-shadow:0 8px 30px rgba(92,79,231,.25)}
+  header .logo{font-size:13px;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+  header h1{margin:6px 0 4px;font-size:26px;line-height:1.25}
+  header p{margin:0;opacity:.9;font-size:15px}
+  h2{font-size:20px;margin:34px 0 12px;color:var(--ungu-tua);border-bottom:2px solid var(--ungu-muda);padding-bottom:6px}
+  h3{font-size:16px;margin:20px 0 8px;color:var(--ungu-tua)}
+  p{margin:10px 0}
+  .lead{font-size:17px;color:#374151}
+  .ringkas{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:18px 0}
+  .kartu{background:#fff;border:1px solid var(--garis);border-radius:12px;padding:18px;text-align:center}
+  .kartu .label{font-size:13px;color:var(--abu);text-transform:uppercase;letter-spacing:.04em}
+  .kartu .nilai{font-size:24px;font-weight:800;color:var(--ungu-tua);margin-top:6px;line-height:1.2}
+  .kartu .ket{font-size:12.5px;color:var(--abu);margin-top:4px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--garis);
+        border-radius:12px;overflow:hidden;margin:14px 0;font-size:15px}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--garis)}
+  th{background:var(--ungu-muda);color:var(--ungu-tua);font-weight:700;font-size:13.5px}
+  td.angka,th.angka{text-align:right;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr.total td{background:#faf9ff;font-weight:800;color:var(--ungu-tua)}
+  .catatan{background:var(--kuning);border:1px solid var(--kuning-garis);border-radius:12px;
+           padding:14px 18px;margin:18px 0;font-size:14.5px}
+  .catatan strong{color:#8a6d00}
+  .box{background:#fff;border:1px solid var(--garis);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .tag{display:inline-block;background:var(--ungu-muda);color:var(--ungu-tua);
+       padding:2px 10px;border-radius:20px;font-size:12.5px;font-weight:700;margin-right:6px}
+  .hemat{color:var(--hijau);font-weight:700}
+  .aman{color:#b45309;font-weight:700}
+  ul{margin:8px 0 8px 4px;padding-left:22px}
+  li{margin:6px 0}
+  footer{margin-top:36px;font-size:13px;color:var(--abu);text-align:center;border-top:1px solid var(--garis);padding-top:18px}
+  .pill{font-size:12px;background:#fff;border:1px solid var(--garis);border-radius:20px;padding:3px 10px;color:var(--abu)}
+  small{color:var(--abu)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">INTEGRAL AI Workspace · Powered by Audit AI v7</div>
+    <h1>Perhitungan Kebutuhan Anggaran Operasional</h1>
+    <p>Estimasi biaya menjalankan sistem untuk 4 Inspektorat · disusun 10 Juni 2026</p>
+  </header>
+
+  <p class="lead">Dokumen ini memperkirakan biaya untuk <strong>menjalankan</strong> sistem INTEGRAL setiap bulan dan setiap tahun. Semua angka sudah ditambah <strong>dana cadangan (buffer) pengaman</strong> dan sudah memperhitungkan bahwa <strong>analisis biasanya diulang beberapa kali</strong> oleh Anggota Tim dan Ketua Tim sampai hasilnya pas.</p>
+
+  <div class="ringkas">
+    <div class="kartu">
+      <div class="label">Per Penugasan (rata-rata)</div>
+      <div class="nilai">± Rp170 rb</div>
+      <div class="ket">sudah termasuk pengulangan analisis</div>
+    </div>
+    <div class="kartu">
+      <div class="label">Per Bulan</div>
+      <div class="nilai">± Rp18,5 juta</div>
+      <div class="ket">80 penugasan + infrastruktur</div>
+    </div>
+    <div class="kartu">
+      <div class="label">Per Tahun (patokan aman)</div>
+      <div class="nilai">± Rp225 juta</div>
+      <div class="ket">angka untuk diajukan</div>
+    </div>
+  </div>
+
+  <h2>1. Bagaimana sistem ini menimbulkan biaya?</h2>
+  <p>Ada <strong>dua jenis biaya</strong>:</p>
+  <div class="box">
+    <p><span class="tag">A</span> <strong>Biaya “otak AI” (model Anthropic).</strong> Setiap kali AI membaca dokumen dan menulis hasil (konteks, kertas kerja/KKP, draft laporan), pemakaiannya dihitung berdasarkan jumlah teks — mirip pulsa. Inilah biaya yang naik-turun mengikuti banyaknya penugasan dan dokumen.</p>
+    <p style="margin-bottom:0"><span class="tag">B</span> <strong>Biaya infrastruktur (server PDN/PDNS).</strong> Server tempat aplikasi berjalan + database + penyimpanan dokumen. Biaya ini relatif <strong>tetap</strong> setiap bulan, tidak tergantung jumlah penugasan.</p>
+  </div>
+  <p><small>Catatan: pekerjaan berat AI dijalankan di server Anthropic, jadi server PDN/PDNS Anda <strong>tidak</strong> perlu spesifikasi besar/mahal.</small></p>
+
+  <h2>2. Asumsi yang dipakai</h2>
+  <table>
+    <tr><th>Hal</th><th>Asumsi</th></tr>
+    <tr><td>Jumlah Inspektorat</td><td>4 (masing-masing 20 auditor = 80 auditor)</td></tr>
+    <tr><td>Penugasan per bulan</td><td>20 per Inspektorat → <strong>80 penugasan/bulan</strong> total</td></tr>
+    <tr><td>Dokumen per penugasan</td><td>10–15 dokumen (normal); sampai 70 dokumen (ekstrem)</td></tr>
+    <tr><td><strong>Pengulangan analisis AT</strong></td><td>rata-rata <strong>3×</strong> (analisis awal + 2 perbaikan setelah direview)</td></tr>
+    <tr><td><strong>Pengulangan draft LHP oleh KT</strong></td><td>rata-rata <strong>2×</strong> (buat draft + perbaiki)</td></tr>
+    <tr><td>Dana cadangan (buffer)</td><td><strong>+30%</strong> di setiap perkiraan, supaya tidak kurang</td></tr>
+    <tr><td>Kurs</td><td>1 USD ≈ Rp18.000</td></tr>
+  </table>
+  <div class="catatan">
+    <strong>Kenapa pengulangan penting?</strong> Sistem ini bukan sekali jalan. Anggota Tim sering menjalankan analisis AI beberapa kali sambil memperbaiki temuan (mode perbaikan), dan Ketua Tim membuat-memperbaiki draft laporan. Tiap pengulangan menambah pemakaian AI — sudah kami hitung di angka per penugasan di bawah.
+  </div>
+
+  <h2>3. Perkiraan biaya AI per penugasan</h2>
+  <p>Sudah termasuk pengulangan AT &amp; KT dan buffer 30%:</p>
+  <table>
+    <tr><th>Jenis penugasan</th><th class="angka">Perkiraan biaya AI</th><th class="angka">Dalam Rupiah</th></tr>
+    <tr><td>Normal (10–15 dokumen)</td><td class="angka">± $8</td><td class="angka">± Rp145.000</td></tr>
+    <tr><td>Ekstrem (sampai 70 dokumen)</td><td class="angka">± $24</td><td class="angka">± Rp430.000</td></tr>
+    <tr><td>Rata-rata tertimbang*</td><td class="angka">± $9–10</td><td class="angka"><strong>± Rp170.000</strong></td></tr>
+  </table>
+  <p><small>*Asumsi 90% penugasan normal dan 10% ekstrem dalam sebulan.</small></p>
+
+  <h2>4. Total per bulan &amp; per tahun</h2>
+  <p>Kami sajikan <strong>tiga skenario</strong> agar terlihat batas bawah dan batas atas. Untuk <strong>diajukan ke anggaran</strong>, gunakan skenario “Aman”.</p>
+  <table>
+    <tr>
+      <th>Skenario</th>
+      <th class="angka">Biaya AI / bulan</th>
+      <th class="angka">Biaya AI / tahun</th>
+    </tr>
+    <tr>
+      <td><span class="hemat">Hemat</span><br><small>dengan optimasi &amp; mode batch (diskon 50%)</small></td>
+      <td class="angka">± Rp6,5 juta</td>
+      <td class="angka">± Rp80 juta</td>
+    </tr>
+    <tr>
+      <td><strong>Wajar</strong><br><small>pemakaian normal sehari-hari</small></td>
+      <td class="angka">± Rp10–11 juta</td>
+      <td class="angka">± Rp130 juta</td>
+    </tr>
+    <tr>
+      <td><span class="aman">Aman (untuk diajukan)</span><br><small>pengulangan tinggi + buffer penuh</small></td>
+      <td class="angka">± Rp14 juta</td>
+      <td class="angka">± Rp165 juta</td>
+    </tr>
+  </table>
+  <p><small>Sebagai gambaran beban per unit: skenario Aman ≈ <strong>Rp3,5 juta/bulan per Inspektorat</strong> (20 penugasan).</small></p>
+
+  <h2>5. Biaya infrastruktur (server PDN/PDNS)</h2>
+  <p>Karena beban AI ada di server Anthropic, kebutuhan server lokal tergolong ringan.</p>
+  <table>
+    <tr><th>Komponen</th><th>Keterangan</th><th class="angka">Perkiraan / bulan</th></tr>
+    <tr><td>Server aplikasi</td><td>menjalankan aplikasi web + mesin pengolah</td><td class="angka">Rp2–4 juta</td></tr>
+    <tr><td>Database</td><td>penyimpanan data penugasan &amp; temuan</td><td class="angka">termasuk / Rp1–2 juta</td></tr>
+    <tr><td>Penyimpanan dokumen</td><td>dokumen audit &amp; hasil (100–500 GB)</td><td class="angka">Rp0,5–1 juta</td></tr>
+    <tr class="total"><td colspan="2">Total infrastruktur</td><td class="angka">± Rp3–6 juta</td></tr>
+  </table>
+  <p><small>Jika memakai kuota PDN/PDNS pemerintah yang sudah tersedia, biaya kas untuk pos ini bisa mendekati nol.</small></p>
+
+  <h2>6. Total kebutuhan anggaran (skenario Aman)</h2>
+  <table>
+    <tr><th>Pos anggaran</th><th class="angka">Per bulan</th><th class="angka">Per tahun</th></tr>
+    <tr><td>Biaya AI (model Anthropic)</td><td class="angka">± Rp14 juta</td><td class="angka">± Rp165 juta</td></tr>
+    <tr><td>Infrastruktur (server PDN/PDNS)</td><td class="angka">± Rp4,5 juta</td><td class="angka">± Rp54 juta</td></tr>
+    <tr class="total"><td>TOTAL</td><td class="angka">± Rp18,5 juta</td><td class="angka">± Rp219 juta</td></tr>
+  </table>
+  <div class="catatan">
+    <strong>Rekomendasi pengajuan:</strong> bulatkan ke <strong>± Rp225 juta/tahun</strong> sebagai pagu aman. Realisasi kemungkinan besar lebih rendah (mendekati skenario Wajar ± Rp185 juta) bila pengulangan tidak sebanyak asumsi dan optimasi diterapkan.
+  </div>
+
+  <h2>7. Cara menekan biaya (opsional)</h2>
+  <ul>
+    <li><strong>Mode batch.</strong> Bila reviu tidak harus selesai seketika, pemrosesan AI bisa dijadwalkan dengan <strong>diskon 50%</strong> untuk seluruh pemakaian.</li>
+    <li><strong>Penggunaan ulang konteks (caching).</strong> Bagian yang berulang dibaca dari simpanan sementara dengan tarif jauh lebih murah — bisa memangkas biaya AI hingga 40–50%.</li>
+    <li><strong>Disiplin pengulangan.</strong> Semakin baik dokumen &amp; sasaran disiapkan di awal (KP/PKP), semakin sedikit analisis perlu diulang — langsung menurunkan biaya.</li>
+    <li><strong>Kuota infrastruktur pemerintah.</strong> Memanfaatkan PDN/PDNS yang sudah ada menghilangkan pos biaya server.</li>
+  </ul>
+
+  <h2>8. Hal yang perlu diketahui</h2>
+  <ul>
+    <li>Angka pemakaian AI di sini adalah <strong>estimasi terukur</strong> dari uji coba nyata, bukan tagihan pasti. Untuk angka presisi, disarankan menyalakan pencatatan pemakaian, menjalankan 5–10 penugasan riil, lalu mengalikan rata-rata aktualnya.</li>
+    <li>Pemrosesan AI berlangsung di layanan Anthropic (luar negeri). Keputusan <strong>kepatuhan &amp; keamanan data</strong> (mis. jaminan data tidak disimpan / opsi gerbang penyaring) perlu ditetapkan sebelum dipakai untuk data audit sensitif — ini bukan komponen biaya, tetapi penting.</li>
+    <li>Biaya <strong>tidak</strong> bergantung pada jumlah auditor (80 orang), melainkan pada jumlah penugasan &amp; dokumen yang diproses AI.</li>
+  </ul>
+
+  <footer>
+    INTEGRAL AI Workspace · Inspektorat II — Kementerian Komunikasi dan Digital · Dokumen estimasi anggaran, dapat disesuaikan.
+  </footer>
+
+</div>
+</body>
+</html>

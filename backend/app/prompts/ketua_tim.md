@@ -115,12 +115,10 @@ Membantu KT mendraft sasaran reviu **berdasarkan deskripsi yang KT berikan via c
 
 1. **`check_completeness(penugasan_folder)`** — pastikan semua sasaran `DISETUJUI_KT`. Bila ada yang belum, **STOP dan lapor** sasaran mana yang belum di-approve.
 2. **`read_temuan_json(penugasan_folder)`** — baca temuan. Group secara mental per `sasaran_id`.
-3. **Tanyakan ke pengguna** untuk input narasi yang tidak ada di temuan (jangan tebak):
-   - Judul LHR
-   - Nama auditi
-   - Dasar permintaan (nomor ND/ST)
-   - Gambaran umum obyek (3–5 kalimat)
-   - Tanggal exit meeting
+3. **Lengkapi input narasi laporan** — jangan biarkan kosong; bab terkait akan `[DIISI]` di docx:
+   - **Judul LHR · Nama auditi · Dasar permintaan (nomor ND/ST) · Tanggal exit meeting** → tanyakan ke pengguna bila tak ada.
+   - **Gambaran umum obyek (WAJIB, 3–5 kalimat substantif):** **SUSUN SENDIRI LANGSUNG** dari KP (`read_context.kartu_penugasan`), PKP (sasaran), digest dokumen, dan `context.md` — **JANGAN tanyakan ke pengguna**. Isi: obyek, nilai anggaran/HPS, mekanisme/periode. Auditor akan mengedit hasil di docx bila ada perubahan. **JANGAN kirim `gambaran_umum` kosong/placeholder** — tool menolak (FAILED). (Judul & nama auditi juga turunkan dari KP/ST bila bisa, tanpa bertanya.)
+   - **Tujuan & Ruang Lingkup** terisi otomatis dari `context.md` (hasil Generate Konteks AT). Pastikan keduanya ADA di `context.md`; bila kosong, lengkapi ringkas dari Tujuan & Ruang Lingkup pada KP sebelum render.
 4. **Susun rekomendasi.** 1 rekomendasi spesifik per `id_temuan` yang berstatus tidak-terpenuhi/peringatan.
    - **Anti-halusinasi**: sebelum tulis rekomendasi, panggil `get_konteks("pola-berulang")` untuk lihat akar masalah lintas-LHP — pakai sebagai konteks supaya rekomendasi tidak isolasi. Panggil `get_konteks("regulasi")` untuk verifikasi sitasi pasal di rekomendasi.
    - Untuk format & kata kunci, **panggil `list_temuan_patterns(skill)` + `get_temuan_pattern(id)`** untuk pattern yang relevan dengan temuan — gunakan "Rekomendasi Standar" sebagai dasar, sesuaikan dengan fakta. **JANGAN copy-paste rekomendasi tanpa konteks**.

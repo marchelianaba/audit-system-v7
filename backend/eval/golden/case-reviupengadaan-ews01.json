@@ -1,0 +1,21 @@
+{
+  "case_id": "reviupengadaan-ews01-47",
+  "skill": "reviu-pengadaan",
+  "folder": "2026-06-reviupengadaan-20260602-071044294865",
+  "deskripsi": "Reviu Pengadaan Inspektorat Jenderal — usulan CACM EWS-01 (pengadaan langsung melampaui batas nilai).",
+  "_catatan_validasi": "DRAFT — expected issue diturunkan dari pemicu EWS-01 di obyek penugasan (bukan dari output agen). Folder belum ada temuan.json: jalankan agen Anggota Tim dulu (terblokir kredit Anthropic). Harness akan menampilkan 'jalankan agen dulu' sampai temuan terisi. WAJIB ditinjau auditor senior setelah agen jalan.",
+  "expected_key_issues": [
+    {
+      "id": "Q1",
+      "ringkas": "Paket pengadaan memakai metode Pengadaan Langsung padahal nilainya melampaui batas yang diperkenankan (indikasi pemecahan paket / penghindaran tender).",
+      "kriteria_acuan": "Perpres 16/2018 jo. 12/2021 tentang PBJP — batas nilai metode pemilihan; larangan pemecahan paket untuk menghindari tender.",
+      "materialitas": "tinggi"
+    },
+    {
+      "id": "Q2",
+      "ringkas": "Kewajaran/justifikasi pemilihan metode non-kompetitif tidak memadai untuk paket di atas ambang.",
+      "kriteria_acuan": "Perpres PBJP — syarat & justifikasi penunjukan/pengadaan langsung.",
+      "materialitas": "sedang"
+    }
+  ]
+}

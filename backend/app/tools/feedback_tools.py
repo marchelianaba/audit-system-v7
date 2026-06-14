@@ -41,8 +41,20 @@ Schema feedback file (v1):
                 "rationale": "..."
             }
         ],
+        "pkp_assessment": [
+            {
+                "sasaran_id": "S-01",
+                "kememadaian": "MEMADAI|KURANG_MEMADAI|TIDAK_ADA",
+                "alasan": "kaitkan ke standar skill, bukan sekadar mengikuti PKP",
+                "langkah_tambahan_diusulkan": ["usulan langkah utk KT/PT bila kurang memadai"]
+            }
+        ],
         "notes_freetext": "..."
     }
+
+Catatan: `pkp_assessment` = penilaian kememadaian PKP per sasaran (apakah langkah kerja
+KT sudah memadai dibanding standar skill). Disimpan DI SINI sebagai bahan evaluasi —
+bukan artefak/panel terpisah. Auditor & eval harness membaca dari feedback ini.
 """
 import json
 from datetime import datetime
@@ -92,6 +104,32 @@ def _normalize_patterns(patterns) -> list[dict]:
     return out
 
 
+VALID_KEMEMADAIAN = {"MEMADAI", "KURANG_MEMADAI", "TIDAK_ADA"}
+
+
+def _normalize_pkp(items) -> list[dict]:
+    """Bersihkan penilaian kememadaian PKP per sasaran (bahan evaluasi)."""
+    out: list[dict] = []
+    if not isinstance(items, list):
+        return out
+    for a in items:
+        if not isinstance(a, dict):
+            continue
+        kem = str(a.get("kememadaian", "")).strip().upper().replace(" ", "_").replace("-", "_")
+        if kem not in VALID_KEMEMADAIAN:
+            kem = "KURANG_MEMADAI"  # default skeptis bila label tak dikenal
+        usul = a.get("langkah_tambahan_diusulkan") or []
+        if isinstance(usul, str):
+            usul = [usul]
+        out.append({
+            "sasaran_id": str(a.get("sasaran_id", "")).strip(),
+            "kememadaian": kem,
+            "alasan": str(a.get("alasan", "")).strip(),
+            "langkah_tambahan_diusulkan": [str(x).strip() for x in usul if str(x).strip()],
+        })
+    return out
+
+
 @tool(
     "submit_feedback",
     "Catat feedback retrospective ke _FEEDBACK-AGEN/feedback-{agent}-{ts}.json. "
@@ -100,6 +138,8 @@ def _normalize_patterns(patterns) -> list[dict]:
     "workflow_issues (array of {category, severity, description, suggested_action}), "
     "substansi_issues (array of {category, severity, description, evidence, suggested_action}), "
     "pattern_suggestions (array of {id_proposed, judul, rationale}), "
+    "pkp_assessment (array of {sasaran_id, kememadaian: MEMADAI|KURANG_MEMADAI|TIDAK_ADA, alasan, "
+    "langkah_tambahan_diusulkan:[str]}) — penilaian kememadaian PKP per sasaran sbg bahan evaluasi, "
     "notes_freetext (catatan bebas).",
     {
         "penugasan_folder": str,
@@ -109,6 +149,7 @@ def _normalize_patterns(patterns) -> list[dict]:
         "workflow_issues": list,
         "substansi_issues": list,
         "pattern_suggestions": list,
+        "pkp_assessment": list,
         "notes_freetext": str,
     },
 )
@@ -134,6 +175,7 @@ async def submit_feedback(args: dict) -> dict:
         "workflow_issues": _normalize_issues(args.get("workflow_issues", []), VALID_WORKFLOW_CAT),
         "substansi_issues": _normalize_issues(args.get("substansi_issues", []), VALID_SUBSTANSI_CAT),
         "pattern_suggestions": _normalize_patterns(args.get("pattern_suggestions", [])),
+        "pkp_assessment": _normalize_pkp(args.get("pkp_assessment", [])),
         "notes_freetext": str(args.get("notes_freetext", "")).strip(),
     }
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -142,12 +184,15 @@ async def submit_feedback(args: dict) -> dict:
     n_wf = len(data["workflow_issues"])
     n_sub = len(data["substansi_issues"])
     n_pat = len(data["pattern_suggestions"])
+    n_pkp = len(data["pkp_assessment"])
+    n_pkp_kurang = sum(1 for x in data["pkp_assessment"] if x["kememadaian"] != "MEMADAI")
     return {
         "content": [{
             "type": "text",
             "text": (
                 f"FEEDBACK_SAVED|path={path.name}|confidence={confidence}|"
-                f"workflow_issues={n_wf}|substansi_issues={n_sub}|pattern_suggestions={n_pat}"
+                f"workflow_issues={n_wf}|substansi_issues={n_sub}|pattern_suggestions={n_pat}|"
+                f"pkp_assessment={n_pkp}(kurang_memadai={n_pkp_kurang})"
             ),
         }]
     }

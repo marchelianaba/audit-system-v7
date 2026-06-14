@@ -37,11 +37,14 @@ from app.tools.wiki_tools import vault_get_page, vault_search
 
 
 def _is_lhp_done(folder: Path) -> bool:
-    """Cocokkan dengan `compute_penugasan_status` di storage.py: LHP_DONE bila
-    ada `_LHP/LHP-SUBSTANSI*.docx`. Inline supaya hemat query (kita tidak butuh
-    derivasi penuh untuk filtering candidate)."""
+    """Cocokkan dengan `compute_penugasan_status` di storage.py: LHP_DONE bila ada
+    dokumen laporan `_LHP/{LHP-SUBSTANSI|LHA|LHR|LHE|LP}-*.docx`. Inline supaya
+    hemat query (kita tidak butuh derivasi penuh untuk filtering candidate)."""
     lhp_dir = folder / "_LHP"
-    return lhp_dir.exists() and any(lhp_dir.glob("LHP-SUBSTANSI*.docx"))
+    return lhp_dir.exists() and any(
+        next(lhp_dir.glob(pat), None) is not None
+        for pat in ("LHP-SUBSTANSI*.docx", "LHA-*.docx", "LHR-*.docx", "LHE-*.docx", "LP-*.docx")
+    )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 

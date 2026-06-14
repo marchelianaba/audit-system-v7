@@ -1,7 +1,7 @@
 ---
 name: reviu-umum
 format_laporan: kksa
-version: 1.0
+version: 1.1
 jenis: Reviu (umum — kriteria fleksibel)
 fungsi: Assurance — Keyakinan Terbatas
 output: KKR (.xlsx) + LHR (.docx) + JSON KKP
@@ -59,43 +59,26 @@ penugasan/[ID]/
 
 Auto-detect kriteria mengikuti `references/01-panduan-ekstraksi-kriteria.md`. Biasanya kriteria reviu lebih spesifik (juklak/juknis untuk dokumen tertentu) dan format-oriented (kelengkapan kolom, format tabel, substansi minimal).
 
-## Workflow Gate-Based
+## Eksekusi di v7 (orkestrasi — seragam semua skill reviu)
 
-### Gate 0 — Validasi Input
-- ST jelas, lingkup terdefinisi
-- Kriteria reviu lengkap (juklak yang relevan)
-- Objek tersedia
-- **STOP**: konfirmasi auditor
+> **Skill ini = substansi domain.** Cara menjalankan (role, pipeline, urutan tool, titik HITL) diatur seragam oleh agen Anggota Tim v7 di `backend/app/prompts/anggota_tim.md` — BUKAN oleh skill ini. Skill ini **TIDAK** memakai bash, `run_batch.py`, `Task 00/01`, `_ROLE.md`, atau `AskUserQuestion` (itu paradigma lama audit-system-v4).
 
-### Gate 1 — Kerangka Reviu (KP-R)
-File: `_KKP/01-KP-R.md`
+- **Pelaku:** Agen Anggota Tim (AT). Role & sasaran dibaca dari `_PKP/sasaran-assignment.json` (diisi Ketua Tim via UI Setup). AT hanya mengerjakan sasaran yang `assigned_to`-nya memuat namanya.
+- **Pipeline R3:** *tidak ada — criteria-driven manual* (digest generik `digest_generic` otomatis berjalan saat upload; baca via `read_ingested_digest`).
+- **Mode:** AT **auto-execute** R0→R3 tanpa berhenti tiap tahap. Titik HITL: **KT approve KKP**, lalu **KT draft LHR** (bukan stop tiap tahap).
+- **Tool inti:** `read_context` → `read_ingested_digest`/`search_bukti` → susun catatan → `append_temuan` → `record_pkp_assessment` → `render_kkp_docx` → `run_qc_kkp`.
 
-Berisi: latar belakang, tujuan reviu, ruang lingkup (aspek-aspek yang direviu), dasar kriteria (matriks), metodologi (umumnya: penelaahan dokumen + tanya jawab terbatas), tim, jadwal.
+## Tahap Reviu (R0–R4)
 
-**STOP**: konfirmasi.
+| Tahap | Aktivitas | Pelaku |
+|---|---|---|
+| **R0 — Validasi & Konteks** | Pastikan scope dari KP jelas, kriteria (`input/kriteria/`) + objek (`input/objek/`) tersedia; susun `context.md` bila masih placeholder. | AT (auto) |
+| **R1 — Kerangka Reviu (KP-R)** | Latar belakang, tujuan, ruang lingkup (aspek), dasar kriteria, metodologi — bersumber `sasaran-assignment.json`. | KT (UI Setup) |
+| **R2 — Program Kerja (PKP-R)** | Daftar aspek reviu per sasaran: Aspek · Kriteria · Pertanyaan Reviu · Bukti. | KT (UI Setup) |
+| **R3 — Pelaksanaan** | Per aspek: telaah dokumen vs kriteria → klasifikasi **TERPENUHI / TERPENUHI DENGAN CATATAN / TIDAK TERPENUHI** → `append_temuan` (K/K/A/R, **tanpa Sebab**) + `record_pkp_assessment`. | AT (auto) |
+| **R4 — Laporan (LHR)** | Render LHR + Nota Dinas (+ Pernyataan Telah Direviu bila reviu LKj/SAKIP); polish narasi & simpulan keyakinan terbatas. | KT |
 
-### Gate 2 — Daftar Aspek Reviu (PKP-R)
-File: `_KKP/02-PKP-R.xlsx`
-
-Setiap baris = 1 aspek yang direviu:
-
-| No | Aspek | Kriteria (ID) | Pertanyaan Reviu | Bukti yang Diuji | Penanggung Jawab |
-
-**STOP**: konfirmasi.
-
-### Gate 3 — Pelaksanaan Reviu & KKR
-Untuk setiap aspek:
-1. Telaah dokumen vs kriteria
-2. Catat di `_KKP/03-KKR.xlsx`
-3. Klasifikasikan: **TERPENUHI / TERPENUHI DENGAN CATATAN / TIDAK TERPENUHI**
-4. Jika ada catatan, susun rekomendasi singkat (tanpa analisis Sebab)
-
-### Gate 4 — Laporan Hasil Reviu (LHR)
-- `_LHP/Nota-Dinas.docx`
-- `_LHP/LHR-[ID].docx`
-- (Jika reviu LKj/SAKIP atau setara) `_LHP/Pernyataan-Telah-Direviu.docx`
-
-**STOP**: review final auditor.
+**Eskalasi:** jika di R3 ditemukan indikasi penyimpangan substantif/kerugian → hentikan, laporkan ke KT untuk pertimbangan konversi ke audit-umum.
 
 ## Format KKR (Kertas Kerja Reviu)
 

@@ -1,0 +1,33 @@
+{
+  "case_id": "reviurkakl-pdn-031010",
+  "skill": "reviu-rka-kl",
+  "folder": "2026-05-reviurkakl-20260522-031010",
+  "deskripsi": "Reviu RKA-K/L — Kegiatan PDN Tahap II (TOR + RAB). Golden case kedua reviu-rka-kl.",
+  "_catatan_validasi": "DRAFT — expected_key_issues diseed dari temuan nyata. WAJIB ditinjau auditor senior.",
+  "expected_key_issues": [
+    {
+      "id": "P1",
+      "ringkas": "TOR tidak memuat seluruh blok substansi wajib (kelengkapan format PMK 107/2024 Pasal 61).",
+      "kriteria_acuan": "PMK 107/2024 Pasal 61.",
+      "materialitas": "tinggi"
+    },
+    {
+      "id": "P2",
+      "ringkas": "Indikator RO tidak dilengkapi target angka dan parameter keberhasilan terukur.",
+      "kriteria_acuan": "Kaidah KPI–RO (keterukuran target).",
+      "materialitas": "sedang"
+    },
+    {
+      "id": "P3",
+      "ringkas": "RAB hanya memuat paket bulat tanpa rincian — analisis kecukupan/kewajaran biaya belum ada.",
+      "kriteria_acuan": "PMK 107/2024 Pasal 61 (RAB rinci & berbasis standar biaya).",
+      "materialitas": "tinggi"
+    },
+    {
+      "id": "P4",
+      "ringkas": "TOR tidak memuat spesifikasi teknis & metode pengadaan untuk komponen belanja modal besar.",
+      "kriteria_acuan": "Kelengkapan TOR untuk belanja modal.",
+      "materialitas": "sedang"
+    }
+  ]
+}

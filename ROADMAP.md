@@ -1111,6 +1111,115 @@ dengan LiteParse jadi parser primary jauh lebih cepat & rapi.
 
 ---
 
+### Laporan dari template ber-kop + A3 backlog (14 Juni 2026)
+
+Audit "draft laporan = clone template ber-kop + isi bab kosong": mekanisme v7
+(`render_report`→`render_lhp` clone template) sudah benar, tapi ditemukan
+(a) template per-skill semua clone **skeleton REVIU yang sama**, (b) bab Gambaran
+Umum sering kosong, (c) `konsultansi-umum` tanpa kop. Diperbaiki (V6 read-only
+dijaga — semua di lapisan app):
+
+- ✅ **Coverage kop 17/17** — dibuat `template-lhp-konsultansi-umum.docx`;
+  `_render_memo` kini memuat template kop (sebelumnya `Document()` tanpa kop).
+- ✅ **A1 — judul & nama file jenis-aware** — `_finalize_jenis` (lhr_tools)
+  sesuaikan judul "REVIU"→jenis & rename output: audit→**LHA**, reviu→**LHR**,
+  evaluasi→**LHE**, pemantauan→**LP**. Glob `LHP_DONE` di `storage.py`/
+  `routes/knowledge.py` diperluas mengenali nama baru.
+- ✅ **A2 — substansi per jenis** — ganti paragraf Metodologi/Intro/Simpulan (di-
+  hardcode paradigma reviu oleh V6) dengan versi per family: audit=keyakinan
+  **memadai** + Sebab (loop V6 `build_hasil_reviu_blocks` sudah render Sebab utk
+  audit); evaluasi=keyakinan terbatas; pemantauan=pelaporan status tanpa keyakinan.
+  Angka temuan/sasaran dihitung otomatis. Verified pada salinan LHP penugasan 51.
+- ✅ **B — gambaran umum** — guard `_render_kksa` tolak kosong/placeholder; prompt
+  KT: agen **susun sendiri langsung** (tanpa tanya auditor; auditor edit docx bila perlu).
+
+**📋 A3 (DITUNDA — backlog):** struktur bab **bespoke** per jenis — Laporan
+Pemantauan dengan **dashboard status fisik/keuangan**, dan LHE dengan **tabel aspek
+evaluasi**. Butuh rantai penuh per family (skema data baru → tool agen penulis data
+→ renderer app-layer pola `_render_rb` → prompt KT). **Ditunda** karena: (1) belum
+ada penugasan pemantauan/evaluasi di disk (skill belum pernah dijalankan di v7);
+(2) jalur agen terblokir kredit Anthropic — tak bisa merancang/memvalidasi dari data
+nyata; (3) varian per-skill tinggi (`pemantauan-tindak-lanjut`=TLRHP ≠ progres;
+`evaluasi-sakip`/`spip`/`MR` beda aspek) → ~5–6 renderer spesifik, bukan 2.
+Dikerjakan saat kredit pulih + persyaratan per-skill dikonfirmasi. **A1/A2/B sudah
+membuat semua laporan benar & dapat dipakai; A3 = peningkatan struktur, bukan blocker.**
+
+---
+
+### Mutu output agen — eval P1 + model prioritas arahan (14 Juni 2026)
+
+> Lanjutan tema **T2** (output reliable) & **T5** (loop perbaikan). Fokus: **mengukur** lalu **menaikkan** mutu temuan agen.
+
+**Sudah dikerjakan:**
+- ✅ **Eval P1 — harness pengukuran mutu** (`backend/eval/`): rubrik 4 dimensi
+  (precision / recall / narasi / konsistensi), golden set (reviu-rka-kl ×2 nyata +
+  audit sintetis + reviu-pengadaan siap), cek deterministik (grounding · kelengkapan
+  unsur **sadar-jenis** · QC SAIPI) + LLM-judge (forced tool-use). Aturan domain:
+  unsur `sebab` hanya untuk **AUDIT** (reviu/evaluasi/pemantauan tanpa sebab).
+- ✅ **Model prioritas arahan agen** dikodekan ke `app/prompts/anggota_tim.md`
+  (section "Sumber arahan — peran & prioritas"): **Sasaran = gerbang lingkup ·
+  Langkah Kerja PKP = lantai + jejak (BUKAN tulang punggung) · Standar skill +
+  Pattern + Regulasi = tulang punggung mutu · Bukti = penentu**. Aturan emas: AI
+  **menaikkan** mutu + tandai PKP tipis + usul langkah ke KT/PT; ketertelusuran
+  temuan (langkah + pattern_id + dokumen). Dok: `docs/masukan-prioritas-sasaran-langkah-pattern.md`
+  + diagram. (Koreksi auditor: PKP sebagai tulang punggung berbahaya — mutu ter-anchor
+  ke kualitas penulis PKP.)
+- ✅ **Uji A/B** (sonnet-4-6, skenario PKP sengaja tipis): prompt baru menandai
+  "PKP kurang memadai" + usul langkah tambahan + membedakan lantai vs standar + tag
+  pattern — lebih baik dari baseline.
+
+**📋 Yang harus dikerjakan (backlog mutu — selaras T2/T5):**
+- [x] **Top-up kredit Anthropic** ✅ (14 Juni) — kredit ditambahkan; API terverifikasi (ping→pong).
+- [x] **Restart backend** ✅ (14 Juni) — backend UP :8000 dengan kode baru (prioritas arahan + template kop/A1/A2/B + eval); Docker+DB dinyalakan ulang.
+- [x] **Baseline eval (judge sonnet)** ✅ (14 Juni) — penugasan 51 reviu-rka-kl: **tidak_ngawur 1.0 · valid_penuh 0.0 (semua RAGU) · recall 1.0 · narasi 0.833 · SKOR 0.958**. Bug rubrik ditemukan & diperbaiki: `rekomendasi_actionable` TIDAK dinilai di KKP (ranah LHR), verdict dihitung deterministik, metrik dipisah **tidak_ngawur** (fokus "ngawur") vs **valid_penuh** (polish). Kelemahan utama: ketajaman **kriteria** (k1 di 5/6).
+- [x] **P2 verification pass** ✅ (14 Juni) — `backend/eval/verify.py` (gate pra-HITL: judge adversarial → tandai TIDAK_VALID/RAGU + alasan, reuse judge tervalidasi). Belum diintegrasi ke UI/alur agen.
+- [~] **Perbandingan OLD vs NEW prompt** — uji A/B **lean (proksi, 1 skenario)**: kedua prompt sama-sama tidak-ngawur & menangkap isu; **perilaku khas NEW (flag PKP tipis) BELUM andal** (fired di uji penuh sebelumnya, tidak di proksi ringkas ini). **Belum konklusif** — penyebab: flag PKP cuma prinsip naratif (variatif).
+- [x] **Kememadaian PKP = bahan evaluasi di feedback agen** ✅ (14 Juni, direvisi) — akar penyebab B inkonklusif diperbaiki. **Keputusan user:** PKP adequacy cukup masuk ke **feedback agen** (`submit_feedback`), bukan tool/artefak/panel terpisah. Implementasi final: field **`pkp_assessment`** ditambah ke `submit_feedback` (`backend/app/tools/feedback_tools.py`) — per sasaran {sasaran_id, kememadaian: MEMADAI/KURANG_MEMADAI/TIDAK_ADA, alasan, langkah_tambahan_diusulkan}, WAJIB diisi (submit_feedback sudah mandatory di langkah 12). Disimpan di `_FEEDBACK-AGEN/feedback-*.json`. Tool `record_pkp_assessment` + artefak `pkp-assessment.json` terpisah **dihapus**. `deterministic.pkp_assessment()` kini baca dari feedback (`sumber=feedback-agen`) → tetap terukur. Ketertelusuran temuan (`langkah_kerja_terkait`+`pattern_id` di `append_temuan`) tetap ada. Backend restart, smoke-test lolos. **Live run #38 (web/SSE) sebelumnya membuktikan agen memanggil mekanisme PKP & menghasilkan penilaian substantif** (kedua sasaran KURANG_MEMADAI + 6 usulan langkah).
+  - TODO lanjutan: perbandingan **full-pipeline** OLD-vs-NEW multi-kasus (terukur via `pkp_assessment.direkam` dari feedback). (opsional) panel UI "Kememadaian PKP" — **ditunda/ditolak user** (cukup di feedback).
+- [ ] **Validasi auditor senior** atas `expected_key_issues` golden set + rubrik (syarat sebelum angka recall dipercaya).
+- [ ] **P2 — verification pass**: agen kedua / self-critique menolak temuan tak ber-bukti / salah kriteria sebelum HITL.
+- [ ] **P3** perkuat grounding + coverage; **P4** nyalakan token logging (`agent_runs`) + instrumen HITL (reject/edit rate); **P5** ukur akurasi digest.
+- [ ] (opsional) kodekan model prioritas ke `ketua_tim.md` (sisi penyusunan rekomendasi).
+- [ ] **A3 laporan bespoke** (dashboard pemantauan + tabel aspek evaluasi) — saat kredit pulih + penugasan pemantauan/evaluasi nyata tersedia (lihat entri laporan di atas).
+
+---
+
+### Audit konsistensi seluruh skill (14 Juni 2026) — UNTUK DIPERIKSA USER
+
+Hasil sweep 18 skill (5 agen paralel + verifikasi manual). Template kop **18/18 lengkap** ✅. Yang perlu diputuskan/diperbaiki:
+
+**🔴 Terkonfirmasi nyata (verified):**
+- [ ] **`pemantauan-tindak-lanjut` masih skeleton v0.1** — folder `references/` **kosong 0 file** (4 file dirujuk SKILL.md tidak ada). Belum siap dipakai. → lengkapi references + pilot, atau tandai eksplisit "belum aktif".
+- [ ] **`audit-kinerja` mewajibkan "riset online" di Survey Pendahuluan, tapi agen AT tidak punya tool web** (tak ada WebSearch/WebFetch di `KKP_TOOLS`/agen). Instruksi tak-tereksekusi → macet/halusinasi. → beri tool web ATAU jadikan langkah manual auditor/opsional.
+
+**🟡 Inkonsistensi prinsip — perlu keputusan user:**
+- [ ] **Unsur "Sebab" pada EVALUASI tidak konsisten.** Arahan memori: reviu/evaluasi/pemantauan TIDAK gali sebab. Tapi `evaluasi-mr` & `evaluasi-umum` SKILL.md **menyuruh gali Sebab (KKSA penuh)**, dan `panduan-format-umum` menyatakan Evaluasi Kinerja/MR **wajib 5 elemen incl. Sebab**, sementara eval harness (`is_audit_skill`) anggap **hanya `audit*`** wajib sebab. Tiga sumber bertentangan → putuskan aturan tunggal.
+- [ ] **`reviu-pengadaan` kontradiksi internal**: changelog v1.2 hapus SPPBJ dari scope perencanaan, tapi Scope Switch + section C.2/F masih mengatur SPPBJ (di-skip via scope). Sebenarnya konsisten via "Scope Switch" tapi changelog menyesatkan → perjelas changelog.
+
+**🟢 Cosmetic/arsitektur:**
+- [ ] **Terminologi tahap tidak seragam** lintas skill: "Gate" (umum, rka-kl) vs "Step A/B/C + Task 00/01" (pengadaan) vs "Langkah 1-5" (TLHP) vs "Tahap" (produk INTEGRAL). → standardkan (lihat sub-bagian Reviu di bawah).
+- [ ] **`konsultasi-pengadaan` jalur output beda** (`append_kegiatan_pendampingan`+`render_report`, bukan `append_temuan`+`render_kkp`) → cek apakah tercakup QC SAIPI/eval harness.
+- [x] Klaim agen "references hilang" pada audit-kinerja/audit-umum/reviu-umum/evaluasi/kepatuhan-saipi/graduasi = **FALSE ALARM** (semua ada 2-6 file, hanya tak ditempel di SKILL.md — desain normal). ✅ diverifikasi.
+
+#### Konsistensi eksekusi REVIU (Gate vs Step) — PRIORITAS, sedang dikerjakan
+
+Tiga skill reviu memakai **paradigma eksekusi berbeda** → agen tak konsisten:
+| Skill | Struktur | Stop-confirm? | Role-gating | Pipeline | Selaras v7? |
+|---|---|---|---|---|---|
+| reviu-rka-kl v3.0 | Gate 0-4 (+ Langkah 0/1/2 nested di Gate 3) | ya (Gate 1/2/4) + auto pipeline | ❌ tak sebut | ✅ 39 rules | ⚠ rujuk bash+template v4 |
+| reviu-pengadaan v1.3 | Step A/B/C + Task 00/01/03/04 | ❌ auto-execute "jangan tawarkan opsi" | ✅ AT/KT/PT/PM via `_ROLE.md` | ✅ 7 rules | ⚠ rujuk bash+`_ROLE.md`+Task |
+| reviu-umum v1.0 | Gate 0-4 murni | ya, STOP tiap gate | ❌ tak sebut | ❌ manual | ⚠ stop-mode interaktif |
+
+**Akar masalah:** SKILL.md mencampur **(a) substansi domain** (aspek, kriteria, format temuan, bahasa) dengan **(b) orkestrasi** (role, bash `run_batch.py`, Task 00/01, `_ROLE.md`, stop-confirm). Padahal orkestrasi v7 sudah ditangani `anggota_tim.md` + tool (`run_batch_rka/pbj`, `sasaran-assignment.json` dari KT via UI, `append_temuan`, `render_kkp_docx`) — BUKAN bash/Task/_ROLE/AskUserQuestion (paradigma lama "Cowork/audit-system-v4"). Akibatnya instruksi gate/step di SKILL.md sebagian **bertabrakan dengan realitas v7**.
+
+**Rekomendasi (detail di chat 14 Juni):**
+- [ ] Pisahkan: **SKILL.md = substansi domain saja**; orkestrasi pindah ke boilerplate "Eksekusi di v7" yang IDENTIK lintas skill (atau cukup dirujuk dari `anggota_tim.md`).
+- [ ] Satu model fase reviu kanonik **R0–R4** (Validasi → Kerangka/KP → Program/PKP → Pelaksanaan[+pipeline opsional] → Laporan), istilah tunggal **"Tahap"** (selaras navigasi INTEGRAL).
+- [ ] Hapus/tandai-legacy referensi bash `run_batch.py`, `Task 00/01`, `_ROLE.md`, `AskUserQuestion` di ketiga reviu → ganti pointer ke tool v7.
+- [ ] Samakan paradigma HITL: AT **auto-execute** (tanpa stop tiap gate); HITL di titik v7 (KT approve KKP, KT draft LHR). reviu-umum harus berhenti pakai "STOP tiap gate".
+
+---
+
 ## 14. Lihat Juga
 
 - [docs/rencana-cacm-wiki.html](docs/rencana-cacm-wiki.html) — rencana CACM & Wiki (versi visual)
@@ -1126,4 +1235,4 @@ dengan LiteParse jadi parser primary jauh lebih cepat & rapi.
 
 ---
 
-*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet; Fase 1 CACM backend core implemented: schema+DSL parser+evaluator+9 YAML kriteria port+model DB CacmObservasi/Finding); 8 Juni 2026 (LiteParse menggantikan/melengkapi pdfplumber: 9.8× lebih cepat + multi-format DOCX/XLSX/image + OCR bundled; 3 hardcode deterministik: extract_fields_hybrid regex→LLM-residual + context_template deterministik per skill + prefill_temuan dari anomalies V6 → temuan-draft v4.0.0; PR #1).*
+*Dokumen ini dibuat 20 Mei 2026, di-update setiap akhir minggu. Adendum §13 ditambah 22 Mei; direvisi 25 Mei 2026 (integrasi EWS SIRUP tim + W1; CACM C1a/C1b/C2; audit P1/P2 + penyederhanaan workflow + gate Generate Context); 26 Mei 2026 (P4 digest paralel + DocumentCache; perluasan skill pengawasan Fase A–C: skill engine, gate-based, LKE, bukti retrieval, format non-KKSA, graduasi; digestion dua-tingkat fallback LLM + deteksi gambar + fix config env kosong; selaras pattern temuan 12 skill); 28 Mei 2026 (W2 promosi pattern; W3 tulis-balik vault; W1.1 pivoted ke stub SIMWAS sasaran sync); 2 Juni 2026 (W4 Knowledge Management pass: browser pattern + template setup 3-sumber + klaritas UX); 3 Juni 2026 (fix substansi reviu pengadaan: digest_postprocess rescue Signed_KAK/HPS + AT prompt mode REFINE + hybrid agresif pengadaan: parser-first + Haiku fallback default ON + COVERAGE_KEYS PENGADAAN 3→11 field; draft rencana Mesin Kriteria CACM Multi-Sumber + ekspansi 3 kelas kriteria: numeric_threshold + semantic_anomaly (anti-tupoksi) + benchmark_unitcost (anggaran tidak wajar); revisi semantic_anomaly: tupoksi di vault `.md` bukan YAML, 3 mode cascade keyword→Haiku→Sonnet; Fase 1 CACM backend core implemented: schema+DSL parser+evaluator+9 YAML kriteria port+model DB CacmObservasi/Finding); 8 Juni 2026 (LiteParse menggantikan/melengkapi pdfplumber: 9.8× lebih cepat + multi-format DOCX/XLSX/image + OCR bundled; 3 hardcode deterministik: extract_fields_hybrid regex→LLM-residual + context_template deterministik per skill + prefill_temuan dari anomalies V6 → temuan-draft v4.0.0; PR #1); 14 Juni 2026 (laporan dari template ber-kop: coverage kop 17/17 + A1 judul/nama jenis-aware LHA/LHR/LHE/LP + A2 substansi per jenis + B gambaran umum otomatis; A3 dashboard/tabel-aspek ditunda ke backlog; mutu output agen: eval P1 harness (backend/eval/) + model prioritas arahan di anggota_tim.md (PKP=lantai, standar skill=tulang punggung mutu) + uji A/B; backlog mutu P2–P5 dicatat).*
