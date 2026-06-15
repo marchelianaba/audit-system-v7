@@ -1,7 +1,15 @@
 """Entry point FastAPI."""
+import asyncio
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
+
+# Windows: asyncpg butuh ProactorEventLoop, tapi uvicorn default pakai SelectorEventLoop.
+# Patch ini harus jalan SEBELUM uvicorn spawn event loop — modul-level adalah satu-satunya
+# tempat yang pasti dieksekusi lebih awal. Tidak berpengaruh di Linux/Mac.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
