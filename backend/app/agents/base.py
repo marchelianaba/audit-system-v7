@@ -12,11 +12,34 @@ TodoWrite/Agent/Glob/Read). Hanya MCP tools yang kita ekspos lewat bridge.
 Alasan: agen dalam konteks audit harus bekerja melalui pipeline V6 deterministic
 dan bridge yang kita kontrol — bukan improvisasi shell/Edit ke file sistem.
 """
+import os
 from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, create_sdk_mcp_server
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
+
+def _find_claude_cli() -> str | None:
+    """Cari claude CLI di instalasi resmi Windows (AppData/Roaming/Claude/claude-code/).
+
+    SDK menyertakan bundled claude.exe tapi sering gagal dieksekusi di Windows
+    (FileNotFoundError saat spawn). Prioritaskan instalasi resmi dari Claude Code
+    desktop app yang sudah terbukti berjalan di mesin ini.
+    """
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return None
+    claude_code_dir = Path(appdata) / "Claude" / "claude-code"
+    if not claude_code_dir.exists():
+        return None
+    # Pilih versi terbaru yang punya claude.exe
+    versions = sorted(
+        [d for d in claude_code_dir.iterdir()
+         if d.is_dir() and (d / "claude.exe").exists()],
+        reverse=True,
+    )
+    return str(versions[0] / "claude.exe") if versions else None
 
 
 def load_prompt(name: str) -> str:
@@ -49,8 +72,17 @@ def build_agent_options(
         else [f"mcp__{server_name}__{t.name}" for t in tools]
     )
 
+    # Pakai --system-prompt-file (path pendek) bukan --system-prompt (isi inline).
+    # Windows membatasi command line CreateProcess di 32767 chars; prompt 34KB+
+    # melampaui batas → WinError 206. SDK mendukung {"type": "file", "path": ...}
+    # yang ditranslasi ke flag --system-prompt-file <path>.
+    prompt_path = PROMPTS_DIR / f"{prompt_name}.md"
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"Prompt tidak ditemukan: {prompt_path}")
+    system_prompt: str | dict = {"type": "file", "path": str(prompt_path)}
+
     return ClaudeAgentOptions(
-        system_prompt=load_prompt(prompt_name),
+        system_prompt=system_prompt,
         # tools=[] mematikan SEMUA built-in (Bash, Edit, Write, Read, Glob,
         # TodoWrite, Agent, Skill, dll). Agen hanya bisa pakai MCP tools di
         # bawah supaya tidak menyentuh V6 atau filesystem lain di luar bridge.
@@ -63,4 +95,10 @@ def build_agent_options(
         model=model,
         # acceptEdits hanya berlaku untuk MCP tools sekarang (built-in mati).
         permission_mode="acceptEdits",
+        # Batas atas turn — agen berhenti alami saat selesai, bukan di sini.
+        # Tanpa ini SDK memakai default rendah (~10) → tugas audit kompleks
+        # terpotong di tengah sebelum KKP/temuan selesai.
+        max_turns=200,
+        # Pakai claude.exe dari instalasi resmi (bukan bundled SDK yang gagal di Windows).
+        cli_path=_find_claude_cli(),
     )

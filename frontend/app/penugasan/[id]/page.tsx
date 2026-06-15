@@ -71,6 +71,22 @@ export default function DetailPenugasanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Poll status dokumen setiap 3 detik selama ada yang masih INGESTING.
+  // Berhenti otomatis saat semua sudah READY/FAILED — tidak ada request sia-sia.
+  useEffect(() => {
+    const hasIngesting = dokumen.some((d) => d.status === 'INGESTING');
+    if (!hasIngesting) return;
+    const timer = setInterval(async () => {
+      try {
+        const updated = await api.listDokumen(id);
+        setDokumen(updated);
+      } catch {
+        // abaikan error network sementara — polling akan coba lagi
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [dokumen, id]);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, jenis?: string) => {
     const files = e.target.files;
     if (!files) return;
@@ -210,9 +226,18 @@ export default function DetailPenugasanPage() {
           <div key={`s4-${id}`} className="space-y-6">
             <WorkspaceBanner
               title="📝 Tahapan 4 — LRS Kertas Kerja (auto dari approval HITL)"
-              steps={['Temuan di-approve AT/KT di tahapan 3', 'Status review = LRS KK', 'KT setujui sasaran → lanjut LHP']}
+              steps={['Temuan di-approve AT/KT di tahapan 3', 'Status review = LRS KK', 'KT setujui semua sasaran → status KKP_DONE → Tahapan 5 terbuka']}
             />
             <TemuanReviewPanel penugasanId={id} key={`lrs-${id}`} />
+            {session?.role_aktif === 'KT' && (
+              <SasaranApprovalPanel
+                penugasanId={id}
+                key={`sap-${id}`}
+                onSaved={() => {
+                  api.getPenugasan(id).then(p => setPenugasan(p)).catch(() => {});
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -221,7 +246,7 @@ export default function DetailPenugasanPage() {
           <div key={`s5-${id}`} className="space-y-6">
             <WorkspaceBanner
               title="📄 Tahapan 5 — Konsep Laporan (LHP) — workspace Ketua Tim"
-              steps={['Lihat KKP disetujui AT', 'Generate Draft LHP (AI)', 'Approval Temuan', 'Kirim ke PT/PM untuk LRS LHP']}
+              steps={['Generate Draft LHP (AI) via chat', 'Unduh & periksa hasil laporan di bawah', 'Kirim ke PT/PM untuk LRS LHP']}
             />
             <ChatTab
               key={`chat-kt-${id}`}
@@ -229,6 +254,7 @@ export default function DetailPenugasanPage() {
               role="KT"
               skill={penugasan.skill}
             />
+            <LhpFilesPanel penugasanId={id} key={`lhp-files-kt-${id}`} />
           </div>
         )}
 
@@ -237,8 +263,9 @@ export default function DetailPenugasanPage() {
           <div key={`s6-${id}`} className="space-y-6">
             <WorkspaceBanner
               title="🛡 Tahapan 6 — LRS LHP — reviu Pengendali Teknis / Mutu"
-              steps={['Baca konsep LHP (tahapan 7 → unduh)', 'Setujui atau minta revisi + catatan', 'Approved → lanjut finalisasi']}
+              steps={['Unduh & baca konsep LHP di bawah', 'Setujui atau minta revisi + catatan', 'Approved → lanjut finalisasi']}
             />
+            <LhpFilesPanel penugasanId={id} key={`lhp-files-pt-${id}`} />
             <LhpReviewPanel
               penugasanId={id}
               role={session.role_aktif}
@@ -3048,12 +3075,290 @@ const REVIEW_STATUS_COLOR: Record<string, string> = {
   EDITED: 'bg-blue-100 text-blue-800 border-blue-300',
 };
 
+function LhpFilesPanel({ penugasanId }: { penugasanId: number }) {
+  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ path: string; content: string; truncated: boolean } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true); setErr(null);
+    try {
+      const res = await api.listFiles(penugasanId);
+      const lhpCat = res.categories.find(c => c.key === '_LHP');
+      setFiles(lhpCat?.files ?? []);
+    } catch (e: any) { setErr(e.message); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [penugasanId]);
+
+  const doDownload = async (f: FileEntry) => {
+    try {
+      const blob = await api.downloadFile(penugasanId, f.path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = f.name;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const doPreview = async (f: FileEntry) => {
+    setPreviewLoading(true);
+    try {
+      const res = await api.previewFile(penugasanId, f.path);
+      setPreview({ path: res.path, content: res.content, truncated: res.truncated });
+    } catch (e: any) { setErr(e.message); }
+    finally { setPreviewLoading(false); }
+  };
+
+  return (
+    <div className="bg-white border border-violet-200 rounded-lg overflow-hidden">
+      <div className="bg-violet-50 px-4 py-2.5 border-b border-violet-100 flex items-center justify-between">
+        <span className="font-semibold text-sm text-primary-dark">File Laporan (LHP)</span>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {loading ? '…' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {err && <div className="p-3 text-xs text-red-700 bg-red-50">{err}</div>}
+      {loading && <div className="p-3 text-xs text-gray-400 italic">Memuat file laporan…</div>}
+      {!loading && files.length === 0 && (
+        <div className="p-4 text-xs text-gray-500">
+          Belum ada file laporan di folder <code className="bg-gray-100 px-1 rounded">_LHP</code>. Generate laporan terlebih dahulu via chat.
+        </div>
+      )}
+      {!loading && files.length > 0 && (
+        <table className="w-full text-sm">
+          <tbody>
+            {files.map((f) => (
+              <tr key={f.path} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                <td className="px-4 py-2 w-8 text-base">{iconForExt(f.ext)}</td>
+                <td className="px-2 py-2">
+                  <div className="font-medium text-xs">{f.name}</div>
+                  <div className="text-[10px] text-gray-400 font-mono">{f.path}</div>
+                </td>
+                <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{formatBytes(f.size_bytes)}</td>
+                <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{formatTime(f.mtime)}</td>
+                <td className="px-2 py-2 text-right whitespace-nowrap">
+                  {PREVIEWABLE.has(f.ext) && (
+                    <button
+                      onClick={() => doPreview(f)}
+                      disabled={previewLoading}
+                      className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-100 mr-1 disabled:opacity-50"
+                    >
+                      Lihat
+                    </button>
+                  )}
+                  <button
+                    onClick={() => doDownload(f)}
+                    className="text-xs px-2 py-1 rounded bg-primary text-white hover:bg-primary-dark"
+                  >
+                    Unduh
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center px-5 py-3 border-b border-gray-200">
+              <div className="font-mono text-sm">{preview.path}</div>
+              <button onClick={() => setPreview(null)} className="text-gray-500 hover:text-gray-800 text-xl">×</button>
+            </div>
+            <pre className="flex-1 overflow-auto p-5 text-xs whitespace-pre-wrap font-mono bg-gray-50">
+              {preview.content}
+            </pre>
+            {preview.truncated && (
+              <div className="px-5 py-2 text-xs text-amber-700 bg-amber-50 border-t border-amber-200">
+                File besar — hanya 50 KB awal yang ditampilkan. Klik Unduh untuk file lengkap.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SasaranApprovalPanel({ penugasanId, onSaved }: { penugasanId: number; onSaved?: () => void }) {
+  const [sasaran, setSasaran] = useState<Array<{
+    sasaran_id: string; deskripsi: string; assigned_to: string[];
+    langkah_kerja: string[]; status: string; waktu?: string; no_kkp?: string;
+  }>>([]);
+  const [meta, setMeta] = useState<{ nomor_pkp?: string }>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getSasaranAssignment(penugasanId);
+      setSasaran(data.sasaran || []);
+      setMeta({ nomor_pkp: data.nomor_pkp });
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [penugasanId]);
+
+  const ubahStatus = (idx: number, newStatus: string) => {
+    setSasaran(prev => prev.map((s, i) => i === idx ? { ...s, status: newStatus } : s));
+  };
+
+  const setujuiSemua = async () => {
+    const hasPending = sasaran.some(s => s.status !== 'DISETUJUI_KT' && s.status !== 'DIKEMBALIKAN_AT' && s.status !== 'DIBATALKAN');
+    const updated = sasaran.map(s =>
+      s.status === 'DIBATALKAN' || s.status === 'DIKEMBALIKAN_AT' ? s : { ...s, status: 'DISETUJUI_KT' }
+    );
+    setSasaran(updated);
+    setSaving(true); setMsg(null);
+    try {
+      await api.saveSasaranAssignment(penugasanId, updated, meta);
+      setMsg('Sasaran yang belum dikembalikan telah disetujui semua.');
+      onSaved?.();
+    } catch (e: any) { setMsg(`Gagal simpan: ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
+  const simpan = async () => {
+    setSaving(true); setMsg(null);
+    try {
+      await api.saveSasaranAssignment(penugasanId, sasaran, meta);
+      setMsg('Keputusan sasaran disimpan.');
+      onSaved?.();
+    } catch (e: any) { setMsg(`Gagal simpan: ${e.message}`); }
+    finally { setSaving(false); }
+  };
+
+  if (loading) return <div className="p-3 text-xs text-gray-400 italic">Memuat sasaran…</div>;
+  if (!sasaran.length) return null;
+
+  const disetujuiCount = sasaran.filter(s => s.status === 'DISETUJUI_KT').length;
+  const dikembalikanCount = sasaran.filter(s => s.status === 'DIKEMBALIKAN_AT').length;
+  const allDone = disetujuiCount === sasaran.length;
+  const hasPending = sasaran.some(s => s.status !== 'DISETUJUI_KT' && s.status !== 'DIKEMBALIKAN_AT' && s.status !== 'DIBATALKAN');
+
+  const badgeClass = (status: string) => {
+    if (status === 'DISETUJUI_KT') return 'bg-green-100 text-green-700';
+    if (status === 'DIKEMBALIKAN_AT') return 'bg-orange-100 text-orange-700';
+    if (status === 'DIBATALKAN') return 'bg-red-100 text-red-600';
+    return 'bg-yellow-100 text-yellow-700';
+  };
+  const badgeLabel = (status: string) => {
+    if (status === 'DISETUJUI_KT') return '✓ Disetujui';
+    if (status === 'DIKEMBALIKAN_AT') return '↩ Dikembalikan ke AT';
+    if (status === 'DIBATALKAN') return '✗ Dibatalkan';
+    return 'Menunggu';
+  };
+
+  return (
+    <div className="bg-white border border-indigo-200 rounded-lg p-4">
+      <div className="flex justify-between items-start mb-3 gap-2 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-primary-dark text-sm">
+            Persetujuan Sasaran PKP — Ketua Tim
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Setujui semua sasaran untuk membuka Tahapan 5 (Konsep LHP). Sasaran yang dikembalikan ke AT harus dikoreksi terlebih dahulu.
+          </p>
+        </div>
+        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${allDone ? 'bg-green-100 text-green-700' : dikembalikanCount > 0 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+          {disetujuiCount}/{sasaran.length} Disetujui
+          {dikembalikanCount > 0 && ` · ${dikembalikanCount} dikembalikan`}
+        </span>
+      </div>
+
+      {dikembalikanCount > 0 && (
+        <div className="mb-3 p-2 rounded bg-orange-50 border border-orange-200 text-xs text-orange-800">
+          Ada {dikembalikanCount} sasaran yang dikembalikan ke AT untuk dikoreksi. AT perlu memperbaiki langkah kerja sasaran tersebut sebelum KT dapat melanjutkan.
+        </div>
+      )}
+
+      <div className="space-y-2 mb-3">
+        {sasaran.map((s, i) => (
+          <div key={s.sasaran_id} className={`flex items-center gap-2 p-2 rounded border bg-gray-50 ${s.status === 'DIKEMBALIKAN_AT' ? 'border-orange-200' : 'border-gray-100'}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold shrink-0 ${badgeClass(s.status)}`}>
+              {badgeLabel(s.status)}
+            </span>
+            <span className="text-xs flex-1 min-w-0 truncate" title={s.deskripsi}>
+              <span className="font-mono text-gray-400 mr-1">{s.sasaran_id}</span>
+              {s.deskripsi}
+            </span>
+            {s.status !== 'DIBATALKAN' && (
+              <div className="flex gap-1 shrink-0">
+                {s.status !== 'DISETUJUI_KT' && (
+                  <button
+                    onClick={() => ubahStatus(i, 'DISETUJUI_KT')}
+                    className="text-[11px] px-2 py-0.5 rounded bg-indigo-500 text-white hover:bg-indigo-600"
+                  >
+                    Setujui
+                  </button>
+                )}
+                {s.status !== 'DIKEMBALIKAN_AT' && (
+                  <button
+                    onClick={() => ubahStatus(i, 'DIKEMBALIKAN_AT')}
+                    className="text-[11px] px-2 py-0.5 rounded bg-orange-500 text-white hover:bg-orange-600"
+                  >
+                    Tidak Setujui
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {msg && (
+        <div className={`text-xs p-2 rounded mb-3 ${msg.startsWith('Gagal') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+          {msg}
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        {hasPending && (
+          <button
+            onClick={setujuiSemua}
+            disabled={saving}
+            className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 font-semibold"
+          >
+            {saving ? 'Menyimpan…' : 'Setujui Semua yang Pending → Lanjut ke LHP'}
+          </button>
+        )}
+        <button
+          onClick={simpan}
+          disabled={saving}
+          className="px-3 py-1.5 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? 'Menyimpan…' : 'Simpan Persetujuan'}
+        </button>
+        <button
+          onClick={load}
+          disabled={saving}
+          className="px-2.5 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          ↻ Refresh
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
   const session = getSession();
   const canApprove = ['AT', 'KT', 'PT', 'PM'].includes(session?.role_aktif || '');
   const canReject = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
   const canBulk = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
-  const canEdit = ['KT', 'PT', 'PM'].includes(session?.role_aktif || '');
+  const canEdit = ['AT', 'KT', 'PT', 'PM'].includes(session?.role_aktif || '');
 
   const [items, setItems] = useState<TemuanReviewItem[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -3182,6 +3487,15 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
             Setujui/tolak tiap temuan sebelum render KKP & LHR final. Default <code>PENDING</code> saat agen baru tulis.
           </p>
         </div>
+        <div className="flex gap-2 items-center flex-wrap">
+        <button
+          onClick={refresh}
+          disabled={loading}
+          className="px-2.5 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          title="Refresh daftar temuan"
+        >
+          {loading ? '…' : '↻ Refresh'}
+        </button>
         {canBulk && (counts['PENDING'] || 0) > 0 && (
           <button
             onClick={doBulkApprove}
@@ -3191,6 +3505,7 @@ function TemuanReviewPanel({ penugasanId }: { penugasanId: number }) {
             {busy === 'bulk' ? 'Memproses…' : `✓ Setujui semua ${counts['PENDING']} pending`}
           </button>
         )}
+        </div>
       </div>
 
       <div className="text-xs text-gray-600 mb-2 flex gap-3 flex-wrap">

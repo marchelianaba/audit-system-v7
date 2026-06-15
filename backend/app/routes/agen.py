@@ -503,7 +503,7 @@ async def _execute_run(handle: RunHandle, user_prompt: str, user_id: int) -> Non
         async with SessionLocal() as db:
             row = (await db.execute(select(AgentRun).where(AgentRun.id == run_id))).scalar_one()
             row.status = "failed" if error_msg else "completed"
-            row.output_summary = "".join(output_parts)[:2000]
+            row.output_summary = "".join(output_parts)[:10000]
             row.tool_calls = tool_calls
             row.error_message = error_msg
             row.ended_at = datetime.utcnow()

@@ -96,6 +96,10 @@ def parse_context(context_path: Path) -> dict:
     m = re.search(r"^Ruang Lingkup\s*:\s*(.+?)(?=\n\n|\n##)", text, re.MULTILINE | re.DOTALL)
     if m:
         out["ruang_lingkup"] = m.group(1).strip()
+    # Ringkasan Obyek — heading ## Ringkasan Obyek diikuti paragraf isi
+    m = re.search(r"##\s*Ringkasan Obyek\s*\n+([\s\S]+?)(?=\n##|\Z)", text, re.IGNORECASE)
+    if m:
+        out["ringkasan_obyek"] = m.group(1).strip()
     # Tim — tabel
     tim = []
     in_tim = False
@@ -264,7 +268,7 @@ def build_mapping(pen_dir: Path, args) -> tuple[dict, list, dict, dict]:
             "pipeline pre-digest dan cross-check otomatis audit-system-v4 untuk "
             "mendeteksi anomali struktural antar dokumen."
         ),
-        "GAMBARAN_UMUM": args.gambaran_umum or "[DIISI — gambaran obyek pengadaan, nilai HPS, mekanisme pengadaan]",
+        "GAMBARAN_UMUM": args.gambaran_umum or ctx.get("ringkasan_obyek") or "[DIISI — gambaran obyek pengadaan, nilai HPS, mekanisme pengadaan]",
         "HASIL_REVIU_INTRO": (
             f"Berdasarkan penelaahan atas dokumen perencanaan, tim Inspektorat II "
             f"memperoleh {len(kkp['temuan'])} ({_terbilang(len(kkp['temuan']))}) "
@@ -323,7 +327,7 @@ def build_hasil_reviu_blocks(kkp: dict, sa: dict, rekomendasi: dict, jenis: str)
     for idx, sid in enumerate(sorted(per_sasaran.keys())):
         sasaran_obj = next(x for x in sa["sasaran"] if x["sasaran_id"] == sid)
         # Sub-heading aspek
-        section_title = f"{aspek_letter_seq[idx]}. Aspek {sid} — {sasaran_obj['deskripsi'][:60]}{'...' if len(sasaran_obj['deskripsi'])>60 else ''}"
+        section_title = f"{aspek_letter_seq[idx]}. Aspek {sid} — {sasaran_obj['deskripsi']}"
         blocks.append((section_title, {"bold": True, "size": 12}))
         blocks.append((f"Sasaran: {sasaran_obj['deskripsi']}", {"italic": True, "indent": 0.5, "align": "justify"}))
 

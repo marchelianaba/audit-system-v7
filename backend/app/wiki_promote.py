@@ -72,11 +72,11 @@ def _existing_patterns() -> dict[str, dict]:
         if not skill_dir.is_dir():
             continue
         for f in skill_dir.glob("*.md"):
-            if f.name.lower() == "readme.md":
+            if f.name.lower() == "readme.md" or f.name.startswith("._"):
                 continue
             try:
                 meta, _ = _parse_frontmatter(f.read_text(encoding="utf-8"))
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             pid = str(meta.get("id", f.stem)).upper().strip()
             if not pid:

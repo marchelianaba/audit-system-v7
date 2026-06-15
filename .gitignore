@@ -35,7 +35,11 @@ backend/wiki/
 
 # OS
 .DS_Store
+._*
 Thumbs.db
+
+# Dev server logs
+*.log.err
 
 # IDE
 .vscode/

@@ -23,6 +23,7 @@ class Skill(str, Enum):
 class PenugasanStatus(str, Enum):
     USULAN_CACM = "USULAN_CACM"  # draft usulan dari sinyal EWS/CACM, belum diterima PT
     DRAFT = "DRAFT"
+    PKP_DONE = "PKP_DONE"  # KT sudah isi sasaran-assignment.json (PKP selesai)
     INGESTING = "INGESTING"
     KKP_IN_PROGRESS = "KKP_IN_PROGRESS"
     KKP_QC = "KKP_QC"

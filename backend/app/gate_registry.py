@@ -29,9 +29,12 @@ def _tasks_dir() -> Path:
 def _parse_gate_file(path: Path) -> dict | None:
     """Parse satu file bertahap → {skill, file, gates:[{id, judul}]}. None bila
     tidak menyebut skill induk atau tak punya gate."""
+    # Skip macOS AppleDouble shadow files (._*) — binary, bukan UTF-8
+    if path.name.startswith("._"):
+        return None
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     skill = None
     gates: list[dict] = []

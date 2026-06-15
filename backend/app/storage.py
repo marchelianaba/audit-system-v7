@@ -188,6 +188,15 @@ def compute_penugasan_status(folder: Path, dokumen_statuses: list[str], stored_s
 
     if any(s == "INGESTING" for s in dokumen_statuses):
         return PenugasanStatus.INGESTING
+
+    pkp_file = folder / "_PKP" / "sasaran-assignment.json"
+    if pkp_file.exists():
+        try:
+            sa = json.loads(pkp_file.read_text(encoding="utf-8"))
+            if isinstance(sa, dict) and sa.get("sasaran"):
+                return PenugasanStatus.PKP_DONE
+        except (json.JSONDecodeError, OSError):
+            pass
     return PenugasanStatus.DRAFT
 
 

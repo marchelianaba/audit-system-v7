@@ -1238,7 +1238,7 @@ async def edit_temuan(
     current: tuple[User, Role] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Edit field temuan via overlay (judul/kondisi/kriteria/akibat). KT/PT/PM only.
+    """Edit field temuan via overlay (judul/kondisi/kriteria/akibat). AT/KT/PT/PM.
 
     Strategi: temuan.json (sumber kebenaran V6) TIDAK diubah. Edit disimpan di
     `TemuanReview.edited_fields` (JSONB). Saat render KKP, v7 overlay edited_fields
@@ -1251,10 +1251,10 @@ async def edit_temuan(
     Untuk hapus edit field tertentu, kirim string kosong eksplisit "".
     """
     user, role = current
-    if role not in (Role.KT, Role.PT, Role.PM):
+    if role not in (Role.AT, Role.KT, Role.PT, Role.PM):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            f"Edit temuan hanya untuk KT/PT/PM. Role: {role.value}.",
+            f"Edit temuan hanya untuk AT/KT/PT/PM. Role: {role.value}.",
         )
     await _get_penugasan_or_404(db, penugasan_id)
 
@@ -1363,6 +1363,46 @@ async def bulk_approve_temuan(
         n_approved += 1
     await db.commit()
     return {"ok": True, "approved_count": n_approved, "total_temuan": len(temuan_list)}
+
+
+@router.delete("/{penugasan_id}/temuan/{temuan_id}")
+async def delete_temuan(
+    penugasan_id: int,
+    temuan_id: str,
+    current: tuple[User, Role] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Hapus 1 temuan dari _KKP/temuan.json + hapus TemuanReview row-nya. AT/KT/PT/PM."""
+    user, role = current
+    if role not in (Role.AT, Role.KT, Role.PT, Role.PM):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Role {role.value} tidak bisa hapus temuan.")
+    p = await _get_penugasan_or_404(db, penugasan_id)
+    folder = Path(p.folder_path)
+    temuan_path = folder / "_KKP" / "temuan.json"
+    if not temuan_path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "temuan.json tidak ditemukan.")
+    try:
+        data = json.loads(temuan_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Gagal baca temuan.json: {e}")
+    temuan_list = data.get("temuan", []) if isinstance(data, dict) else []
+    before = len(temuan_list)
+    data["temuan"] = [t for t in temuan_list if str(t.get("id_temuan") or "").strip() != temuan_id]
+    if len(data["temuan"]) == before:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Temuan {temuan_id} tidak ditemukan.")
+    temuan_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    rev = (await db.execute(
+        select(TemuanReview).where(
+            TemuanReview.penugasan_id == penugasan_id,
+            TemuanReview.temuan_id == temuan_id,
+        )
+    )).scalar_one_or_none()
+    if rev:
+        await db.delete(rev)
+        await db.commit()
+
+    return {"ok": True, "deleted": temuan_id, "total_remaining": len(data["temuan"])}
 
 
 async def _upsert_review(

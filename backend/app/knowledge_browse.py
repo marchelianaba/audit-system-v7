@@ -62,9 +62,11 @@ def list_pattern_library(
         files = _scan_pattern_files(sk)
         total_all += len(files)
         for f in files:
+            if f.name.startswith("._"):  # skip macOS AppleDouble shadow files
+                continue
             try:
                 content = f.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             meta, _body = _parse_frontmatter(content)
             sev = str(meta.get("severity", "")).upper()
@@ -134,11 +136,11 @@ def get_pattern_full(pattern_id: str) -> dict[str, Any] | None:
         if not skill_dir.is_dir():
             continue
         for f in skill_dir.glob("*.md"):
-            if f.name.lower() == "readme.md":
+            if f.name.lower() == "readme.md" or f.name.startswith("._"):
                 continue
             try:
                 content = f.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             meta, body = _parse_frontmatter(content)
             if str(meta.get("id", f.stem)).strip() == pid:
@@ -288,9 +290,11 @@ def suggest_skeleton_from_patterns(skill: str) -> dict[str, Any]:
     files = _scan_pattern_files(skill)
     by_cat: dict[str, list[dict]] = {}
     for f in files:
+        if f.name.startswith("._"):  # skip macOS AppleDouble shadow files
+            continue
         try:
             content = f.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         meta, _ = _parse_frontmatter(content)
         kat = str(meta.get("kategori", "")).strip() or "LAIN"
@@ -362,9 +366,11 @@ def suggest_context_from_writeback(
     target_tokens = _tokenize(obyek)
     out: list[dict] = []
     for f in notes_dir.glob("pengawasan-*.md"):
+        if f.name.startswith("._"):
+            continue
         try:
             content = f.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         # Pull "Jenis pengawasan" + judul + total temuan dari format Karpathy W3
         title_match = re.search(r"^#\s+(.+?)$", content, re.MULTILINE)

@@ -67,7 +67,7 @@ function deriveStageStatus(
   //   LHP_IN_PROGRESS / LHP_QC → Konsep in_progress
   //   LHP_DONE → semua done
   const statusOrder = [
-    'DRAFT', 'INGESTING',
+    'DRAFT', 'PKP_DONE', 'INGESTING',
     'KKP_IN_PROGRESS', 'KKP_QC', 'KKP_DONE',
     'LHP_IN_PROGRESS', 'LHP_QC', 'LHP_DONE',
   ];
@@ -91,17 +91,17 @@ function deriveStageStatus(
     return 'pending';
   }
 
-  // Stage 4 LRS KK
+  // Stage 4 LRS KK — KKP_DONE dan seterusnya = done (via explicit); KKP_QC = in_progress
   if (stageNum === 4) {
     if (status === 'KKP_DONE' || status === 'LHP_IN_PROGRESS' || status === 'LHP_QC' || status === 'LHP_DONE') return 'done';
-    return idx >= 4 ? 'in_progress' : 'pending';
+    return idx >= 5 ? 'in_progress' : 'pending';
   }
 
-  // Stage 5 Konsep Laporan
+  // Stage 5 Konsep Laporan — unlock saat KKP_DONE (idx=5 setelah PKP_DONE sisip)
   if (stageNum === 5) {
     if (status === 'LHP_DONE') return 'done';
     if (status === 'LHP_IN_PROGRESS' || status === 'LHP_QC') return 'in_progress';
-    return idx >= 4 ? 'pending' : 'locked';
+    return idx >= 5 ? 'pending' : 'locked';
   }
 
   // Stage 6 LRS LHP — reviu PT/PM atas konsep LHP.

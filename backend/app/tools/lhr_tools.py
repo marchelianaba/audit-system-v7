@@ -422,25 +422,61 @@ async def render_report(args: dict) -> dict:
     {"penugasan_folder": str},
 )
 async def render_lhr_pbj(args: dict) -> dict:
-    """Note: V6 reviu-pengadaan/run_batch.py supports only --penugasan, --input-dir,
-    --render, --role. Tidak ada --context (KT baca context.md langsung dari folder).
-    --render WAJIB untuk trigger LHR generation (default OFF).
+    """Pipeline dua tahap untuk reviu-pengadaan:
+    1. run_batch.py (digest + cross_check) — TANPA --render karena template path
+       di run_batch.py hardcoded ke v6/templates/ yang tidak ada. Render dilakukan
+       terpisah di tahap 2 dengan template path dari settings (APP_TEMPLATES_PATH).
+    2. render_lhp.py langsung dengan --template dari resolve_lhp_template().
     """
+    folder = Path(args["penugasan_folder"])
+
+    # Tahap 1: digest pengadaan + cross_check (tanpa render)
     code, out, err = await run_v6_script(
         "scripts/reviu-pengadaan/run_batch.py",
         [
             "--penugasan", args["penugasan_folder"],
             "--role", "KT",
-            "--render",
+            # Tidak pakai --render: template path-nya hardcoded ke v6/templates/
+            # yang tidak ada. Render dikerjakan di tahap 2.
         ],
         timeout=180,
     )
     if code != 0:
         return {
-            "content": [{"type": "text", "text": f"FAILED|exit={code}|err={err[:400]}"}],
+            "content": [{"type": "text", "text": f"FAILED (digest/cross_check)|exit={code}|err={err[:400]}"}],
             "is_error": True,
         }
-    return {"content": [{"type": "text", "text": f"OK|{out[:200]}"}]}
+
+    # Tahap 2: render LHP dengan template path yang benar dari settings
+    template = resolve_lhp_template("reviu-pengadaan")
+    if template is None:
+        return {
+            "content": [{
+                "type": "text",
+                "text": (
+                    "FAILED (render)|template LHP reviu-pengadaan tidak ditemukan "
+                    "(cek APP_TEMPLATES_PATH/_skeleton-lhp/template-lhp-reviu-pengadaan.docx)"
+                ),
+            }],
+            "is_error": True,
+        }
+
+    render_cmd = ["--penugasan", args["penugasan_folder"], "--template", str(template)]
+    rekomendasi = folder / "_LHP" / "rekomendasi.json"
+    if rekomendasi.exists():
+        render_cmd += ["--rekomendasi-file", str(rekomendasi)]
+
+    code2, out2, err2 = await run_v6_script(
+        "scripts/render_lhp.py",
+        render_cmd,
+        timeout=120,
+    )
+    if code2 != 0:
+        return {
+            "content": [{"type": "text", "text": f"FAILED (render_lhp)|exit={code2}|err={err2[:400]}"}],
+            "is_error": True,
+        }
+    return {"content": [{"type": "text", "text": f"OK|digest+crosscheck+render|template={template.name}|{out2[:160]}"}]}
 
 
 @tool(

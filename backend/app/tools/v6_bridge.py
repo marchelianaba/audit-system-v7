@@ -7,6 +7,7 @@ script V6 tidak perlu diubah sama sekali.
 import asyncio
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,6 +23,10 @@ async def run_v6_script(
     timeout: int = 300,
 ) -> tuple[int, str, str]:
     """Jalankan script V6 sebagai subprocess Python async.
+
+    Memakai asyncio.to_thread + subprocess.run (bukan create_subprocess_exec)
+    agar kompatibel dengan Windows di mana SelectorEventLoop tidak support
+    create_subprocess_exec (terutama saat uvicorn --reload aktif).
 
     PENTING: pakai `sys.executable` (interpreter yang menjalankan uvicorn,
     biasanya `.venv/bin/python`) supaya subprocess MEWARISI semua package
@@ -43,25 +48,27 @@ async def run_v6_script(
         return (127, "", f"Script V6 tidak ditemukan: {script_path}")
 
     cmd = [sys.executable, str(script_path), *args]
-    log.info("Run V6: %s", " ".join(cmd))
+    log.info("Run V6: %s", " ".join(str(c) for c in cmd))
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(settings.v6_path),
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return (124, "", f"Timeout setelah {timeout} detik")
+    def _run_sync() -> tuple[int, str, str]:
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                cwd=str(settings.v6_path),
+                timeout=timeout,
+            )
+            return (
+                result.returncode,
+                result.stdout.decode("utf-8", errors="replace"),
+                result.stderr.decode("utf-8", errors="replace"),
+            )
+        except subprocess.TimeoutExpired:
+            return (124, "", f"Timeout setelah {timeout} detik")
+        except Exception as exc:
+            return (1, "", str(exc))
 
-    return (
-        proc.returncode or 0,
-        stdout.decode("utf-8", errors="replace"),
-        stderr.decode("utf-8", errors="replace"),
-    )
+    return await asyncio.to_thread(_run_sync)
 
 
 def qc_summary_counts(checklist: dict | list) -> tuple[int, int, int, int]:

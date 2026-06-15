@@ -476,6 +476,13 @@ export const api = {
       { method: 'PUT', body: JSON.stringify(edits) }
     ),
 
+  /** Hapus 1 temuan dari temuan.json (AT/KT/PT/PM). */
+  deleteTemuan: (penugasanId: number, temuanId: string) =>
+    request<{ ok: boolean; deleted: string; total_remaining: number }>(
+      `/penugasan/${penugasanId}/temuan/${encodeURIComponent(temuanId)}`,
+      { method: 'DELETE' }
+    ),
+
   // ===== Reviu Konsep LHP (S3.2 — tahapan 6 LRS LHP, PT/PM) =====
   /** Riwayat reviu konsep LHP. latest_status: APPROVED | NEEDS_REVISION | null. */
   listLhpReview: (penugasanId: number) =>
